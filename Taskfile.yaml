@@ -1,0 +1,17 @@
+version: "3"
+
+tasks:
+  init:
+    desc: "Init folder"
+    cmds:
+      - mise upgrade
+      - cog install-hook -a -o
+  recu:
+    desc: "Recuring job like regenerating Swagger spec"
+    cmds:
+      - echo "Your future spec generating cmd"
+  
+  lint:
+    desc: "Linting your project to apply good practice"
+    cmds:
+      - echo "Something like cargo fmt && cargo clippy"

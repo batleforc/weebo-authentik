@@ -1,0 +1,8 @@
+[tools]
+cocogitto = "latest"
+node = "24"
+rust = "latest"
+task = "latest"
+gitleaks = "latest"
+claude = "latest"
+rtk = "latest"

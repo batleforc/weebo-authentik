@@ -1,0 +1,47 @@
+from_latest_tag = false
+ignore_merge_commits = false
+disable_changelog = false
+disable_bump_commit = false
+generate_mono_repository_global_tag = true
+branch_whitelist = []
+skip_ci = "[skip ci]"
+skip_untracked = false
+post_bump_hooks = []
+post_package_bump_hooks = []
+tag_prefix = "v"
+
+pre_bump_hooks = []
+
+
+[git_hooks]
+
+[git_hooks.commit-msg]
+script = """#!/bin/sh
+set -e
+cog verify --file $1
+cog check
+"""
+
+[git_hooks.pre-commit]
+script = """#!/bin/sh
+set -e
+task recu
+git add . # in case recu needed to regenerate files, add need to be done before linting
+task lint
+git add . # in case linting fixed anything
+gitleaks git --pre-commit --redact --staged --verbose
+.hooks/end-of-line.sh
+.hooks/whitespace-fixer.sh
+"""
+
+[commit_types]
+release = { changelog_title = "Releases" }
+
+[changelog]
+path = "CHANGELOG.md"
+template = "remote"
+remote = "github.com"
+repository = "proxyauthK8s"
+owner = "batleforc"
+
+[bump_profiles]

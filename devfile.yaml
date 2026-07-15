@@ -1,0 +1,5 @@
+schemaVersion: 2.3.0
+metadata:
+  name: weebo-base
+parent:
+  uri: https://raw.githubusercontent.com/batleforc/WeeboDevImage/refs/heads/main/che-min-mise/devfile.yaml
