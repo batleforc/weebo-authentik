@@ -9,9 +9,11 @@ tasks:
   recu:
     desc: "Recuring job like regenerating Swagger spec"
     cmds:
-      - echo "Your future spec generating cmd"
-  
+      - cargo run -p crdgen -- --out deploy/crd/
+      - node docs/scripts/gen-crd-docs.mjs
+
   lint:
     desc: "Linting your project to apply good practice"
     cmds:
-      - echo "Something like cargo fmt && cargo clippy"
+      - cargo fmt --check
+      - cargo clippy --workspace --all-targets -- -D warnings
