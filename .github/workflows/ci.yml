@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # testkit -> envtest needs libclang.so for its rust2go/bindgen build
+      # step (see crates/testkit/src/envtest.rs) — pulled in transitively
+      # by `cargo clippy --all-targets`, so this job needs it too.
+      - name: Install libclang (bindgen/rust2go)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+          echo "LIBCLANG_PATH=$(dirname "$(dpkg -L libclang-dev | grep -m1 'libclang\.so')")" >> "$GITHUB_ENV"
+
+      - name: Cache cargo registry and target dir
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install mise-managed tools (rust, go, task, ...)
+        run: mise install
+
+      - name: Lint
+        run: mise exec -- task lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install libclang (bindgen/rust2go)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+          echo "LIBCLANG_PATH=$(dirname "$(dpkg -L libclang-dev | grep -m1 'libclang\.so')")" >> "$GITHUB_ENV"
+
+      - name: Cache cargo registry and target dir
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install mise-managed tools (rust, go, task, ...)
+        run: mise install
+
+      - name: Unit + contract tests
+        run: mise exec -- task test
+
+      - name: Real envtest-backed controller integration tests
+        run: mise exec -- task test:integration
+
+  regen-and-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install mise-managed tools (rust, ...)
+        run: mise install
+
+      - name: Regenerate CRDs from source
+        run: mise exec -- cargo run -p crdgen -- --out deploy/crd/
+
+      - name: Fail if committed CRDs are stale
+        run: git diff --exit-code deploy/crd/

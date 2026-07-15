@@ -1,0 +1,17 @@
+[package]
+name = "adapters-outbound"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+api = { workspace = true }
+application = { workspace = true }
+authentik-client = { workspace = true }
+kube = { workspace = true }
+k8s-openapi = { workspace = true }
+vaultrs = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }

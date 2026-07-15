@@ -1,0 +1,109 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: authentikinstances.authentik.weebo.io
+spec:
+  group: authentik.weebo.io
+  names:
+    categories: []
+    kind: AuthentikInstance
+    plural: authentikinstances
+    shortNames: []
+    singular: authentikinstance
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for AuthentikInstanceSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Connection to a real Authentik server. Cluster-scoped — an org-wide,
+              shared piece of infrastructure, not owned by a single namespace.
+            properties:
+              tls:
+                default:
+                  insecureSkipVerify: false
+                properties:
+                  insecureSkipVerify:
+                    default: false
+                    type: boolean
+                type: object
+              tokenSecretRef:
+                properties:
+                  key:
+                    type: string
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                required:
+                - key
+                - name
+                - namespace
+                type: object
+              url:
+                description: Base URL of the Authentik instance, e.g. `https://login.example.com`.
+                type: string
+            required:
+            - tokenSecretRef
+            - url
+            type: object
+          status:
+            nullable: true
+            properties:
+              authentikId:
+                description: |-
+                  The Authentik-side primary key. Presence means this CR actually
+                  owns/created the corresponding Authentik object — set once on
+                  first successful create (or seeded by the import tool), never
+                  inferred by name-matching. See `.prompt/plan.md`.
+                nullable: true
+                type: string
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                      format: date-time
+                      nullable: true
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      nullable: true
+                      type: integer
+                    reason:
+                      description: |-
+                        One of `domain::error::ReasonCode`'s `as_str()` values — never a
+                        hand-written string.
+                      type: string
+                    status:
+                      description: '`"True"`, `"False"`, or `"Unknown"`.'
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+            type: object
+        required:
+        - spec
+        title: AuthentikInstance
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

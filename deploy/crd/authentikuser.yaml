@@ -1,0 +1,105 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: authentikusers.authentik.weebo.io
+spec:
+  group: authentik.weebo.io
+  names:
+    categories: []
+    kind: AuthentikUser
+    plural: authentikusers
+    shortNames: []
+    singular: authentikuser
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for AuthentikUserSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Mirrors `authentik_user`. Cluster-scoped, like `AuthentikGroup`.
+
+              Deliberately has **no credential/password field** — Authentik owns its
+              own invite/reset flows. If a bootstrap password is ever needed it goes
+              through `SecretStore` (generated, never stored in this spec). See
+              `.prompt/plan.md`.
+            properties:
+              email:
+                type: string
+              groupRefs:
+                default: []
+                description: Names of `AuthentikGroup` CRs this user belongs to.
+                items:
+                  type: string
+                type: array
+              isActive:
+                default: true
+                type: boolean
+              name:
+                type: string
+              username:
+                type: string
+            required:
+            - email
+            - name
+            - username
+            type: object
+          status:
+            nullable: true
+            properties:
+              authentikId:
+                description: |-
+                  The Authentik-side primary key. Presence means this CR actually
+                  owns/created the corresponding Authentik object — set once on
+                  first successful create (or seeded by the import tool), never
+                  inferred by name-matching. See `.prompt/plan.md`.
+                nullable: true
+                type: string
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                      format: date-time
+                      nullable: true
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      nullable: true
+                      type: integer
+                    reason:
+                      description: |-
+                        One of `domain::error::ReasonCode`'s `as_str()` values — never a
+                        hand-written string.
+                      type: string
+                    status:
+                      description: '`"True"`, `"False"`, or `"Unknown"`.'
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+            type: object
+        required:
+        - spec
+        title: AuthentikUser
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,0 +1,128 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: authentikbrands.authentik.weebo.io
+spec:
+  group: authentik.weebo.io
+  names:
+    categories: []
+    kind: AuthentikBrand
+    plural: authentikbrands
+    shortNames: []
+    singular: authentikbrand
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for AuthentikBrandSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Mirrors `authentik_brand`. Cluster-scoped — a brand is tied to a domain
+              at the instance level, not to an application namespace. See
+              `.prompt/plan.md`, "Election du brand par defaut" for the `default`
+              field's reconcile semantics (implemented in `domain::brand_election`,
+              wired up in the `application` crate's `reconcile_brand` use-case).
+            properties:
+              brandingDefaultFlowBackground:
+                nullable: true
+                type: string
+              brandingFavicon:
+                nullable: true
+                type: string
+              brandingLogo:
+                nullable: true
+                type: string
+              brandingTitle:
+                nullable: true
+                type: string
+              default:
+                default: false
+                type: boolean
+              defaultApplicationRef:
+                description: |-
+                  Name of an `AuthentikApplication` CR, same-namespace convention
+                  does not apply here since this CRD is cluster-scoped.
+                nullable: true
+                type: string
+              domain:
+                type: string
+              flowAuthentication:
+                description: |-
+                  Flow slugs, resolved at reconcile time — no `AuthentikFlow` CRD in
+                  v1, see `.prompt/plan.md`.
+                nullable: true
+                type: string
+              flowInvalidation:
+                nullable: true
+                type: string
+              flowRecovery:
+                nullable: true
+                type: string
+              flowUnenrollment:
+                nullable: true
+                type: string
+              flowUserSettings:
+                nullable: true
+                type: string
+            required:
+            - domain
+            type: object
+          status:
+            nullable: true
+            properties:
+              authentikId:
+                description: |-
+                  The Authentik-side primary key. Presence means this CR actually
+                  owns/created the corresponding Authentik object — set once on
+                  first successful create (or seeded by the import tool), never
+                  inferred by name-matching. See `.prompt/plan.md`.
+                nullable: true
+                type: string
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                      format: date-time
+                      nullable: true
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      nullable: true
+                      type: integer
+                    reason:
+                      description: |-
+                        One of `domain::error::ReasonCode`'s `as_str()` values — never a
+                        hand-written string.
+                      type: string
+                    status:
+                      description: '`"True"`, `"False"`, or `"Unknown"`.'
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+            type: object
+        required:
+        - spec
+        title: AuthentikBrand
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

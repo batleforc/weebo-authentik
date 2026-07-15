@@ -1,0 +1,22 @@
+[package]
+name = "operator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+api = { workspace = true }
+application = { workspace = true }
+adapters-outbound = { workspace = true }
+adapters-inbound = { workspace = true }
+kube = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+axum = { workspace = true }
+anyhow = { workspace = true }

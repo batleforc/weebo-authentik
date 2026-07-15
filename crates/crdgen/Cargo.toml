@@ -1,0 +1,13 @@
+[package]
+name = "crdgen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+api = { workspace = true }
+kube = { workspace = true }
+serde = { workspace = true }
+serde_norway = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }

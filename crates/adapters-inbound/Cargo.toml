@@ -1,0 +1,24 @@
+[package]
+name = "adapters-inbound"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+api = { workspace = true }
+application = { workspace = true }
+kube = { workspace = true }
+k8s-openapi = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+futures = "0.3"
+
+[dev-dependencies]
+testkit = { workspace = true }
+adapters-outbound = { workspace = true }
+tracing-subscriber = { workspace = true }

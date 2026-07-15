@@ -1,5 +1,16 @@
 version: "3"
 
+# `testkit` (dev-dependency of `adapters-inbound`, pulled in by any cargo
+# invocation that builds its tests, including `clippy --all-targets`) pulls
+# in the `envtest` crate, which needs a Go toolchain (`mise use go`) and a
+# real `libclang.so` on LIBCLANG_PATH — see crates/testkit/src/envtest.rs
+# for why mise's own `clang` package isn't enough. Defaults below match
+# that file's documented setup; override by exporting these yourself
+# before running `task` if your setup differs.
+env:
+  LIBCLANG_PATH: '{{.LIBCLANG_PATH | default "/home/user/.local/share/llvm-libclang/22.1.8/lib"}}'
+  BINDGEN_EXTRA_CLANG_ARGS: '{{.BINDGEN_EXTRA_CLANG_ARGS | default "-I/usr/lib/gcc/x86_64-linux-gnu/15/include -I/usr/include"}}'
+
 tasks:
   init:
     desc: "Init folder"
@@ -9,11 +20,29 @@ tasks:
   recu:
     desc: "Recuring job like regenerating Swagger spec"
     cmds:
-      - cargo run -p crdgen -- --out deploy/crd/
+      - mise exec -- cargo run -p crdgen -- --out deploy/crd/
       - node docs/scripts/gen-crd-docs.mjs
 
   lint:
     desc: "Linting your project to apply good practice"
     cmds:
-      - cargo fmt --check
-      - cargo clippy --workspace --all-targets -- -D warnings
+      - mise exec -- cargo fmt --check
+      - mise exec -- cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    desc: "Fast unit + contract tests (lib-level, no real cluster)"
+    cmds:
+      - mise exec -- cargo test --workspace --lib --bins
+
+  test:integration:
+    desc: >
+      Real envtest-backed controller integration tests — spins up a real
+      kube-apiserver + etcd (crates/testkit/src/envtest.rs).
+    cmds:
+      - mise exec -- cargo test --workspace --tests
+
+  test:all:
+    desc: "Every test suite: unit/contract + real envtest integration"
+    cmds:
+      - task: test
+      - task: test:integration
