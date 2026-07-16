@@ -1,0 +1,45 @@
+{{- if .Values.rbac.namespacedExample.enabled -}}
+{{- $ns := .Values.rbac.namespacedExample.namespace | default .Release.Namespace -}}
+# Example, narrow, namespaced Role — mirrors .prompt/plan.md's "Role/
+# RoleBinding namespaced ... donnant seulement les verbes sur
+# AuthentikApplication/AuthentikAccessPolicy". This documents/exemplifies
+# the intended boundary (a team gets to create Applications/AccessPolicy
+# in their own namespace; AuthentikInstance/Group/User/NamespacePolicy
+# stay cluster-admin-only, since they're cluster-scoped) rather than
+# leaving it implicit — it is NOT the operator's own RBAC, see
+# clusterrole.yaml for that.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "weebo-authentik.fullname" . }}-app-author
+  namespace: {{ $ns }}
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["authentik.weebo.io"]
+    resources:
+      - authentikapplications
+      - authentikaccesspolicies
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["authentik.weebo.io"]
+    resources:
+      - authentikapplications/status
+      - authentikaccesspolicies/status
+    verbs: ["get"]
+{{- if .Values.rbac.namespacedExample.subjects }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "weebo-authentik.fullname" . }}-app-author
+  namespace: {{ $ns }}
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "weebo-authentik.fullname" . }}-app-author
+subjects:
+  {{- toYaml .Values.rbac.namespacedExample.subjects | nindent 2 }}
+{{- end }}
+{{- end -}}

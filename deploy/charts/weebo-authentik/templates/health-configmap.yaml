@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "weebo-authentik.fullname" . }}-argocd-health
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+data:
+  # Shared by every CRD kind — they all share the identical
+  # status.conditions[type=Ready] shape (api::status::AuthentikStatus).
+  # This ConfigMap only *ships* the script for reference; ArgoCD reads
+  # its resource-customization Lua from its own `argocd-cm` ConfigMap in
+  # the argocd namespace, which this chart has no business writing to.
+  # See NOTES.txt for the exact keys to paste there.
+  health.lua: |
+    hs = {}
+    if obj.status ~= nil and obj.status.conditions ~= nil then
+      for i, condition in ipairs(obj.status.conditions) do
+        if condition.type == "Ready" then
+          if condition.status == "True" then
+            hs.status = "Healthy"
+          elseif condition.status == "False" then
+            hs.status = "Degraded"
+          else
+            hs.status = "Progressing"
+          end
+          hs.message = condition.message
+          return hs
+        end
+      end
+    end
+    hs.status = "Progressing"
+    hs.message = "Waiting for Ready condition"
+    return hs

@@ -1,0 +1,60 @@
+weebo-authentik-operator has been installed.
+
+Prerequisites this chart assumes are already in place:
+  - cert-manager, plus an Issuer/ClusterIssuer named
+    "{{ .Values.certManager.issuerRef.name }}" ({{ .Values.certManager.issuerRef.kind }})
+    — the chart only creates the Certificate, never the issuer itself.
+
+1. Connect an AuthentikInstance
+   Create a Secret with your Authentik API token, then:
+
+     apiVersion: authentik.weebo.io/v1alpha1
+     kind: AuthentikInstance
+     metadata:
+       name: <name>
+     spec:
+       url: https://your-authentik.example.com
+       tokenSecretRef:
+         name: <secret-name>
+         namespace: <secret-namespace>
+         key: token
+
+2. Replica count / leader election
+   `replicaCount` defaults to 2. Only the elected leader
+   (`operator::main`'s `kube-leader-election`-backed Lease) runs
+   reconcilers at any given time; the webhook stays active on every
+   replica regardless, so a leader failover never interrupts admission
+   requests. Losing leadership makes a replica exit immediately (crash,
+   let Kubernetes restart it, another replica races for the lease) —
+   there is no graceful in-process handoff.
+
+3. Namespaced RBAC example (rbac.namespacedExample)
+   Off by default — the chart has no way to know which real users/groups
+   a cluster-admin wants to grant "create AuthentikApplication/
+   AuthentikAccessPolicy in this namespace" to. Set
+   `rbac.namespacedExample.enabled=true`,
+   `rbac.namespacedExample.namespace=<team-namespace>`, and
+   `rbac.namespacedExample.subjects` (standard RBAC subjects list, e.g.
+   `[{kind: Group, name: team-a, apiGroup: rbac.authorization.k8s.io}]`)
+   to render a Role + RoleBinding scoped to just those two CRDs.
+
+4. ArgoCD health checks
+   This chart ships a ConfigMap
+   ({{ include "weebo-authentik.fullname" . }}-argocd-health) containing
+   the Lua health check every CRD kind needs (they share one
+   status.conditions[type=Ready] shape) — but ArgoCD reads resource
+   customizations from its own `argocd-cm` ConfigMap in the argocd
+   namespace, which this chart cannot write to. Copy the `health.lua`
+   key's content from that ConfigMap into `argocd-cm` under each of:
+
+     resource.customizations.health.authentik.weebo.io_AuthentikInstance
+     resource.customizations.health.authentik.weebo.io_AuthentikGroup
+     resource.customizations.health.authentik.weebo.io_AuthentikOutpost
+     resource.customizations.health.authentik.weebo.io_AuthentikUser
+     resource.customizations.health.authentik.weebo.io_AuthentikBrand
+     resource.customizations.health.authentik.weebo.io_AuthentikApplication
+     resource.customizations.health.authentik.weebo.io_AuthentikAccessPolicy
+     resource.customizations.health.authentik.weebo.io_AuthentikNamespacePolicy
+
+   Without this, ArgoCD shows every one of these resources as
+   "Progressing" indefinitely, even once correctly synced.

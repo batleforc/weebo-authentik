@@ -1,0 +1,56 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "weebo-authentik.fullname" . }}
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+rules:
+  # The operator's own permissions: every reconciler watches/patches its
+  # CRD kind cluster-wide (Api::all / Api::namespaced across every
+  # namespace), regardless of whether that kind is itself cluster- or
+  # namespace-scoped — see crates/adapters-inbound/src/controller/*.rs.
+  - apiGroups: ["authentik.weebo.io"]
+    resources:
+      - authentikinstances
+      - authentikgroups
+      - authentikoutposts
+      - authentikusers
+      - authentikbrands
+      - authentikapplications
+      - authentikaccesspolicies
+      - authentiknamespacepolicies
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["authentik.weebo.io"]
+    resources:
+      - authentikinstances/status
+      - authentikgroups/status
+      - authentikoutposts/status
+      - authentikusers/status
+      - authentikbrands/status
+      - authentikapplications/status
+      - authentikaccesspolicies/status
+      - authentiknamespacepolicies/status
+    verbs: ["get", "patch"]
+  - apiGroups: ["authentik.weebo.io"]
+    resources:
+      - authentikinstances/finalizers
+      - authentikgroups/finalizers
+      - authentikoutposts/finalizers
+      - authentikusers/finalizers
+      - authentikbrands/finalizers
+      - authentikapplications/finalizers
+      - authentikaccesspolicies/finalizers
+      - authentiknamespacepolicies/finalizers
+    verbs: ["update"]
+  # AuthentikApplication's oauth2 credentials, written by
+  # application::ports::SecretStore (adapters-outbound::K8sSecretStore).
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Leader election (kube-leader-election, crates/operator/src/main.rs) —
+  # kept in this same ClusterRole rather than a separate namespaced Role
+  # purely for this one resource, consistent with this chart's existing
+  # single-ClusterRole shape.
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]

@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "weebo-authentik.fullname" . }}-webhook
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "weebo-authentik.webhookTlsSecretName" . }}
+  dnsNames:
+    - {{ include "weebo-authentik.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "weebo-authentik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    name: {{ required "certManager.issuerRef.name is required (an existing Issuer/ClusterIssuer)" .Values.certManager.issuerRef.name }}
+    kind: {{ .Values.certManager.issuerRef.kind }}

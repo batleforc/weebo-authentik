@@ -1,0 +1,36 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "weebo-authentik.fullname" . }}
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+  annotations:
+    # cert-manager's CA-injector webhook populates every webhook's
+    # `caBundle` below from this Certificate — never hand-templated here.
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "weebo-authentik.fullname" . }}-webhook
+webhooks:
+  - name: validate.authentik.weebo.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    # failurePolicy: Fail — the allow-list (AuthentikNamespacePolicy) is
+    # the central security mechanism here; if the webhook pod is
+    # unreachable, creates/updates must be blocked, not silently allowed.
+    # See .prompt/plan.md, "Securite operationnelle & deploiement".
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    clientConfig:
+      service:
+        name: {{ include "weebo-authentik.fullname" . }}
+        namespace: {{ .Release.Namespace }}
+        path: /validate
+        port: {{ .Values.webhook.servicePort }}
+    rules:
+      # CREATE/UPDATE only — never DELETE, so revoking a namespace's
+      # AuthentikNamespacePolicy access never blocks finalizer cleanup of
+      # resources it already created.
+      - apiGroups: ["authentik.weebo.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources:
+          - authentikapplications
+          - authentikaccesspolicies

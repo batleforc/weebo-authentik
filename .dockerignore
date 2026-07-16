@@ -1,0 +1,8 @@
+target
+.git
+.github
+.claude
+.prompt
+deploy/charts
+docs
+*.md

@@ -92,3 +92,18 @@ jobs:
 
       - name: Fail if committed CRDs are stale
         run: git diff --exit-code deploy/crd/
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build-only, no push/registry credentials assumed — proves the
+      # Dockerfile actually builds (never exercised locally, see
+      # CLAUDE.md: no container engine in this repo's dev sandbox).
+      # Publishing is a separate, deliberate step once a registry/tagging
+      # policy is decided, not bundled into this check.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: weebo-authentik
+description: Kubernetes operator that manages Authentik resources (groups, users, applications, access policies) as CRDs.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/batleforc/weebo-authentik
+sources:
+  - https://github.com/batleforc/weebo-authentik

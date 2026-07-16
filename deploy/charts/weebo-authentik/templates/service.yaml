@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "weebo-authentik.fullname" . }}
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "weebo-authentik.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: webhook
+      port: {{ .Values.webhook.servicePort }}
+      targetPort: webhook
+      protocol: TCP

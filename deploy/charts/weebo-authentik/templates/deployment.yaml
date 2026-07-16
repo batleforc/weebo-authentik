@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "weebo-authentik.fullname" . }}
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+spec:
+  # Safe to run >1: only the elected leader (crates/operator/src/main.rs,
+  # kube-leader-election) reconciles at a time; the webhook itself is
+  # active on every replica regardless.
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "weebo-authentik.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "weebo-authentik.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "weebo-authentik.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: operator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: webhook
+              containerPort: {{ .Values.webhook.containerPort }}
+              protocol: TCP
+          env:
+            # WEBHOOK_TLS_CERT_FILE/WEBHOOK_TLS_KEY_FILE are left at their
+            # crates/operator/src/main.rs defaults
+            # (/etc/webhook/certs/tls.crt|tls.key) — the volume mount
+            # below matches that path exactly, so no override is needed.
+            # POD_NAMESPACE scopes the leader-election Lease to this
+            # release's namespace; HOSTNAME (Kubernetes sets this to the
+            # pod name by default) is read directly by main.rs as the
+            # Lease's holderIdentity, no extra env var needed for it.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: WEBHOOK_PORT
+              value: {{ .Values.webhook.containerPort | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: webhook-tls
+              mountPath: /etc/webhook/certs
+              readOnly: true
+          # No dedicated /healthz route exists on the webhook router yet
+          # (adapters-inbound/src/webhook/mod.rs only registers POST
+          # /validate) — a TCP probe is the only thing that's honestly
+          # correct here without adding one.
+          livenessProbe:
+            tcpSocket:
+              port: webhook
+            initialDelaySeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: webhook
+            initialDelaySeconds: 5
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: webhook-tls
+          secret:
+            secretName: {{ include "weebo-authentik.webhookTlsSecretName" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -29,9 +29,7 @@ use envtest::Environment;
 use kube::Client;
 
 pub struct EnvTestCluster {
-    // Kept alive only for its `Drop` impl, which tears down the control
-    // plane — never read otherwise.
-    _server: envtest::Server,
+    server: envtest::Server,
     client: Client,
 }
 
@@ -62,13 +60,17 @@ impl EnvTestCluster {
             .expect("envtest control plane failed to start");
         let client = server.client().expect("envtest client");
 
-        Self {
-            _server: server,
-            client,
-        }
+        Self { server, client }
     }
 
     pub fn client(&self) -> Client {
         self.client.clone()
+    }
+
+    /// Raw kubeconfig for this cluster, for tests that need to point a
+    /// real spawned process (not just an in-process `kube::Client`) at
+    /// it — e.g. via a `KUBECONFIG` env var.
+    pub fn kubeconfig_str(&self) -> &str {
+        self.server.as_ref()
     }
 }

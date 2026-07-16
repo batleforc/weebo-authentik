@@ -1,0 +1,73 @@
+# Default values for weebo-authentik.
+
+# -- Number of operator replicas. Safe to run >1 (the documented,
+# intended production setup — see .prompt/plan.md, "Securite
+# operationnelle & deploiement"): the webhook stays active on every
+# replica (stateless), while `operator::main`'s leader election
+# (kube-leader-election, a coordination.k8s.io Lease) ensures only one
+# replica's reconcilers are ever active at a time, so the
+# "attempt-create-first" pattern (see .prompt/plan.md, "Modele de status
+# commun") stays race-free regardless of replica count.
+replicaCount: 2
+
+image:
+  repository: ghcr.io/batleforc/weebo-authentik-operator
+  # -- Defaults to .Chart.AppVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+webhook:
+  # -- Container port the operator listens on for the admission webhook.
+  containerPort: 8443
+  # -- Service port the ValidatingWebhookConfiguration's clientConfig
+  # targets (Kubernetes' apiserver default for webhook services is 443).
+  servicePort: 443
+
+# -- cert-manager issues the webhook's TLS certificate. Both cert-manager
+# and the referenced Issuer/ClusterIssuer are assumed to already exist —
+# creating an Issuer is a separate cluster-admin concern, out of scope
+# for this chart.
+certManager:
+  issuerRef:
+    # -- Required: name of an existing Issuer or ClusterIssuer.
+    name: ""
+    kind: ClusterIssuer
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# RBAC for the operator's own ServiceAccount (cluster-wide, always
+# created — the reconcilers watch every CRD kind across the whole
+# cluster) is not configurable; see templates/clusterrole.yaml.
+rbac:
+  # -- Optional, narrower, namespaced Role/RoleBinding EXAMPLE mirroring
+  # .prompt/plan.md's "Role/RoleBinding namespaced ... donnant seulement
+  # les verbes sur AuthentikApplication/AuthentikAccessPolicy". Off by
+  # default: the chart has no way to know which real users/groups to
+  # bind it to, so this is meant as a documented starting point (see
+  # NOTES.txt) rather than something auto-applied to real subjects.
+  namespacedExample:
+    enabled: false
+    namespace: ""
+    subjects: []
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podLabels: {}
+
+# -- Extra environment variables for the operator container, e.g.
+# OTEL_EXPORTER_OTLP_ENDPOINT (see crates/operator/src/telemetry.rs).
+extraEnv: []

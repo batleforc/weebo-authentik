@@ -21,6 +21,9 @@ tasks:
     desc: "Recuring job like regenerating Swagger spec"
     cmds:
       - mise exec -- cargo run -p crdgen -- --out deploy/crd/
+      # Helm's crds/ directory is a plain copy, not a template — kept in
+      # sync here so it can't silently drift from the generated source.
+      - cp deploy/crd/*.yaml deploy/charts/weebo-authentik/crds/
       - node docs/scripts/gen-crd-docs.mjs
 
   lint:
