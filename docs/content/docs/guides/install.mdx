@@ -1,0 +1,59 @@
+---
+title: Install via Helm
+description: Install weebo-authentik-operator and its CRDs using the bundled Helm chart.
+---
+
+## Prerequisites
+
+- A Kubernetes cluster with [cert-manager](https://cert-manager.io/)
+  installed. The chart's `ValidatingWebhookConfiguration` requires a
+  real TLS certificate for its admission webhook
+  (`.prompt/plan.md`, "Securite operationnelle & deploiement") — the
+  chart creates a `Certificate` resource, but never an `Issuer`/
+  `ClusterIssuer` itself. Have one ready before installing.
+
+## Install
+
+The chart lives in this repository at `deploy/charts/weebo-authentik`.
+
+```bash
+helm install weebo-authentik deploy/charts/weebo-authentik \
+  --namespace weebo-authentik --create-namespace \
+  --set certManager.issuerRef.name=<your-cluster-issuer> \
+  --set certManager.issuerRef.kind=ClusterIssuer
+```
+
+`certManager.issuerRef.name` is required — the chart's `Certificate`
+template fails to render without it.
+
+## What gets installed
+
+- The 8 `AuthentikInstance`/`AuthentikGroup`/`AuthentikUser`/
+  `AuthentikOutpost`/`AuthentikBrand`/`AuthentikApplication`/
+  `AuthentikAccessPolicy`/`AuthentikNamespacePolicy` CRDs (see the
+  [CRD reference](/docs/crds) for each kind's fields).
+- The operator `Deployment` (2 replicas by default — see below),
+  `Service`, and its own cluster-wide `ClusterRole`/`ClusterRoleBinding`.
+- A cert-manager `Certificate` for the webhook, and the
+  `ValidatingWebhookConfiguration` itself
+  (`failurePolicy: Fail` — an unreachable webhook blocks
+  `AuthentikApplication`/`AuthentikAccessPolicy` writes cluster-wide
+  rather than silently letting them through).
+- A `PodDisruptionBudget` and a ConfigMap containing the ArgoCD
+  `health.lua` script every CRD kind needs (see the chart's
+  `NOTES.txt`, shown after `helm install`, for the exact ArgoCD wiring
+  steps — a chart can't write to ArgoCD's own configuration itself).
+
+## Replica count and leader election
+
+`replicaCount` defaults to `2`. The webhook is active on every replica
+(stateless); the operator's reconcilers use a `coordination.k8s.io`
+`Lease` (`kube-leader-election`) so only the elected leader reconciles
+at a time. A replica that loses the lease exits immediately rather than
+attempting a graceful handoff — Kubernetes restarts it, and another
+replica takes over.
+
+## Next steps
+
+[Connect a real Authentik instance](/docs/guides/connect-instance),
+then walk through [your first application](/docs/guides/first-application).

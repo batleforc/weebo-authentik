@@ -1,0 +1,25 @@
+---
+title: AuthentikNamespacePolicy
+description: >-
+  Namespace allow-list enforced by the admission webhook (and double-checked by
+  reconcilers).
+---
+
+Namespace allow-list enforced by the admission webhook (and
+double-checked by reconcilers). Cluster-scoped. Default-deny: a
+`(namespace, kind)` pair is only allowed if some rule across every
+`AuthentikNamespacePolicy` explicitly allows it — see
+`domain::allow_list::evaluate`, which this CRD's rules map directly
+onto.
+
+## Spec fields
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `rules` | `object[]` | yes |  |  |
+
+## Build a manifest
+
+Fill in the fields below to generate a ready-to-apply `AuthentikNamespacePolicy` YAML manifest.
+
+<CrdForm kind="AuthentikNamespacePolicy" />

@@ -1,0 +1,28 @@
+---
+title: AuthentikAccessPolicy
+description: Mirrors `authentik_policy_binding`.
+---
+
+Mirrors `authentik_policy_binding`. Namespaced.
+
+`application_ref` is deliberately a bare name with **no namespace
+field** — there is no way to express a cross-namespace reference in
+this schema. The reconciler must resolve it via
+`Api::<AuthentikApplication>::namespaced(policy.metadata.namespace)`,
+never a cluster-wide client. See `.prompt/plan.md`,
+"Confinement au namespace, deux couches".
+
+## Spec fields
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `applicationRef` | `string` | yes |  | Name of an `AuthentikApplication` CR in the same namespace. |
+| `groupRef` | `string` | yes |  | Name of an `AuthentikGroup` CR (cluster-scoped). |
+| `negate` | `boolean` | no | `false` |  |
+| `order` | `integer` | no | `0` |  |
+
+## Build a manifest
+
+Fill in the fields below to generate a ready-to-apply `AuthentikAccessPolicy` YAML manifest.
+
+<CrdForm kind="AuthentikAccessPolicy" />

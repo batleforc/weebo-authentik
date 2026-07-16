@@ -1,0 +1,61 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikBrand",
+  "scope": "Cluster",
+  "description": "Mirrors `authentik_brand`. Cluster-scoped — a brand is tied to a domain\nat the instance level, not to an application namespace. See\n`.prompt/plan.md`, \"Election du brand par defaut\" for the `default`\nfield's reconcile semantics (implemented in `domain::brand_election`,\nwired up in the `application` crate's `reconcile_brand` use-case).",
+  "properties": {
+    "brandingDefaultFlowBackground": {
+      "nullable": true,
+      "type": "string"
+    },
+    "brandingFavicon": {
+      "nullable": true,
+      "type": "string"
+    },
+    "brandingLogo": {
+      "nullable": true,
+      "type": "string"
+    },
+    "brandingTitle": {
+      "nullable": true,
+      "type": "string"
+    },
+    "default": {
+      "default": false,
+      "type": "boolean"
+    },
+    "defaultApplicationRef": {
+      "description": "Name of an `AuthentikApplication` CR, same-namespace convention\ndoes not apply here since this CRD is cluster-scoped.",
+      "nullable": true,
+      "type": "string"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "flowAuthentication": {
+      "description": "Flow slugs, resolved at reconcile time — no `AuthentikFlow` CRD in\nv1, see `.prompt/plan.md`.",
+      "nullable": true,
+      "type": "string"
+    },
+    "flowInvalidation": {
+      "nullable": true,
+      "type": "string"
+    },
+    "flowRecovery": {
+      "nullable": true,
+      "type": "string"
+    },
+    "flowUnenrollment": {
+      "nullable": true,
+      "type": "string"
+    },
+    "flowUserSettings": {
+      "nullable": true,
+      "type": "string"
+    }
+  },
+  "required": [
+    "domain"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,23 @@
+---
+title: AuthentikGroup
+description: Mirrors `authentik_group`.
+---
+
+Mirrors `authentik_group`. Cluster-scoped — group hierarchy is an
+org-wide identity concept, not owned by a namespace. Only reachable via
+cluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).
+
+## Spec fields
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `attributes` | `object` | no | `{}` |  |
+| `isSuperuser` | `boolean` | no | `false` |  |
+| `name` | `string` | yes |  |  |
+| `parentRef` | `string` | no |  | Name of another `AuthentikGroup`, for hierarchy (`weebo_user` -> `weebo_moderator` -> `weebo_admin` in the Terraform module). |
+
+## Build a manifest
+
+Fill in the fields below to generate a ready-to-apply `AuthentikGroup` YAML manifest.
+
+<CrdForm kind="AuthentikGroup" />

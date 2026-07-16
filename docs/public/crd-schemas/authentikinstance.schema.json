@@ -1,0 +1,48 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikInstance",
+  "scope": "Cluster",
+  "description": "Connection to a real Authentik server. Cluster-scoped — an org-wide,\nshared piece of infrastructure, not owned by a single namespace.",
+  "properties": {
+    "tls": {
+      "default": {
+        "insecureSkipVerify": false
+      },
+      "properties": {
+        "insecureSkipVerify": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "tokenSecretRef": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "namespace"
+      ],
+      "type": "object"
+    },
+    "url": {
+      "description": "Base URL of the Authentik instance, e.g. `https://login.example.com`.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tokenSecretRef",
+    "url"
+  ],
+  "type": "object"
+}

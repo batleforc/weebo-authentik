@@ -37,4 +37,17 @@ impl AuthentikMock {
             .mount(&self.server)
             .await;
     }
+
+    /// Scripts an arbitrary `GET <api_path>` response — the generic
+    /// building block for scripting list/retrieve endpoints the
+    /// `importer` crate's read-only tool needs (groups, users, brands,
+    /// flows, providers, policy bindings, ...), rather than one
+    /// hand-named method per endpoint.
+    pub async fn mock_get(&self, api_path: &str, status: u16, body: serde_json::Value) {
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v3{api_path}")))
+            .respond_with(ResponseTemplate::new(status).set_body_json(body))
+            .mount(&self.server)
+            .await;
+    }
 }

@@ -1,0 +1,28 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikOutpost",
+  "scope": "Cluster",
+  "description": "Deliberately minimal — nothing in the Terraform module being replaced\ncreates a custom outpost, everything attaches to Authentik's embedded\noutpost by default. This CRD exists only to cover the case where a\nproxy provider's `outpostRef` explicitly names one. Cluster-scoped.",
+  "properties": {
+    "config": {
+      "description": "Passthrough to the Authentik API — deliberately not modeled field by\nfield. `x-kubernetes-preserve-unknown-fields` is required here: a\nbare `serde_json::Value` schema has no `type`, which a real\nstructural-schema apiserver rejects outright (\"must not be empty\nfor specified object fields\") — caught by the layer-3 envtest\nintegration test, not by `cargo check`.",
+      "type": "object"
+    },
+    "name": {
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "ldap",
+        "radius",
+        "proxy"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "type"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,50 @@
+---
+title: Connect an AuthentikInstance
+description: Point the operator at a real Authentik server.
+---
+
+Every other CRD in this operator references an `AuthentikInstance` by
+name (`spec.instanceRef`, or implicitly for cluster-scoped kinds — see
+the [allow-list guide](/docs/guides/allow-list) and the
+[CRD reference](/docs/crds/authentikinstance)). `AuthentikInstance`
+itself has no corresponding object on the Authentik side — it just
+describes how to reach one.
+
+## 1. Create a Secret with the API token
+
+Generate an API token in Authentik (**Admin interface → Directory →
+Tokens**, or via a service account), then:
+
+```bash
+kubectl create secret generic authentik-api-token \
+  --namespace weebo-authentik \
+  --from-literal=token=<your-api-token>
+```
+
+## 2. Create the AuthentikInstance CR
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikInstance
+metadata:
+  name: main
+spec:
+  url: https://login.example.com
+  tokenSecretRef:
+    name: authentik-api-token
+    namespace: weebo-authentik
+    key: token
+```
+
+`AuthentikInstance` is cluster-scoped, so its name (`main` above) is
+what every `AuthentikApplication`'s `spec.instanceRef` points back to.
+
+## Multiple instances
+
+Only `AuthentikApplication` carries an explicit `instanceRef`.
+`AuthentikGroup`/`AuthentikUser`/`AuthentikOutpost`/`AuthentikBrand`
+have no such field — the operator resolves them against the single
+`AuthentikInstance` CR in the cluster, and errors
+(`AmbiguousDefaultInstance`) if there's more than one. Running against
+more than one real Authentik instance at a time isn't supported yet for
+those kinds.

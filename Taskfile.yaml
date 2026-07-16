@@ -24,7 +24,7 @@ tasks:
       # Helm's crds/ directory is a plain copy, not a template — kept in
       # sync here so it can't silently drift from the generated source.
       - cp deploy/crd/*.yaml deploy/charts/weebo-authentik/crds/
-      - node docs/scripts/gen-crd-docs.mjs
+      - mise exec -- node docs/scripts/gen-crd-docs.mjs
 
   lint:
     desc: "Linting your project to apply good practice"
@@ -49,3 +49,9 @@ tasks:
     cmds:
       - task: test
       - task: test:integration
+
+  docs:
+    desc: "Run the Fumadocs documentation site in dev mode"
+    dir: docs
+    cmds:
+      - npm run dev

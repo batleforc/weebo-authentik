@@ -1,0 +1,31 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikGroup",
+  "scope": "Cluster",
+  "description": "Mirrors `authentik_group`. Cluster-scoped — group hierarchy is an\norg-wide identity concept, not owned by a namespace. Only reachable via\ncluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).",
+  "properties": {
+    "attributes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "isSuperuser": {
+      "default": false,
+      "type": "boolean"
+    },
+    "name": {
+      "type": "string"
+    },
+    "parentRef": {
+      "description": "Name of another `AuthentikGroup`, for hierarchy (`weebo_user` ->\n`weebo_moderator` -> `weebo_admin` in the Terraform module).",
+      "nullable": true,
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "type": "object"
+}

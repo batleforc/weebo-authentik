@@ -1,0 +1,27 @@
+---
+title: AuthentikUser
+description: Mirrors `authentik_user`.
+---
+
+Mirrors `authentik_user`. Cluster-scoped, like `AuthentikGroup`.
+
+Deliberately has **no credential/password field** — Authentik owns its
+own invite/reset flows. If a bootstrap password is ever needed it goes
+through `SecretStore` (generated, never stored in this spec). See
+`.prompt/plan.md`.
+
+## Spec fields
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `email` | `string` | yes |  |  |
+| `groupRefs` | `string[]` | no | `[]` | Names of `AuthentikGroup` CRs this user belongs to. |
+| `isActive` | `boolean` | no | `true` |  |
+| `name` | `string` | yes |  |  |
+| `username` | `string` | yes |  |  |
+
+## Build a manifest
+
+Fill in the fields below to generate a ready-to-apply `AuthentikUser` YAML manifest.
+
+<CrdForm kind="AuthentikUser" />

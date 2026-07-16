@@ -1,0 +1,57 @@
+---
+title: The allow-list (AuthentikNamespacePolicy)
+description: How a namespace gets permission to create Applications/AccessPolicies, and what happens when it doesn't.
+---
+
+`AuthentikNamespacePolicy` is the operator's central security
+mechanism: **default-deny**. A namespace can create
+`AuthentikApplication`/`AuthentikAccessPolicy` resources only if some
+rule, across every `AuthentikNamespacePolicy` in the cluster,
+explicitly allows it.
+
+## Granting a namespace access
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikNamespacePolicy
+metadata:
+  name: team-a-access
+spec:
+  rules:
+    - namespaces: ["team-a"]
+      allowedKinds: ["AuthentikApplication", "AuthentikAccessPolicy"]
+      effect: Allow
+```
+
+`AuthentikNamespacePolicy` is cluster-scoped — only a cluster admin can
+create or edit it. `rules` is a list; each rule names the namespaces it
+applies to, the resource kinds it covers, and whether it `Allow`s or
+`Deny`s. A `Deny` rule always wins over a matching `Allow`, regardless
+of which one is listed first or which `AuthentikNamespacePolicy` object
+it came from — there's no ordering to reason about, a narrower deny is
+always the last word.
+
+## What happens if a namespace isn't allowed
+
+An admission webhook validates every `CREATE`/`UPDATE` of an
+`AuthentikApplication` or `AuthentikAccessPolicy` (never `DELETE` — see
+below) against the current rules. A denied request is rejected at
+`kubectl apply` time with a message like:
+
+```
+Error from server: admission webhook "..." denied the request:
+namespace not allowed by any AuthentikNamespacePolicy
+```
+
+The webhook's `failurePolicy` is `Fail`: if the webhook pod itself is
+unreachable, writes are blocked cluster-wide rather than silently
+allowed through. This is why the
+[Helm chart](/docs/guides/install) runs it multi-replica by default.
+
+## Why `DELETE` is never validated
+
+Revoking a namespace's access (removing or narrowing its
+`AuthentikNamespacePolicy` rule) must never block cleanup of resources
+it already created — a finalizer that can't run because the webhook
+now denies its own object's deletion would strand that object
+permanently. The webhook only ever validates `CREATE`/`UPDATE`.

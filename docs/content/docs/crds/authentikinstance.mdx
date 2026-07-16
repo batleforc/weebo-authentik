@@ -1,0 +1,21 @@
+---
+title: AuthentikInstance
+description: Connection to a real Authentik server.
+---
+
+Connection to a real Authentik server. Cluster-scoped — an org-wide,
+shared piece of infrastructure, not owned by a single namespace.
+
+## Spec fields
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `tls` | `object` | no | `{"insecureSkipVerify":false}` |  |
+| `tokenSecretRef` | `object` | yes |  |  |
+| `url` | `string` | yes |  | Base URL of the Authentik instance, e.g. `https://login.example.com`. |
+
+## Build a manifest
+
+Fill in the fields below to generate a ready-to-apply `AuthentikInstance` YAML manifest.
+
+<CrdForm kind="AuthentikInstance" />

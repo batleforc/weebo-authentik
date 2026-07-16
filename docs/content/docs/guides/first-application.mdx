@@ -1,0 +1,90 @@
+---
+title: First application walkthrough
+description: Create a group, an oauth2 application, and an access policy end to end.
+---
+
+This walks through the same shape as the real `harbor.tf` module this
+operator replaces: a group, an oauth2 `AuthentikApplication`, and an
+`AuthentikAccessPolicy` binding the two together. It assumes you've
+already [connected an AuthentikInstance](/docs/guides/connect-instance)
+named `main`, and that your namespace has been granted access — see
+the [allow-list guide](/docs/guides/allow-list) if `kubectl apply`
+below is rejected.
+
+## 1. Create a group
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikGroup
+metadata:
+  name: weebo-user
+spec:
+  name: weebo_user
+  isSuperuser: false
+```
+
+`AuthentikGroup` is cluster-scoped — see the
+[CRD reference](/docs/crds/authentikgroup) for the full field list
+(including `parentRef`, for the `weebo_user -> weebo_moderator ->
+weebo_admin` style hierarchy the real Terraform module uses).
+
+## 2. Create the application (oauth2 provider)
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikApplication
+metadata:
+  name: harbor
+  namespace: team-a
+spec:
+  instanceRef: main
+  name: Harbor
+  slug: harbor
+  metaIcon: harbor.svg
+  provider:
+    kind: oauth2
+    oauth2:
+      authorizationFlow: default-provider-authorization-implicit-consent
+      invalidationFlow: default-provider-invalidation-flow
+      allowedRedirectUris:
+        - matchingMode: strict
+          url: https://harbor.example.com/c/oidc/callback
+      grantTypes:
+        - authorization_code
+```
+
+Adjust `authorizationFlow`/`invalidationFlow` to the actual flow slugs
+configured on your instance (list them under **Admin interface →
+Flows & Stages** if you're not sure). Once reconciled, the operator
+writes `AUTHENTIK_CLIENT_ID`/`AUTHENTIK_CLIENT_SECRET`/`AUTHENTIK_URL`
+into a Secret named `harbor` in the `team-a` namespace — see the
+[CRD reference](/docs/crds/authentikapplication) for the full
+`oauth2`/`proxy` provider field lists.
+
+## 3. Bind the group to the application
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikAccessPolicy
+metadata:
+  name: harbor-weebo-user
+  namespace: team-a
+spec:
+  applicationRef: harbor
+  groupRef: weebo-user
+  order: 0
+```
+
+`applicationRef` must resolve to an `AuthentikApplication` **in the
+same namespace** — `AuthentikAccessPolicy` has no way to reference one
+in a different namespace, by design (see the
+[allow-list guide](/docs/guides/allow-list) for why that boundary
+matters).
+
+## Without an AuthentikAccessPolicy
+
+An `AuthentikApplication` with no `AuthentikAccessPolicy` pointing at
+it isn't broken — it's just open to any authenticated user, which is
+Authentik's own native default. The operator surfaces this as an
+advisory `NoAccessPolicyBound` condition (`Ready` stays `True`) rather
+than an error, so it's visible without blocking anything.

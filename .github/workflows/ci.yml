@@ -90,8 +90,28 @@ jobs:
       - name: Regenerate CRDs from source
         run: mise exec -- cargo run -p crdgen -- --out deploy/crd/
 
-      - name: Fail if committed CRDs are stale
-        run: git diff --exit-code deploy/crd/
+      # Helm's crds/ directory is a plain copy, not a template (see
+      # Taskfile.yaml's `recu` task) — checked here too so it can't
+      # silently drift from deploy/crd/.
+      - name: Sync CRDs into the Helm chart
+        run: cp deploy/crd/*.yaml deploy/charts/weebo-authentik/crds/
+
+      - name: Install docs/ dependencies
+        run: mise exec -- npm ci --prefix docs
+
+      # docs/content/docs/crds/*.mdx + docs/public/crd-schemas/*.json
+      # are generated from deploy/crd/*.yaml, never hand-edited — see
+      # .prompt/plan.md, "Definition of done".
+      - name: Regenerate CRD docs
+        run: mise exec -- node docs/scripts/gen-crd-docs.mjs
+
+      - name: Fail if committed CRDs or docs are stale
+        run: |
+          git diff --exit-code \
+            deploy/crd/ \
+            deploy/charts/weebo-authentik/crds/ \
+            docs/content/docs/crds/ \
+            docs/public/crd-schemas/
 
   docker-build:
     runs-on: ubuntu-latest

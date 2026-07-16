@@ -1649,6 +1649,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "importer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "api",
+ "authentik-client",
+ "clap",
+ "kube",
+ "rustls",
+ "serde",
+ "serde_json",
+ "serde_norway",
+ "testkit",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

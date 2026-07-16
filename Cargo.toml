@@ -9,6 +9,7 @@ members = [
     "crates/operator",
     "crates/crdgen",
     "crates/testkit",
+    "crates/importer",
 ]
 
 [workspace.package]

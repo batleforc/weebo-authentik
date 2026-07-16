@@ -1,0 +1,137 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikApplication",
+  "scope": "Namespaced",
+  "description": "Mirrors `authentik_application` + its `protocol_provider`. Namespaced —\nowned by whichever team/namespace created it, governed by\n`AuthentikNamespacePolicy`.",
+  "properties": {
+    "instanceRef": {
+      "description": "Name of an `AuthentikInstance` CR.",
+      "type": "string"
+    },
+    "metaIcon": {
+      "nullable": true,
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "provider": {
+      "description": "`oauth2`/`proxy` are implemented in v1 (both are in real use in the\nTerraform module being replaced — `longhorn.tf` uses `proxy`).\n`saml`/`ldap` are schema-only stubs: accepted by the schema so a future\naddition isn't a breaking change, but rejected by the reconciler with\nan explicit error, never silently ignored. See `.prompt/plan.md`\ndecision 2.\n\nDeliberately **not** a Rust sum type (`enum Foo { Oauth2(..),\nProxy(..) }`) even though that's what it conceptually is: kube-core's\nCRD schema generation cannot merge an internally-tagged enum whose\nvariants carry different literal discriminator values — each variant's\n`kind` property gets a different `enum: [...]` schema and\n`CustomResourceExt::crd()` panics (\"Property 'kind' ... must be\nidentical\"). This flat-struct-plus-discriminator shape is the standard\nkube.rs workaround; \"exactly one of `oauth2`/`proxy` set, matching\n`kind`\" is validated by the reconciler, not the schema.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "oauth2",
+            "proxy",
+            "saml",
+            "ldap"
+          ],
+          "type": "string"
+        },
+        "oauth2": {
+          "nullable": true,
+          "properties": {
+            "allowedRedirectUris": {
+              "default": [],
+              "items": {
+                "properties": {
+                  "matchingMode": {
+                    "enum": [
+                      "strict",
+                      "regex"
+                    ],
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "matchingMode",
+                  "url"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "authorizationFlow": {
+              "type": "string"
+            },
+            "clientId": {
+              "nullable": true,
+              "type": "string"
+            },
+            "grantTypes": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "invalidationFlow": {
+              "type": "string"
+            },
+            "propertyMappings": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "signingKey": {
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          "required": [
+            "authorizationFlow",
+            "invalidationFlow"
+          ],
+          "type": "object"
+        },
+        "proxy": {
+          "nullable": true,
+          "properties": {
+            "authorizationFlow": {
+              "type": "string"
+            },
+            "externalHost": {
+              "type": "string"
+            },
+            "internalHost": {
+              "type": "string"
+            },
+            "invalidationFlow": {
+              "type": "string"
+            },
+            "outpostRef": {
+              "description": "`None` => attach to Authentik's embedded outpost by name (default,\nmatches current `longhorn.tf` behavior). `Some(name)` => must\nresolve to an `AuthentikOutpost` CR.",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          "required": [
+            "authorizationFlow",
+            "externalHost",
+            "internalHost",
+            "invalidationFlow"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "slug": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "instanceRef",
+    "name",
+    "provider",
+    "slug"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,33 @@
+---
+title: AuthentikBrand
+description: Mirrors `authentik_brand`.
+---
+
+Mirrors `authentik_brand`. Cluster-scoped — a brand is tied to a domain
+at the instance level, not to an application namespace. See
+`.prompt/plan.md`, "Election du brand par defaut" for the `default`
+field's reconcile semantics (implemented in `domain::brand_election`,
+wired up in the `application` crate's `reconcile_brand` use-case).
+
+## Spec fields
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `brandingDefaultFlowBackground` | `string` | no |  |  |
+| `brandingFavicon` | `string` | no |  |  |
+| `brandingLogo` | `string` | no |  |  |
+| `brandingTitle` | `string` | no |  |  |
+| `default` | `boolean` | no | `false` |  |
+| `defaultApplicationRef` | `string` | no |  | Name of an `AuthentikApplication` CR, same-namespace convention does not apply here since this CRD is cluster-scoped. |
+| `domain` | `string` | yes |  |  |
+| `flowAuthentication` | `string` | no |  | Flow slugs, resolved at reconcile time — no `AuthentikFlow` CRD in v1, see `.prompt/plan.md`. |
+| `flowInvalidation` | `string` | no |  |  |
+| `flowRecovery` | `string` | no |  |  |
+| `flowUnenrollment` | `string` | no |  |  |
+| `flowUserSettings` | `string` | no |  |  |
+
+## Build a manifest
+
+Fill in the fields below to generate a ready-to-apply `AuthentikBrand` YAML manifest.
+
+<CrdForm kind="AuthentikBrand" />
