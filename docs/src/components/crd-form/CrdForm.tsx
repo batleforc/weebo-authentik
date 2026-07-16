@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { DynamicCodeBlock } from "fumadocs-ui/components/dynamic-codeblock";
 import { ObjectFields } from "./fields";
 import { defaultForSchema } from "@/lib/crd-form/schema-utils";
 import { buildManifest } from "@/lib/crd-form/manifest";
+import { yamlPreviewTheme } from "@/lib/crd-form/yaml-theme";
 import type { CrdSchema } from "@/lib/crd-form/types";
 
 const inputClass =
@@ -171,9 +173,13 @@ export function CrdForm({ kind }: { kind: string }) {
             </ul>
           </div>
         ) : null}
-        <pre className="max-h-[70vh] overflow-auto rounded-sm border border-fd-border bg-fd-background p-4 text-xs leading-relaxed text-fd-foreground">
-          <code>{built?.yaml ?? ""}</code>
-        </pre>
+        <div className="yaml-preview max-h-[70vh] overflow-auto rounded-sm border border-fd-border text-xs [&_pre]:my-0">
+          <DynamicCodeBlock
+            lang="yaml"
+            code={built?.yaml ?? ""}
+            options={{ theme: yamlPreviewTheme }}
+          />
+        </div>
       </div>
     </div>
   );

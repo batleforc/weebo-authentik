@@ -130,6 +130,22 @@ body {
   }
 }
 
+/* Shiki's `css-variables` theme (see CrdForm.tsx) mapped onto the
+   Monofolio palette — the live YAML preview is the only highlighted code
+   on this site that's generated at runtime rather than at MDX build
+   time, so it carries its own theme object instead of a bundled one. */
+.yaml-preview {
+  --shiki-foreground: var(--color-fd-foreground);
+  --shiki-background: transparent;
+  --shiki-token-keyword: var(--color-fd-primary);
+  --shiki-token-string: oklch(0.72 0.14 52);
+  --shiki-token-string-expression: oklch(0.72 0.14 52);
+  --shiki-token-constant: oklch(0.72 0.14 52);
+  --shiki-token-comment: var(--color-fd-muted-foreground);
+  --shiki-token-punctuation: var(--color-fd-muted-foreground);
+  --shiki-token-link: var(--color-fd-primary);
+}
+
 /* Docs prose section headings: mono + neon glow, matching the SectionTitle role */
 #nd-page h2 {
   font-family: var(--font-mono);
