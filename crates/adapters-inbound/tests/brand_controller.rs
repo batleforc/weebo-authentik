@@ -5,17 +5,17 @@
 //! this proves the whole controller wiring (list-claimants, patch
 //! status) behaves the same way for real.
 
-use std::sync::Arc;
 use std::time::Duration;
 
-use adapters_inbound::controller::{self, Ctx};
-use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
+use adapters_inbound::controller;
 use api::AuthentikBrand;
 use api::brand::AuthentikBrandSpec;
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 use testkit::envtest::EnvTestCluster;
-use testkit::static_gateway_factory::StaticGatewayFactory;
+
+mod support;
+use support::{init_tracing, new_ctx, wait_for};
 
 fn brand_spec(domain: &str, default: bool) -> AuthentikBrandSpec {
     AuthentikBrandSpec {
@@ -34,28 +34,18 @@ fn brand_spec(domain: &str, default: bool) -> AuthentikBrandSpec {
     }
 }
 
-async fn wait_for_ready_status(
-    api: &Api<AuthentikBrand>,
-    name: &str,
-) -> (String, Option<String>) {
-    tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            let brand = api.get(name).await.expect("CR must be gettable");
-            if let Some(status) = &brand.status
-                && let Some(cond) = status.conditions.iter().find(|c| c.type_ == "Ready")
-            {
-                return (cond.status.clone(), status.authentik_id.clone());
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
+async fn wait_for_ready_status(api: &Api<AuthentikBrand>, name: &str) -> (String, Option<String>) {
+    wait_for(api, name, |brand| {
+        let status = brand.status.as_ref()?;
+        let cond = status.conditions.iter().find(|c| c.type_ == "Ready")?;
+        Some((cond.status.clone(), status.authentik_id.clone()))
     })
     .await
-    .unwrap_or_else(|_| panic!("controller must set a Ready condition on {name:?} within the timeout"))
 }
 
 #[tokio::test]
 async fn sole_default_brand_becomes_ready_and_default() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    init_tracing();
 
     let cluster = EnvTestCluster::start().await;
     let client = cluster.client();
@@ -68,7 +58,8 @@ async fn sole_default_brand_becomes_ready_and_default() {
         serde_json::json!({"brand_uuid": expected_pk, "domain": "weebo.example.com"}),
     )
     .await;
-    mock.mock_get("/core/brands/", 200, empty_paginated_list()).await;
+    mock.mock_get("/core/brands/", 200, empty_paginated_list())
+        .await;
     mock.mock_patch(
         &format!("/core/brands/{expected_pk}/"),
         200,
@@ -76,14 +67,7 @@ async fn sole_default_brand_becomes_ready_and_default() {
     )
     .await;
 
-    let gateway = AuthentikHttpGateway::new(format!("{}/api/v3", mock.base_path()), "test-token");
-    let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
-    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
-    let ctx = Arc::new(Ctx {
-        client: client.clone(),
-        gateway_factory,
-        secrets,
-    });
+    let ctx = new_ctx(client.clone(), &mock);
 
     tokio::spawn(controller::brand::run(client.clone(), ctx));
 
@@ -110,7 +94,7 @@ async fn sole_default_brand_becomes_ready_and_default() {
 
 #[tokio::test]
 async fn two_default_brands_conflict_loser_errored_without_touching_the_gateway() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    init_tracing();
 
     let cluster = EnvTestCluster::start().await;
     let client = cluster.client();
@@ -127,7 +111,8 @@ async fn two_default_brands_conflict_loser_errored_without_touching_the_gateway(
         serde_json::json!({"brand_uuid": winner_pk, "domain": "weebo-first.example.com"}),
     )
     .await;
-    mock.mock_get("/core/brands/", 200, empty_paginated_list()).await;
+    mock.mock_get("/core/brands/", 200, empty_paginated_list())
+        .await;
     mock.mock_patch(
         &format!("/core/brands/{winner_pk}/"),
         200,
@@ -135,14 +120,7 @@ async fn two_default_brands_conflict_loser_errored_without_touching_the_gateway(
     )
     .await;
 
-    let gateway = AuthentikHttpGateway::new(format!("{}/api/v3", mock.base_path()), "test-token");
-    let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
-    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
-    let ctx = Arc::new(Ctx {
-        client: client.clone(),
-        gateway_factory,
-        secrets,
-    });
+    let ctx = new_ctx(client.clone(), &mock);
 
     tokio::spawn(controller::brand::run(client.clone(), ctx));
 

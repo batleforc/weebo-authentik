@@ -3,21 +3,19 @@
 //! `kube-apiserver` via `testkit::envtest`, the real `AuthentikUser`
 //! controller, `AuthentikGateway` swapped for a `wiremock`-backed one.
 
-use std::sync::Arc;
-use std::time::Duration;
-
-use adapters_inbound::controller::{self, Ctx};
-use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
+use adapters_inbound::controller;
 use api::AuthentikUser;
 use api::user::AuthentikUserSpec;
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 use testkit::envtest::EnvTestCluster;
-use testkit::static_gateway_factory::StaticGatewayFactory;
+
+mod support;
+use support::{init_tracing, new_ctx, wait_for};
 
 #[tokio::test]
 async fn user_controller_syncs_authentik_id_onto_status() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    init_tracing();
 
     let cluster = EnvTestCluster::start().await;
     let client = cluster.client();
@@ -38,14 +36,7 @@ async fn user_controller_syncs_authentik_id_onto_status() {
     )
     .await;
 
-    let gateway = AuthentikHttpGateway::new(format!("{}/api/v3", mock.base_path()), "test-token");
-    let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
-    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
-    let ctx = Arc::new(Ctx {
-        client: client.clone(),
-        gateway_factory,
-        secrets,
-    });
+    let ctx = new_ctx(client.clone(), &mock);
 
     tokio::spawn(controller::user::run(client.clone(), ctx));
 
@@ -71,19 +62,10 @@ async fn user_controller_syncs_authentik_id_onto_status() {
         .await
         .expect("AuthentikUser CR create must succeed");
 
-    let result = tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            let user = users.get("batleforc").await.expect("CR must be gettable");
-            if let Some(status) = &user.status
-                && let Some(id) = &status.authentik_id
-            {
-                return id.clone();
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
+    let result = wait_for(&users, "batleforc", |user| {
+        user.status.as_ref()?.authentik_id.clone()
     })
-    .await
-    .unwrap_or_else(|_| panic!("controller must sync status.authentikId within the timeout"));
+    .await;
 
     assert_eq!(result, expected_pk.to_string());
 }

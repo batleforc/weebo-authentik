@@ -38,9 +38,7 @@ use api::brand::AuthentikBrandSpec;
 use api::group::AuthentikGroupSpec;
 use api::outpost::{AuthentikOutpostSpec, OutpostType};
 use api::user::AuthentikUserSpec;
-use api::{
-    AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikStatus, AuthentikUser,
-};
+use api::{AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikStatus, AuthentikUser};
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::envtest::EnvTestCluster;
 use testkit::static_gateway_factory::StaticGatewayFactory;

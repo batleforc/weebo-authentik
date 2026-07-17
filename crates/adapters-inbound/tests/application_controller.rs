@@ -5,11 +5,7 @@
 //! `Secret` is ever written for it (see `.prompt/plan.md`: proxy
 //! providers carry no client secret).
 
-use std::sync::Arc;
-use std::time::Duration;
-
-use adapters_inbound::controller::{self, Ctx};
-use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
+use adapters_inbound::controller;
 use api::AuthentikApplication;
 use api::application::{
     AuthentikApplicationSpec, Oauth2ProviderSpec, ProviderKind, ProviderSpec, ProxyProviderSpec,
@@ -18,7 +14,9 @@ use k8s_openapi::api::core::v1::Secret;
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 use testkit::envtest::EnvTestCluster;
-use testkit::static_gateway_factory::StaticGatewayFactory;
+
+mod support;
+use support::{init_tracing, new_ctx, wait_for};
 
 /// Serves both the authorization_flow and invalidation_flow lookups: a
 /// wiremock `path()` match ignores the query string, so one canned
@@ -44,34 +42,19 @@ fn flows_list() -> serde_json::Value {
     })
 }
 
-fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
-    let gateway = AuthentikHttpGateway::new(format!("{}/api/v3", mock.base_path()), "test-token");
-    let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
-    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
-    Arc::new(Ctx {
-        client,
-        gateway_factory,
-        secrets,
-    })
-}
-
 async fn wait_for_authentik_id(api: &Api<AuthentikApplication>, name: &str) -> String {
-    tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            let app = api.get(name).await.expect("CR must be gettable");
-            if let Some(id) = app.status.as_ref().and_then(|s| s.authentik_id.as_deref()) {
-                return id.to_string();
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
+    wait_for(api, name, |app| {
+        app.status
+            .as_ref()
+            .and_then(|s| s.authentik_id.as_deref())
+            .map(str::to_string)
     })
     .await
-    .unwrap_or_else(|_| panic!("controller must sync status.authentikId on {name:?} within the timeout"))
 }
 
 #[tokio::test]
 async fn oauth2_application_syncs_id_and_writes_the_credentials_secret() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    init_tracing();
 
     let cluster = EnvTestCluster::start().await;
     let client = cluster.client();
@@ -167,7 +150,7 @@ async fn oauth2_application_syncs_id_and_writes_the_credentials_secret() {
 
 #[tokio::test]
 async fn proxy_application_syncs_id_attaches_outpost_and_writes_no_secret() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    init_tracing();
 
     let cluster = EnvTestCluster::start().await;
     let client = cluster.client();

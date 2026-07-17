@@ -5,56 +5,36 @@
 //! never a cluster-wide client, so a same-named application in another
 //! namespace must stay invisible.
 
-use std::sync::Arc;
-use std::time::Duration;
-
-use adapters_inbound::controller::{self, Ctx};
-use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
+use adapters_inbound::controller;
 use api::access_policy::AuthentikAccessPolicySpec;
 use api::application::{AuthentikApplicationSpec, ProviderKind, ProviderSpec, ProxyProviderSpec};
 use api::{AuthentikAccessPolicy, AuthentikApplication};
 use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 use testkit::envtest::EnvTestCluster;
-use testkit::static_gateway_factory::StaticGatewayFactory;
 
-fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
-    let gateway = AuthentikHttpGateway::new(format!("{}/api/v3", mock.base_path()), "test-token");
-    let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
-    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
-    Arc::new(Ctx {
-        client,
-        gateway_factory,
-        secrets,
-    })
-}
+mod support;
+use support::{init_tracing, new_ctx, wait_for};
 
 async fn wait_for_ready_status(
     api: &Api<AuthentikAccessPolicy>,
     name: &str,
 ) -> (String, String, Option<String>) {
-    tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            let policy = api.get(name).await.expect("CR must be gettable");
-            if let Some(status) = &policy.status
-                && let Some(cond) = status.conditions.iter().find(|c| c.type_ == "Ready")
-            {
-                return (
-                    cond.status.clone(),
-                    cond.reason.clone(),
-                    status.authentik_id.clone(),
-                );
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
+    wait_for(api, name, |policy| {
+        let status = policy.status.as_ref()?;
+        let cond = status.conditions.iter().find(|c| c.type_ == "Ready")?;
+        Some((
+            cond.status.clone(),
+            cond.reason.clone(),
+            status.authentik_id.clone(),
+        ))
     })
     .await
-    .unwrap_or_else(|_| panic!("controller must set a Ready condition on {name:?} within the timeout"))
 }
 
 #[tokio::test]
 async fn errors_when_application_ref_not_found_in_namespace() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    init_tracing();
 
     let cluster = EnvTestCluster::start().await;
     let client = cluster.client();
@@ -96,7 +76,7 @@ async fn errors_when_application_ref_not_found_in_namespace() {
 
 #[tokio::test]
 async fn syncs_the_binding_once_the_application_has_synced() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    init_tracing();
 
     let cluster = EnvTestCluster::start().await;
     let client = cluster.client();

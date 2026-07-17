@@ -1,0 +1,15 @@
+name: Install mise
+description: >-
+  Installs the mise CLI itself and puts it on PATH. Every job that needs
+  mise-managed tooling (rust, go, task, helm, kind, cocogitto, ...) runs
+  this first, then its own `mise install` for the tools mise.toml actually
+  declares — kept as one composite action so the bootstrap step doesn't
+  drift across the CI/E2E/release/publish workflows.
+runs:
+  using: composite
+  steps:
+    - name: Install mise
+      shell: bash
+      run: |
+        curl https://mise.run | sh
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"

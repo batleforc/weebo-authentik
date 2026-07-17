@@ -26,9 +26,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install mise
-        run: |
-          curl https://mise.run | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        uses: ./.github/actions/setup-mise
 
       - name: Install mise-managed tools (cocogitto, ...)
         run: mise install
@@ -42,10 +40,13 @@ jobs:
         id: bump
         run: |
           before=$(git rev-parse HEAD)
-          # No bumpable commits since the last tag is a legitimate,
-          # non-fatal outcome for `cog bump --auto` — don't fail the
-          # workflow on it, just skip the push below.
-          mise exec -- cog bump --auto --skip-ci || true
+          # `cog bump --auto` already exits 0 for the legitimate "no
+          # bumpable commits since the last tag" case (verified: it prints
+          # "No conventional commits ... that required a bump" and leaves
+          # HEAD unchanged) — a non-zero exit here is a real failure (e.g.
+          # .hooks/bump-versions.sh erroring out via pre_bump_hooks) and
+          # must fail the workflow, not be swallowed.
+          mise exec -- cog bump --auto --skip-ci
           after=$(git rev-parse HEAD)
           if [ "$before" = "$after" ]; then
             echo "nothing to bump"

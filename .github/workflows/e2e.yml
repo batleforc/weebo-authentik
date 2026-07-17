@@ -23,9 +23,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install mise
-        run: |
-          curl https://mise.run | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        uses: ./.github/actions/setup-mise
 
       - name: Install mise-managed tools (kind, kubectl, helm, ...)
         run: mise install
@@ -34,14 +32,21 @@ jobs:
         run: |
           docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" up -d
           echo "waiting for Authentik server readiness..."
+          ready=false
           for _ in $(seq 1 60); do
             if docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" \
                 exec -T server wget -qO- http://localhost:9000/-/health/ready/ >/dev/null 2>&1; then
               echo "Authentik server is ready"
+              ready=true
               break
             fi
             sleep 5
           done
+          if [ "$ready" != "true" ]; then
+            echo "::error::Authentik server never became ready within the timeout"
+            docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" logs
+            exit 1
+          fi
 
       - name: Create kind cluster
         run: mise exec -- kind create cluster --name "$KIND_CLUSTER"
@@ -118,21 +123,8 @@ jobs:
             name: e2e-smoke-group
           EOF
 
-          echo "waiting for AuthentikGroup to sync..."
-          for _ in $(seq 1 30); do
-            ready=$(mise exec -- kubectl get authentikgroup e2e-smoke-group \
-              -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
-            id=$(mise exec -- kubectl get authentikgroup e2e-smoke-group \
-              -o jsonpath='{.status.authentikId}' 2>/dev/null || true)
-            if [ "$ready" = "True" ] && [ -n "$id" ]; then
-              echo "AuthentikGroup synced with authentikId=$id"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::error::AuthentikGroup never reached Ready=True with an authentikId"
-          mise exec -- kubectl get authentikgroup e2e-smoke-group -o yaml
-          exit 1
+          . deploy/e2e/wait-ready.sh
+          wait_ready authentikgroup e2e-smoke-group ""
 
       - name: Discover real default flow slugs
         id: flows
@@ -188,25 +180,7 @@ jobs:
             groupRef: e2e-smoke-group
           EOF
 
-          wait_ready () {
-            local kind="$1" name="$2" ns_args="$3"
-            echo "waiting for ${kind}/${name} to sync..."
-            for _ in $(seq 1 30); do
-              ready=$(mise exec -- kubectl get "$kind" "$name" $ns_args \
-                -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
-              id=$(mise exec -- kubectl get "$kind" "$name" $ns_args \
-                -o jsonpath='{.status.authentikId}' 2>/dev/null || true)
-              if [ "$ready" = "True" ] && [ -n "$id" ]; then
-                echo "${kind}/${name} synced with authentikId=$id"
-                return 0
-              fi
-              sleep 5
-            done
-            echo "::error::${kind}/${name} never reached Ready=True with an authentikId"
-            mise exec -- kubectl get "$kind" "$name" $ns_args -o yaml
-            return 1
-          }
-
+          . deploy/e2e/wait-ready.sh
           wait_ready authentikbrand e2e-smoke-brand ""
           wait_ready authentikapplication e2e-smoke-app "-n default"
           wait_ready authentikaccesspolicy e2e-smoke-access "-n default"

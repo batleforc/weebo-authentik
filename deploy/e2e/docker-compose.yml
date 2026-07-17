@@ -11,6 +11,16 @@
 # AUTHENTIK_BOOTSTRAP_* env vars (supported since authentik 2024.4) create
 # an admin user and a ready-to-use API token on first boot, with no
 # interactive setup-wizard step — required for a fully automated CI run.
+x-authentik-env: &authentik-env
+  AUTHENTIK_REDIS__HOST: redis
+  AUTHENTIK_POSTGRESQL__HOST: postgresql
+  AUTHENTIK_POSTGRESQL__USER: authentik
+  AUTHENTIK_POSTGRESQL__NAME: authentik
+  AUTHENTIK_POSTGRESQL__PASSWORD: e2e-only-not-a-real-secret
+  AUTHENTIK_BOOTSTRAP_EMAIL: akadmin@e2e.local
+  AUTHENTIK_BOOTSTRAP_PASSWORD: e2e-only-not-a-real-secret
+  AUTHENTIK_BOOTSTRAP_TOKEN: e2e-bootstrap-token-not-a-real-secret
+
 services:
   postgresql:
     image: docker.io/library/postgres:16-alpine
@@ -36,14 +46,7 @@ services:
     image: ghcr.io/goauthentik/server:2026.5
     command: server
     environment:
-      AUTHENTIK_REDIS__HOST: redis
-      AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__USER: authentik
-      AUTHENTIK_POSTGRESQL__NAME: authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: e2e-only-not-a-real-secret
-      AUTHENTIK_BOOTSTRAP_EMAIL: akadmin@e2e.local
-      AUTHENTIK_BOOTSTRAP_PASSWORD: e2e-only-not-a-real-secret
-      AUTHENTIK_BOOTSTRAP_TOKEN: e2e-bootstrap-token-not-a-real-secret
+      <<: *authentik-env
     ports:
       - "9000:9000"
     depends_on:
@@ -61,14 +64,7 @@ services:
     image: ghcr.io/goauthentik/server:2026.5
     command: worker
     environment:
-      AUTHENTIK_REDIS__HOST: redis
-      AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__USER: authentik
-      AUTHENTIK_POSTGRESQL__NAME: authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: e2e-only-not-a-real-secret
-      AUTHENTIK_BOOTSTRAP_EMAIL: akadmin@e2e.local
-      AUTHENTIK_BOOTSTRAP_PASSWORD: e2e-only-not-a-real-secret
-      AUTHENTIK_BOOTSTRAP_TOKEN: e2e-bootstrap-token-not-a-real-secret
+      <<: *authentik-env
     depends_on:
       postgresql:
         condition: service_healthy
