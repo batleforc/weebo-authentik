@@ -1,0 +1,49 @@
+version: "3"
+
+# Dev-env helpers for the authentik-server/authentik-worker/authentik-db
+# containers defined in devfile.yaml, which are kept idle (sleep infinity)
+# so they don't fight a manual database wipe. Requires kubectl in PATH and
+# a ServiceAccount with exec permission on this workspace's own pod.
+#
+# POD is resolved once via `vars.sh` rather than a `$(task authentik:pod)`
+# shell-out — go-task 3.x refuses to invoke an `internal: true` task from
+# a re-entrant CLI call, which a subshell counts as.
+vars:
+  POD:
+    sh: kubectl get pod -l controller.devfile.io/devworkspace_name=$WORKSPACE_NAME -o jsonpath='{.items[0].metadata.name}'
+
+tasks:
+  server:
+    desc: "Start the authentik server (ak server) inside the authentik-server container"
+    cmds:
+      - kubectl exec -it -c authentik-server "{{.POD}}" -- ak server
+
+  worker:
+    desc: "Start the authentik worker (ak worker) inside the authentik-worker container"
+    cmds:
+      - kubectl exec -it -c authentik-worker "{{.POD}}" -- ak worker
+
+  stop:
+    desc: >
+      Kill the background ak server/worker processes started by
+      `crates/operator/tests/sidecar_authentik.rs` (tracked via
+      /tmp/ak.pid in each container) — the test itself never auto-stops
+      them, so repeat runs reuse a warm instance instead of eating
+      Authentik's ~1min startup cost every time.
+    cmds:
+      - >-
+        kubectl exec -c authentik-server "{{.POD}}" --
+        sh -c 'test -f /tmp/ak.pid && kill "$(cat /tmp/ak.pid)" && rm -f /tmp/ak.pid'
+      - >-
+        kubectl exec -c authentik-worker "{{.POD}}" --
+        sh -c 'test -f /tmp/ak.pid && kill "$(cat /tmp/ak.pid)" && rm -f /tmp/ak.pid'
+
+  wipe-db:
+    desc: "Drop and recreate the authentik database (run before authentik:server/worker for a clean slate)"
+    cmds:
+      - >-
+        kubectl exec -c authentik-db "{{.POD}}" --
+        psql -U authentik -d postgres
+        -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'authentik';"
+        -c "DROP DATABASE IF EXISTS authentik;"
+        -c "CREATE DATABASE authentik OWNER authentik;"

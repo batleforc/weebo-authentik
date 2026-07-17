@@ -57,7 +57,19 @@ async fn apply(
     ctx: &Ctx,
 ) -> Result<Action, Error> {
     let name = group.name_any();
-    let authentik_id = group.status.as_ref().and_then(|s| s.authentik_id.clone());
+    // Re-fetched directly from the API server rather than trusted from
+    // `group` (sourced from kube-runtime's local watch cache): reconciles
+    // for one object are serialized, but the watch event carrying a
+    // *previous* reconcile's `patch_synced_status` can still be in flight
+    // when this one starts (e.g. right behind the finalizer-add patch),
+    // so a cached `authentik_id: None` here would be stale and trigger a
+    // spurious second `create_group` — which the gateway can never
+    // recover from (see `ports.rs`, "never a silent adopt"). Confirmed in
+    // practice: without this, the finalizer-add-triggered reconcile that
+    // immediately follows a successful create still reads a stale
+    // `None` and re-creates, colliding with the object it just made.
+    let current = api.get(&name).await?;
+    let authentik_id = current.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let outcome = match ctx.gateway_factory.default_gateway().await {
         Ok(gateway) => reconcile_group(group, authentik_id.as_deref(), gateway.as_ref()).await,

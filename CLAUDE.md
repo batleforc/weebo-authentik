@@ -14,6 +14,8 @@ All the rule in the Eclipse Che block will be applied only if you can find an en
 
 **If the code cli is not available search for the code-oss one** code cli may not always be available, the code-oss perfecly does the job if needed.
 
+**If you need the full name of the pod use the $HOSTNAME or the hostname command to get it**
+
 ## Command
 
 ### Mise

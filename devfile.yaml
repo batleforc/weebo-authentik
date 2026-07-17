@@ -3,3 +3,139 @@ metadata:
   name: weebo-authentik
 parent:
   uri: https://raw.githubusercontent.com/batleforc/WeeboDevImage/refs/heads/main/che-browser/devfile.yaml
+components:
+  - name: authentik-db
+    container:
+      image: docker.io/library/postgres:16-alpine
+      memoryLimit: 512Mi
+      memoryRequest: 256Mi
+      cpuLimit: 500m
+      cpuRequest: 100m
+      env:
+        - name: POSTGRES_USER
+          value: authentik
+        - name: POSTGRES_PASSWORD
+          value: authentik
+        - name: POSTGRES_DB
+          value: authentik
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+      volumeMounts:
+        - name: authentik-db-storage
+          path: /var/lib/postgresql/data
+  - name: authentik-db-storage
+    volume:
+      size: 5Gi
+  # authentik-server/worker both hard-require redis (task queue + cache) and
+  # default to `localhost:6379`, matching the shared-network-namespace setup
+  # above — no AUTHENTIK_REDIS__HOST override needed.
+  - name: authentik-redis
+    container:
+      image: docker.io/library/redis:7-alpine
+      memoryLimit: 256Mi
+      memoryRequest: 128Mi
+      cpuLimit: 250m
+      cpuRequest: 50m
+      volumeMounts:
+        - name: authentik-redis-storage
+          path: /data
+  - name: authentik-redis-storage
+    volume:
+      size: 1Gi
+  # Shared between authentik-server and authentik-worker (mirrors upstream's
+  # docker-compose, which also mounts one `media` volume into both). Needed
+  # because the image's baked-in /media is owned by a uid/gid that doesn't
+  # include this pod's runtime uid (Che assigns an arbitrary uid + gid=0),
+  # so without an explicit volume here the `tenant_files.py` first-boot
+  # migration fails with `PermissionError: [Errno 13] Permission denied:
+  # '/media/public'` — DevWorkspace-provisioned volumes, unlike the image's
+  # own directories, come back writable for this pod's uid/gid.
+  - name: authentik-media
+    volume:
+      size: 1Gi
+  # Server is intentionally kept idle (sleep infinity instead of its normal
+  # entrypoint) so the postgres data can be wiped by hand without authentik
+  # migrating/re-seeding it out from under you.
+  #
+  # AUTHENTIK_POSTGRESQL__HOST is `localhost`, not `authentik-db`: sidecar
+  # containers in one devworkspace pod share a network namespace (no
+  # docker-compose-style per-container DNS aliasing), so `authentik-db`
+  # never resolves — only 127.0.0.1/localhost reaches postgres from here.
+  #
+  # AUTHENTIK_BOOTSTRAP_TOKEN/EMAIL/PASSWORD give the akadmin user a fixed,
+  # known-in-advance API token on first startup (idempotent — safe on every
+  # restart), so `crates/operator/tests/sidecar_authentik.rs` can talk to
+  # this instance without any manual setup-wizard step. Dev-only value,
+  # same spirit as AUTHENTIK_SECRET_KEY below.
+  - name: authentik-server
+    container:
+      # Pinned to match `authentik-client`'s generated OpenAPI schema
+      # (Cargo.toml: `authentik-client = { version = "2026.5", ... }`,
+      # resolving to 2026.5.4 in Cargo.lock) — `:latest` here resolved to
+      # 2025.2.4, over a year older, and its actual API responses omit
+      # fields (e.g. `Group.parents_obj`) the generated client's models
+      # require unconditionally. Bump this in lockstep with
+      # `authentik-client` if that crate is ever upgraded.
+      image: ghcr.io/goauthentik/server:2026.5.4
+      command:
+        - sleep
+      args:
+        - infinity
+      memoryLimit: 1Gi
+      memoryRequest: 512Mi
+      cpuLimit: 500m
+      cpuRequest: 100m
+      env:
+        - name: AUTHENTIK_POSTGRESQL__HOST
+          value: localhost
+        - name: AUTHENTIK_POSTGRESQL__NAME
+          value: authentik
+        - name: AUTHENTIK_POSTGRESQL__USER
+          value: authentik
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          value: authentik
+        - name: AUTHENTIK_SECRET_KEY
+          value: dev-only-insecure-secret-key-change-me
+        - name: AUTHENTIK_BOOTSTRAP_EMAIL
+          value: akadmin@weebo.local
+        - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+          value: dev-only-insecure-bootstrap-password-change-me
+        - name: AUTHENTIK_BOOTSTRAP_TOKEN
+          value: dev-only-insecure-bootstrap-token-change-me
+      volumeMounts:
+        - name: authentik-media
+          path: /media
+  # Worker kept idle for the same reason as authentik-server: it also runs
+  # migrations/tasks against postgres on boot, which would fight a manual wipe.
+  - name: authentik-worker
+    container:
+      # Kept in lockstep with authentik-server above — see its comment.
+      image: ghcr.io/goauthentik/server:2026.5.4
+      command:
+        - sleep
+      args:
+        - infinity
+      memoryLimit: 1Gi
+      memoryRequest: 512Mi
+      cpuLimit: 500m
+      cpuRequest: 100m
+      env:
+        - name: AUTHENTIK_POSTGRESQL__HOST
+          value: localhost
+        - name: AUTHENTIK_POSTGRESQL__NAME
+          value: authentik
+        - name: AUTHENTIK_POSTGRESQL__USER
+          value: authentik
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          value: authentik
+        - name: AUTHENTIK_SECRET_KEY
+          value: dev-only-insecure-secret-key-change-me
+        - name: AUTHENTIK_BOOTSTRAP_EMAIL
+          value: akadmin@weebo.local
+        - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+          value: dev-only-insecure-bootstrap-password-change-me
+        - name: AUTHENTIK_BOOTSTRAP_TOKEN
+          value: dev-only-insecure-bootstrap-token-change-me
+      volumeMounts:
+        - name: authentik-media
+          path: /media

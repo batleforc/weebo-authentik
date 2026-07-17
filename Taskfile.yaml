@@ -1,5 +1,11 @@
 version: "3"
 
+includes:
+  authentik: ./.task/authentik.yaml
+  tests:
+    taskfile: ./.task/test.yaml
+    flatten: true
+
 # `testkit` (dev-dependency of `adapters-inbound`, pulled in by any cargo
 # invocation that builds its tests, including `clippy --all-targets`) pulls
 # in the `envtest` crate, which needs a Go toolchain (`mise use go`) and a
@@ -31,24 +37,6 @@ tasks:
     cmds:
       - mise exec -- cargo fmt --check
       - mise exec -- cargo clippy --workspace --all-targets -- -D warnings
-
-  test:
-    desc: "Fast unit + contract tests (lib-level, no real cluster)"
-    cmds:
-      - mise exec -- cargo test --workspace --lib --bins
-
-  test:integration:
-    desc: >
-      Real envtest-backed controller integration tests — spins up a real
-      kube-apiserver + etcd (crates/testkit/src/envtest.rs).
-    cmds:
-      - mise exec -- cargo test --workspace --tests
-
-  test:all:
-    desc: "Every test suite: unit/contract + real envtest integration"
-    cmds:
-      - task: test
-      - task: test:integration
 
   docs:
     desc: "Run the Fumadocs documentation site in dev mode"

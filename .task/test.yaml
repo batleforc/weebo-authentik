@@ -1,0 +1,31 @@
+version: "3"
+
+tasks:
+  test:
+    desc: "Fast unit + contract tests (lib-level, no real cluster)"
+    cmds:
+      - mise exec -- cargo test --workspace --lib --bins
+
+  test:integration:
+    desc: >
+      Real envtest-backed controller integration tests — spins up a real
+      kube-apiserver + etcd (crates/testkit/src/envtest.rs).
+    cmds:
+      - mise exec -- cargo test --workspace --tests
+
+  test:all:
+    desc: "Every test suite: unit/contract + real envtest integration"
+    cmds:
+      - task: test
+      - task: test:integration
+
+  test:live-authentik:
+    desc: >
+      Layer-4 functional test against this workspace's real Che sidecar
+      Authentik (crates/operator/tests/sidecar_authentik.rs) — starts
+      ak server/worker in the idle sidecar containers, waits for
+      readiness, then runs the real AuthentikGroup controller against it.
+      Not part of `test:all` — needs this repo's own devfile.yaml
+      sidecars, not a generic CI runner.
+    cmds:
+      - mise exec -- cargo test -p operator --test sidecar_authentik -- --ignored --nocapture
