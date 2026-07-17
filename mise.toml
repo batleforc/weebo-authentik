@@ -1,7 +1,7 @@
 [tools]
 cocogitto = "latest"
 node = "24"
-rust = "latest"
+rust = {version = "latest", components=["rust-src","rustfmt", "llvm-tools"]}
 task = "latest"
 gitleaks = "latest"
 claude = "latest"
