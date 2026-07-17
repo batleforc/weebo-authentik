@@ -50,4 +50,37 @@ impl AuthentikMock {
             .mount(&self.server)
             .await;
     }
+
+    /// Scripts an arbitrary `POST <api_path>` response — the generic
+    /// building block for scripting any create endpoint, including
+    /// non-2xx responses (e.g. 400/409 conflicts), for adapter contract
+    /// tests (`adapters-outbound`'s `AuthentikHttpGateway`).
+    pub async fn mock_post(&self, api_path: &str, status: u16, body: serde_json::Value) {
+        Mock::given(method("POST"))
+            .and(path(format!("/api/v3{api_path}")))
+            .respond_with(ResponseTemplate::new(status).set_body_json(body))
+            .mount(&self.server)
+            .await;
+    }
+
+    /// Scripts an arbitrary `PATCH <api_path>` response — the generic
+    /// building block for scripting any partial-update endpoint.
+    pub async fn mock_patch(&self, api_path: &str, status: u16, body: serde_json::Value) {
+        Mock::given(method("PATCH"))
+            .and(path(format!("/api/v3{api_path}")))
+            .respond_with(ResponseTemplate::new(status).set_body_json(body))
+            .mount(&self.server)
+            .await;
+    }
+
+    /// Scripts an arbitrary `DELETE <api_path>` response — no body, since
+    /// every delete endpoint this gateway calls returns `204 No Content`
+    /// (or an error body on a non-2xx status).
+    pub async fn mock_delete(&self, api_path: &str, status: u16) {
+        Mock::given(method("DELETE"))
+            .and(path(format!("/api/v3{api_path}")))
+            .respond_with(ResponseTemplate::new(status))
+            .mount(&self.server)
+            .await;
+    }
 }

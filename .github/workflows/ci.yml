@@ -130,6 +130,22 @@ jobs:
             docs/content/docs/crds/ \
             docs/public/crd-schemas/
 
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install mise-managed tools (helm, ...)
+        run: mise install
+
+      - name: helm lint + template smoke test
+        run: mise exec -- task lint:helm
+
   docker-build:
     runs-on: ubuntu-latest
     steps:

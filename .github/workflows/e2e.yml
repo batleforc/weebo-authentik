@@ -1,0 +1,256 @@
+name: E2E
+
+# Layer 4 of .prompt/plan.md's test strategy — real kind cluster + real,
+# throwaway Authentik instance. Periodic/manual only, deliberately never on
+# every PR (would slow down the fast feedback loop layers 1-3 already
+# give). This is the one workflow that can't be exercised in this repo's
+# own dev sandbox (no docker/root there, see CLAUDE.md) — expect this file
+# to need iteration against real GitHub Actions runs.
+on:
+  schedule:
+    - cron: "0 4 * * 1" # weekly, Monday 04:00 UTC
+  workflow_dispatch: {}
+
+env:
+  KIND_CLUSTER: weebo-e2e
+  COMPOSE_PROJECT: weebo-e2e
+  OPERATOR_IMAGE: weebo-authentik-operator:e2e
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install mise-managed tools (kind, kubectl, helm, ...)
+        run: mise install
+
+      - name: Start a real, throwaway Authentik instance
+        run: |
+          docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" up -d
+          echo "waiting for Authentik server readiness..."
+          for _ in $(seq 1 60); do
+            if docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" \
+                exec -T server wget -qO- http://localhost:9000/-/health/ready/ >/dev/null 2>&1; then
+              echo "Authentik server is ready"
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Create kind cluster
+        run: mise exec -- kind create cluster --name "$KIND_CLUSTER"
+
+      - name: Make the Authentik container reachable from kind nodes
+        id: authentik-url
+        run: |
+          docker network connect kind "${COMPOSE_PROJECT}-server-1"
+          ip=$(docker inspect -f '{{ (index .NetworkSettings.Networks "kind").IPAddress }}' "${COMPOSE_PROJECT}-server-1")
+          echo "url=http://${ip}:9000/api/v3" >> "$GITHUB_OUTPUT"
+
+      - name: Build operator image and load it into kind
+        run: |
+          docker build -t "$OPERATOR_IMAGE" .
+          mise exec -- kind load docker-image "$OPERATOR_IMAGE" --name "$KIND_CLUSTER"
+
+      - name: Install cert-manager
+        run: |
+          mise exec -- kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+          mise exec -- kubectl -n cert-manager wait --for=condition=Available --timeout=180s \
+            deployment/cert-manager deployment/cert-manager-webhook deployment/cert-manager-cainjector
+
+      - name: Self-signed ClusterIssuer
+        run: |
+          cat <<'EOF' | mise exec -- kubectl apply -f -
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: e2e-selfsigned
+          spec:
+            selfSigned: {}
+          EOF
+
+      - name: Install CRDs
+        run: mise exec -- kubectl apply -f deploy/crd/
+
+      - name: Install the operator chart
+        run: |
+          mise exec -- helm install weebo-authentik deploy/charts/weebo-authentik \
+            --set image.repository=weebo-authentik-operator \
+            --set image.tag=e2e \
+            --set image.pullPolicy=Never \
+            --set certManager.issuerRef.name=e2e-selfsigned \
+            --set certManager.issuerRef.kind=ClusterIssuer \
+            --wait --timeout=5m
+
+      - name: Golden path — AuthentikInstance + AuthentikGroup sync to Ready
+        run: |
+          cat <<EOF | mise exec -- kubectl apply -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: authentik-token
+            namespace: default
+          stringData:
+            token: e2e-bootstrap-token-not-a-real-secret
+          ---
+          apiVersion: authentik.weebo.io/v1alpha1
+          kind: AuthentikInstance
+          metadata:
+            name: e2e
+          spec:
+            url: ${{ steps.authentik-url.outputs.url }}
+            tokenSecretRef:
+              name: authentik-token
+              namespace: default
+              key: token
+          ---
+          apiVersion: authentik.weebo.io/v1alpha1
+          kind: AuthentikGroup
+          metadata:
+            name: e2e-smoke-group
+          spec:
+            name: e2e-smoke-group
+          EOF
+
+          echo "waiting for AuthentikGroup to sync..."
+          for _ in $(seq 1 30); do
+            ready=$(mise exec -- kubectl get authentikgroup e2e-smoke-group \
+              -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+            id=$(mise exec -- kubectl get authentikgroup e2e-smoke-group \
+              -o jsonpath='{.status.authentikId}' 2>/dev/null || true)
+            if [ "$ready" = "True" ] && [ -n "$id" ]; then
+              echo "AuthentikGroup synced with authentikId=$id"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::AuthentikGroup never reached Ready=True with an authentikId"
+          mise exec -- kubectl get authentikgroup e2e-smoke-group -o yaml
+          exit 1
+
+      - name: Discover real default flow slugs
+        id: flows
+        run: |
+          base="${{ steps.authentik-url.outputs.url }}"
+          token="e2e-bootstrap-token-not-a-real-secret"
+          # Discovered from the live instance rather than hardcoded: the
+          # exact default slugs are an Authentik implementation detail
+          # that can drift between versions — a stale hardcoded slug
+          # would make this workflow fail for a reason unrelated to the
+          # operator itself.
+          auth_slug=$(curl -s -H "Authorization: Bearer ${token}" "${base}/flows/instances/?designation=authorization" | jq -r '.results[0].slug')
+          inval_slug=$(curl -s -H "Authorization: Bearer ${token}" "${base}/flows/instances/?designation=invalidation" | jq -r '.results[0].slug')
+          if [ -z "$auth_slug" ] || [ "$auth_slug" = "null" ] || [ -z "$inval_slug" ] || [ "$inval_slug" = "null" ]; then
+            echo "::error::could not discover default authorization/invalidation flow slugs from the real Authentik instance"
+            exit 1
+          fi
+          echo "authorization_flow=${auth_slug}" >> "$GITHUB_OUTPUT"
+          echo "invalidation_flow=${inval_slug}" >> "$GITHUB_OUTPUT"
+
+      - name: Golden path — Brand + oauth2 Application + AccessPolicy sync to Ready
+        run: |
+          cat <<EOF | mise exec -- kubectl apply -f -
+          apiVersion: authentik.weebo.io/v1alpha1
+          kind: AuthentikBrand
+          metadata:
+            name: e2e-smoke-brand
+          spec:
+            domain: e2e-smoke.example.com
+          ---
+          apiVersion: authentik.weebo.io/v1alpha1
+          kind: AuthentikApplication
+          metadata:
+            name: e2e-smoke-app
+            namespace: default
+          spec:
+            instanceRef: e2e
+            name: e2e-smoke-app
+            slug: e2e-smoke-app
+            provider:
+              kind: oauth2
+              oauth2:
+                authorizationFlow: ${{ steps.flows.outputs.authorization_flow }}
+                invalidationFlow: ${{ steps.flows.outputs.invalidation_flow }}
+          ---
+          apiVersion: authentik.weebo.io/v1alpha1
+          kind: AuthentikAccessPolicy
+          metadata:
+            name: e2e-smoke-access
+            namespace: default
+          spec:
+            applicationRef: e2e-smoke-app
+            groupRef: e2e-smoke-group
+          EOF
+
+          wait_ready () {
+            local kind="$1" name="$2" ns_args="$3"
+            echo "waiting for ${kind}/${name} to sync..."
+            for _ in $(seq 1 30); do
+              ready=$(mise exec -- kubectl get "$kind" "$name" $ns_args \
+                -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+              id=$(mise exec -- kubectl get "$kind" "$name" $ns_args \
+                -o jsonpath='{.status.authentikId}' 2>/dev/null || true)
+              if [ "$ready" = "True" ] && [ -n "$id" ]; then
+                echo "${kind}/${name} synced with authentikId=$id"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "::error::${kind}/${name} never reached Ready=True with an authentikId"
+            mise exec -- kubectl get "$kind" "$name" $ns_args -o yaml
+            return 1
+          }
+
+          wait_ready authentikbrand e2e-smoke-brand ""
+          wait_ready authentikapplication e2e-smoke-app "-n default"
+          wait_ready authentikaccesspolicy e2e-smoke-access "-n default"
+
+          echo "checking the oauth2 credentials Secret was written..."
+          mise exec -- kubectl get secret e2e-smoke-app -n default \
+            -o jsonpath='{.data.AUTHENTIK_CLIENT_ID}' | grep -q . || {
+            echo "::error::expected Secret e2e-smoke-app/AUTHENTIK_CLIENT_ID to be written for the oauth2 application"
+            exit 1
+          }
+
+      - name: Admission webhook denies an unlisted namespace by default
+        run: |
+          mise exec -- kubectl create namespace e2e-unlisted
+          cat <<'EOF' > /tmp/denied-application.yaml
+          apiVersion: authentik.weebo.io/v1alpha1
+          kind: AuthentikApplication
+          metadata:
+            name: should-be-denied
+            namespace: e2e-unlisted
+          spec:
+            instanceRef: e2e
+            name: should-be-denied
+            slug: should-be-denied
+            provider:
+              kind: proxy
+              proxy:
+                internalHost: http://example.internal
+                externalHost: https://example.external
+                authorizationFlow: default-authorization-flow
+                invalidationFlow: default-invalidation-flow
+          EOF
+          if mise exec -- kubectl apply -f /tmp/denied-application.yaml; then
+            echo "::error::expected the admission webhook to reject this AuthentikApplication, but it was accepted"
+            exit 1
+          fi
+          echo "admission webhook correctly denied the unlisted namespace"
+
+      - name: Operator logs (always, for debugging)
+        if: always()
+        run: mise exec -- kubectl logs -l app.kubernetes.io/name=weebo-authentik --all-containers --tail=-1 || true
+
+      - name: Teardown
+        if: always()
+        run: |
+          mise exec -- kind delete cluster --name "$KIND_CLUSTER" || true
+          docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" down -v || true

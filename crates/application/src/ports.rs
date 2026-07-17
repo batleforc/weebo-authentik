@@ -8,7 +8,7 @@ use std::sync::Arc;
 use api::application::{Oauth2ProviderSpec, ProxyProviderSpec};
 use api::{AuthentikApplication, AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikUser};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum GatewayError {
     /// Create was rejected because an object with the same name/slug
     /// already exists and isn't tracked by this CR. Maps to

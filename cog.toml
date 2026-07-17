@@ -10,7 +10,11 @@ post_bump_hooks = []
 post_package_bump_hooks = []
 tag_prefix = "v"
 
-pre_bump_hooks = []
+# Keeps Cargo.toml's [workspace.package] version and the Helm chart's
+# Chart.yaml version/appVersion committed as part of cog's own bump
+# commit, rather than duplicating version-bump logic in
+# .github/workflows/release.yml. See .hooks/bump-versions.sh.
+pre_bump_hooks = ["./.hooks/bump-versions.sh {{version}}"]
 
 
 [git_hooks]

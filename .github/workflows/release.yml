@@ -1,0 +1,61 @@
+name: Release
+
+# Bumps the version from conventional commits on every push to main and
+# pushes the resulting commit + tag. Publishing (image, chart) is a
+# separate workflow (publish.yml) triggered by the tag this one creates —
+# keeps "decide the next version" decoupled from "build and push
+# artifacts for it".
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    # Guards against re-triggering on the bump commit itself: `--skip-ci`
+    # makes cocogitto append cog.toml's `skip_ci` marker ("[skip ci]") to
+    # the bump commit message, and GitHub Actions natively skips `push`
+    # triggers whose HEAD commit message contains it.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install mise
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install mise-managed tools (cocogitto, ...)
+        run: mise install
+
+      - name: Configure git identity for the bump commit
+        run: |
+          git config user.name "weebo-authentik-bot"
+          git config user.email "actions@users.noreply.github.com"
+
+      - name: Bump version from conventional commits
+        id: bump
+        run: |
+          before=$(git rev-parse HEAD)
+          # No bumpable commits since the last tag is a legitimate,
+          # non-fatal outcome for `cog bump --auto` — don't fail the
+          # workflow on it, just skip the push below.
+          mise exec -- cog bump --auto --skip-ci || true
+          after=$(git rev-parse HEAD)
+          if [ "$before" = "$after" ]; then
+            echo "nothing to bump"
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push bump commit and tag
+        if: steps.bump.outputs.bumped == 'true'
+        run: |
+          git push origin HEAD:main
+          git push origin --tags

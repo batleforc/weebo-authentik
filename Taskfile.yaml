@@ -38,6 +38,15 @@ tasks:
       - mise exec -- cargo fmt --check
       - mise exec -- cargo clippy --workspace --all-targets -- -D warnings
 
+  lint:helm:
+    desc: "Lint and smoke-render the operator's Helm chart"
+    cmds:
+      - mise exec -- helm lint deploy/charts/weebo-authentik
+      # certManager.issuerRef.name is `required` in templates/certificate.yaml
+      # (no real default makes sense — see values.yaml) — a smoke render
+      # needs a stand-in value, this doesn't need to be a real Issuer.
+      - mise exec -- helm template deploy/charts/weebo-authentik --set certManager.issuerRef.name=smoke-test-issuer > /dev/null
+
   docs:
     desc: "Run the Fumadocs documentation site in dev mode"
     dir: docs

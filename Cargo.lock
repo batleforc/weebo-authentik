@@ -35,6 +35,8 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "serde_json",
+ "testkit",
+ "tokio",
  "uuid",
  "vaultrs",
 ]
@@ -162,8 +164,10 @@ dependencies = [
  "api",
  "async-trait",
  "domain",
+ "kube",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

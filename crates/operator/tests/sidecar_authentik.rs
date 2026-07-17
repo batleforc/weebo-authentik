@@ -34,9 +34,13 @@ use std::time::{Duration, Instant};
 
 use adapters_inbound::controller::{self, Ctx};
 use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
+use api::brand::AuthentikBrandSpec;
 use api::group::AuthentikGroupSpec;
+use api::outpost::{AuthentikOutpostSpec, OutpostType};
 use api::user::AuthentikUserSpec;
-use api::{AuthentikGroup, AuthentikStatus, AuthentikUser};
+use api::{
+    AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikStatus, AuthentikUser,
+};
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::envtest::EnvTestCluster;
 use testkit::static_gateway_factory::StaticGatewayFactory;
@@ -202,6 +206,18 @@ impl HasAuthentikStatus for AuthentikUser {
     }
 }
 
+impl HasAuthentikStatus for AuthentikOutpost {
+    fn authentik_status(&self) -> Option<&AuthentikStatus> {
+        self.status.as_ref()
+    }
+}
+
+impl HasAuthentikStatus for AuthentikBrand {
+    fn authentik_status(&self) -> Option<&AuthentikStatus> {
+        self.status.as_ref()
+    }
+}
+
 async fn wait_for_authentik_id<K>(api: &Api<K>, name: &str) -> String
 where
     K: kube::Resource + Clone + std::fmt::Debug + serde::de::DeserializeOwned + HasAuthentikStatus,
@@ -361,4 +377,88 @@ async fn user_controller_round_trips_against_real_sidecar_authentik() {
     };
 
     assert_round_trips_against_real_authentik(&users, &name, make_user).await;
+}
+
+#[tokio::test]
+#[ignore = "needs this repo's Che devworkspace sidecars (devfile.yaml); run via `task test:live-authentik`"]
+async fn outpost_controller_round_trips_against_real_sidecar_authentik() {
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+
+    let pod = workspace_pod_name();
+    ensure_ak_running(&pod, "authentik-server", "server");
+    ensure_ak_running(&pod, "authentik-worker", "worker");
+    wait_for_authentik_ready(Instant::now() + READY_TIMEOUT);
+
+    let cluster = EnvTestCluster::start().await;
+    let client = cluster.client();
+    let ctx = new_ctx(client.clone());
+
+    tokio::spawn(controller::outpost::run(client.clone(), ctx));
+
+    let outposts: Api<AuthentikOutpost> = Api::all(client.clone());
+    let name = format!("weebo-sidecar-live-test-outpost-{}", std::process::id());
+
+    let make_outpost = || AuthentikOutpost {
+        metadata: ObjectMeta {
+            name: Some(name.clone()),
+            ..Default::default()
+        },
+        spec: AuthentikOutpostSpec {
+            name: name.clone(),
+            r#type: OutpostType::Proxy,
+            config: serde_json::json!({}),
+        },
+        status: None,
+    };
+
+    assert_round_trips_against_real_authentik(&outposts, &name, make_outpost).await;
+}
+
+#[tokio::test]
+#[ignore = "needs this repo's Che devworkspace sidecars (devfile.yaml); run via `task test:live-authentik`"]
+async fn brand_controller_round_trips_against_real_sidecar_authentik() {
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+
+    let pod = workspace_pod_name();
+    ensure_ak_running(&pod, "authentik-server", "server");
+    ensure_ak_running(&pod, "authentik-worker", "worker");
+    wait_for_authentik_ready(Instant::now() + READY_TIMEOUT);
+
+    let cluster = EnvTestCluster::start().await;
+    let client = cluster.client();
+    let ctx = new_ctx(client.clone());
+
+    tokio::spawn(controller::brand::run(client.clone(), ctx));
+
+    let brands: Api<AuthentikBrand> = Api::all(client.clone());
+    let name = format!("weebo-sidecar-live-test-brand-{}", std::process::id());
+
+    // Deliberately `default: false` — the default-election path is
+    // already covered by `domain::brand_election`'s unit tests and by
+    // `adapters-inbound/tests/brand_controller.rs`'s envtest+wiremock
+    // tests; this test's only job is proving a real Authentik round trip
+    // for the brand CRUD itself.
+    let make_brand = || AuthentikBrand {
+        metadata: ObjectMeta {
+            name: Some(name.clone()),
+            ..Default::default()
+        },
+        spec: AuthentikBrandSpec {
+            domain: format!("{name}.example.com"),
+            default: false,
+            branding_title: None,
+            branding_logo: None,
+            branding_favicon: None,
+            branding_default_flow_background: None,
+            default_application_ref: None,
+            flow_authentication: None,
+            flow_invalidation: None,
+            flow_recovery: None,
+            flow_unenrollment: None,
+            flow_user_settings: None,
+        },
+        status: None,
+    };
+
+    assert_round_trips_against_real_authentik(&brands, &name, make_brand).await;
 }

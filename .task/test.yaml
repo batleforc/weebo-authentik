@@ -4,14 +4,21 @@ tasks:
   test:
     desc: "Fast unit + contract tests (lib-level, no real cluster)"
     cmds:
-      - mise exec -- cargo test --workspace --lib --bins
+      # --no-fail-fast: a failure in one crate's unit tests must not hide
+      # results from the rest of the workspace — CI (and anyone running
+      # this locally) should see every failure in one pass, not just the
+      # first one alphabetically.
+      - mise exec -- cargo test --workspace --lib --bins --no-fail-fast
 
   test:integration:
     desc: >
       Real envtest-backed controller integration tests — spins up a real
       kube-apiserver + etcd (crates/testkit/src/envtest.rs).
     cmds:
-      - mise exec -- cargo test --workspace --tests
+      # --no-fail-fast: same reasoning as `test` above — with one
+      # integration test binary per CRD controller now, a single failing
+      # one must not prevent the rest from running and reporting.
+      - mise exec -- cargo test --workspace --tests --no-fail-fast
 
   test:all:
     desc: "Every test suite: unit/contract + real envtest integration"

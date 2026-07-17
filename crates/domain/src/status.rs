@@ -52,3 +52,39 @@ impl Condition {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ready_builds_the_ready_condition() {
+        let c = Condition::ready(ConditionStatus::True, ReasonCode::Reconciled, "synced");
+        assert_eq!(c.type_, "Ready");
+        assert_eq!(c.status, ConditionStatus::True);
+        assert_eq!(c.reason, ReasonCode::Reconciled);
+        assert_eq!(c.message, "synced");
+    }
+
+    #[test]
+    fn advisory_builds_a_true_status_condition_with_the_given_type() {
+        let c = Condition::advisory(
+            "NoAccessPolicyBound",
+            ReasonCode::NoAccessPolicyBound,
+            "no policy bound yet",
+        );
+        assert_eq!(c.type_, "NoAccessPolicyBound");
+        assert_eq!(c.status, ConditionStatus::True);
+        assert_eq!(c.reason, ReasonCode::NoAccessPolicyBound);
+    }
+
+    #[test]
+    #[should_panic(expected = "Blocking ReasonCode")]
+    fn advisory_panics_on_a_blocking_reason_code() {
+        Condition::advisory(
+            "Bogus",
+            ReasonCode::NamespaceNotAllowed,
+            "blocking reasons must never be advisory",
+        );
+    }
+}

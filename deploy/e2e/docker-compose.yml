@@ -1,0 +1,76 @@
+# Real, throwaway Authentik instance for the periodic E2E workflow
+# (.github/workflows/e2e.yml) — layer 4 of .prompt/plan.md's test
+# strategy. Never used locally in this repo's own Che sandbox (no
+# docker/root there, see CLAUDE.md); only ever run inside a GitHub
+# Actions runner, which has both.
+#
+# Image pinned to 2026.5 to match the `authentik-client` crate version in
+# the workspace Cargo.toml — keeps the E2E instance's actual API shape in
+# sync with the generated client the operator is built against.
+#
+# AUTHENTIK_BOOTSTRAP_* env vars (supported since authentik 2024.4) create
+# an admin user and a ready-to-use API token on first boot, with no
+# interactive setup-wizard step — required for a fully automated CI run.
+services:
+  postgresql:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: e2e-only-not-a-real-secret
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: docker.io/library/redis:alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  server:
+    image: ghcr.io/goauthentik/server:2026.5
+    command: server
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: e2e-only-not-a-real-secret
+      AUTHENTIK_BOOTSTRAP_EMAIL: akadmin@e2e.local
+      AUTHENTIK_BOOTSTRAP_PASSWORD: e2e-only-not-a-real-secret
+      AUTHENTIK_BOOTSTRAP_TOKEN: e2e-bootstrap-token-not-a-real-secret
+    ports:
+      - "9000:9000"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9000/-/health/ready/"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  worker:
+    image: ghcr.io/goauthentik/server:2026.5
+    command: worker
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: e2e-only-not-a-real-secret
+      AUTHENTIK_BOOTSTRAP_EMAIL: akadmin@e2e.local
+      AUTHENTIK_BOOTSTRAP_PASSWORD: e2e-only-not-a-real-secret
+      AUTHENTIK_BOOTSTRAP_TOKEN: e2e-bootstrap-token-not-a-real-secret
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

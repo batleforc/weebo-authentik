@@ -22,3 +22,64 @@ pub async fn reconcile_user(
         Err(e) => errored_from_gateway_error(e),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use api::user::AuthentikUserSpec;
+    use domain::error::ReasonCode;
+    use kube::api::ObjectMeta;
+
+    use super::*;
+    use crate::ports::GatewayError;
+    use crate::test_support::FakeGateway;
+
+    fn user(name: &str) -> AuthentikUser {
+        AuthentikUser {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                ..Default::default()
+            },
+            spec: AuthentikUserSpec {
+                username: name.to_string(),
+                name: name.to_string(),
+                email: format!("{name}@example.com"),
+                is_active: true,
+                group_refs: vec![],
+            },
+            status: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn first_reconcile_creates_and_syncs_the_returned_id() {
+        let gateway = FakeGateway::create(Ok("3".to_string()));
+        let outcome = reconcile_user(&user("batleforc"), None, &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "3"
+        ));
+    }
+
+    #[tokio::test]
+    async fn subsequent_reconcile_updates_and_keeps_the_existing_id() {
+        let gateway = FakeGateway::update(Ok(()));
+        let outcome = reconcile_user(&user("batleforc"), Some("3"), &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "3"
+        ));
+    }
+
+    #[tokio::test]
+    async fn gateway_error_maps_to_its_reason_code() {
+        let gateway = FakeGateway::create(Err(GatewayError::NotFound("group missing".to_string())));
+        let outcome = reconcile_user(&user("batleforc"), None, &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::AuthentikApiError,
+                ..
+            }
+        ));
+    }
+}

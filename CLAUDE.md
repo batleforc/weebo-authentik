@@ -1,4 +1,54 @@
 
+# Weebo Authentik
+
+Kubernetes operator that manages Authentik resources (groups, users,
+applications, access policies, brands, outposts) as CRDs, replacing a
+Terraform module. **`.prompt/plan.md`** is the authoritative design doc
+(CRD scope, error-code conventions, status model, test strategy,
+security/deployment decisions) — read it before making any non-trivial
+change; this section is just an index into the repo, not a substitute.
+
+## Architecture (hexagonal)
+
+- `crates/domain` — pure logic (allow-list evaluation, brand-default
+  election, `ReasonCode` catalog, status/condition types). Zero `kube`/
+  `http` dependency, testable without I/O.
+- `crates/application` — `reconcile_*`/`evaluate_admission` use-cases,
+  orchestrating `domain` + the `AuthentikGateway`/`SecretStore` port
+  traits (`ports.rs`). No concrete adapter dependency.
+- `crates/api` — the CRD types themselves (`kube::CustomResource` derives).
+- `crates/adapters-inbound` — kube.rs controllers (one per CRD) + the
+  admission webhook (`axum`).
+- `crates/adapters-outbound` — `AuthentikHttpGateway` (wraps the generated
+  `authentik-client`), `K8sSecretStore`, `VaultSecretStore` (stub, see
+  `secret_vault.rs`).
+- `crates/operator` — the binary: wires everything, leader election,
+  webhook TLS.
+- `crates/importer` — one-shot tool that reads a live Authentik instance
+  and emits CRD YAML (migration path from the Terraform module).
+- `crates/testkit` — shared test harnesses: `envtest` (real
+  kube-apiserver+etcd, no Docker needed), `authentik_mock` (`wiremock`).
+- `docs/` — Fumadocs site; `docs/content/docs/crds/*.mdx` and
+  `docs/public/crd-schemas/*.json` are **generated**, never hand-edited
+  (see `task recu`).
+
+## Common commands
+
+```bash
+task lint              # cargo fmt --check + clippy -D warnings
+task lint:helm          # helm lint + template smoke test on deploy/charts/
+task test               # fast unit + contract tests (--lib --bins)
+task test:integration   # + real envtest-backed controller tests (--tests)
+task recu                # regenerate CRDs (deploy/crd/) + chart crds/ + docs
+task docs                # Fumadocs dev server
+```
+
+`crates/testkit`'s `envtest` dependency needs a Go toolchain and a real
+`libclang.so` on `LIBCLANG_PATH` — see `crates/testkit/src/envtest.rs` and
+`Taskfile.yaml`'s `env:` block for the documented setup (this pulls in
+transitively for any `--all-targets`/`--tests` build, not just
+`test:integration`).
+
 <!-- Eclipse Che Dedicated instruction --->
 # Eclipse che - Cloud Development Environment
 

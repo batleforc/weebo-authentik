@@ -10,3 +10,28 @@ use crate::use_cases::ReconcileOutcome;
 pub fn reconcile_namespace_policy(_policy: &AuthentikNamespacePolicy) -> ReconcileOutcome {
     ReconcileOutcome::Synced { authentik_id: None }
 }
+
+#[cfg(test)]
+mod tests {
+    use api::namespace_policy::AuthentikNamespacePolicySpec;
+    use kube::api::ObjectMeta;
+
+    use super::*;
+
+    #[test]
+    fn accepted_cr_is_always_synced_with_no_remote_id() {
+        let policy = AuthentikNamespacePolicy {
+            metadata: ObjectMeta {
+                name: Some("default-deny".to_string()),
+                ..Default::default()
+            },
+            spec: AuthentikNamespacePolicySpec { rules: vec![] },
+            status: None,
+        };
+
+        assert!(matches!(
+            reconcile_namespace_policy(&policy),
+            ReconcileOutcome::Synced { authentik_id: None }
+        ));
+    }
+}
