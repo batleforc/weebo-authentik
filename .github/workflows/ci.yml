@@ -23,7 +23,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev
-          echo "LIBCLANG_PATH=$(dirname "$(dpkg -L libclang-dev | grep -m1 'libclang\.so')")" >> "$GITHUB_ENV"
+          # `dpkg -L libclang-dev` only lists files owned by that literal
+          # package, but on current Ubuntu runners it's a transitional
+          # package depending on a versioned one (e.g. libclang-18-dev)
+          # that actually ships libclang.so — dpkg -L returns nothing,
+          # dirname of that is ".", and clang-sys panics on a LIBCLANG_PATH
+          # of "." (Path::file_name() has no component for "."). Find the
+          # real file on disk instead, independent of package layout.
+          LIBCLANG_SO="$(find /usr/lib -iname 'libclang.so*' 2>/dev/null | head -n1)"
+          if [ -z "$LIBCLANG_SO" ]; then
+            echo "::error::libclang.so not found after installing libclang-dev" >&2
+            exit 1
+          fi
+          echo "LIBCLANG_PATH=$(dirname "$LIBCLANG_SO")" >> "$GITHUB_ENV"
 
       - name: Cache cargo registry and target dir
         uses: actions/cache@v4
@@ -54,7 +66,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev
-          echo "LIBCLANG_PATH=$(dirname "$(dpkg -L libclang-dev | grep -m1 'libclang\.so')")" >> "$GITHUB_ENV"
+          LIBCLANG_SO="$(find /usr/lib -iname 'libclang.so*' 2>/dev/null | head -n1)"
+          if [ -z "$LIBCLANG_SO" ]; then
+            echo "::error::libclang.so not found after installing libclang-dev" >&2
+            exit 1
+          fi
+          echo "LIBCLANG_PATH=$(dirname "$LIBCLANG_SO")" >> "$GITHUB_ENV"
 
       - name: Cache cargo registry and target dir
         uses: actions/cache@v4
