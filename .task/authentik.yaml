@@ -5,21 +5,31 @@ version: "3"
 # so they don't fight a manual database wipe. Requires kubectl in PATH and
 # a ServiceAccount with exec permission on this workspace's own pod.
 #
-# POD is resolved once via `vars.sh` rather than a `$(task authentik:pod)`
-# shell-out — go-task 3.x refuses to invoke an `internal: true` task from
-# a re-entrant CLI call, which a subshell counts as.
-vars:
-  POD:
-    sh: kubectl get pod -l controller.devfile.io/devworkspace_name=$WORKSPACE_NAME -o jsonpath='{.items[0].metadata.name}'
+# POD is a per-task var (not a taskfile-global one) resolved via `vars.sh`
+# rather than a `$(task authentik:pod)` shell-out — go-task 3.x refuses to
+# invoke an `internal: true` task from a re-entrant CLI call, which a
+# subshell counts as. It must stay per-task rather than global: go-task
+# evaluates a taskfile-global `sh:` var eagerly whenever this Taskfile tree
+# is loaded at all — including for unrelated tasks like the root `lint`
+# task — so a global POD var broke CI (no WORKSPACE_NAME/cluster there,
+# `kubectl get pod` failed and killed the whole run before `cargo fmt` even
+# started). Scoped to each task below, it's only resolved when one of
+# these authentik:* tasks actually runs.
 
 tasks:
   server:
     desc: "Start the authentik server (ak server) inside the authentik-server container"
+    vars:
+      POD:
+        sh: kubectl get pod -l controller.devfile.io/devworkspace_name=$WORKSPACE_NAME -o jsonpath='{.items[0].metadata.name}'
     cmds:
       - kubectl exec -it -c authentik-server "{{.POD}}" -- ak server
 
   worker:
     desc: "Start the authentik worker (ak worker) inside the authentik-worker container"
+    vars:
+      POD:
+        sh: kubectl get pod -l controller.devfile.io/devworkspace_name=$WORKSPACE_NAME -o jsonpath='{.items[0].metadata.name}'
     cmds:
       - kubectl exec -it -c authentik-worker "{{.POD}}" -- ak worker
 
@@ -30,6 +40,9 @@ tasks:
       /tmp/ak.pid in each container) — the test itself never auto-stops
       them, so repeat runs reuse a warm instance instead of eating
       Authentik's ~1min startup cost every time.
+    vars:
+      POD:
+        sh: kubectl get pod -l controller.devfile.io/devworkspace_name=$WORKSPACE_NAME -o jsonpath='{.items[0].metadata.name}'
     cmds:
       - >-
         kubectl exec -c authentik-server "{{.POD}}" --
@@ -40,6 +53,9 @@ tasks:
 
   wipe-db:
     desc: "Drop and recreate the authentik database (run before authentik:server/worker for a clean slate)"
+    vars:
+      POD:
+        sh: kubectl get pod -l controller.devfile.io/devworkspace_name=$WORKSPACE_NAME -o jsonpath='{.items[0].metadata.name}'
     cmds:
       - >-
         kubectl exec -c authentik-db "{{.POD}}" --

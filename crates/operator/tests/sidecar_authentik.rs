@@ -7,18 +7,19 @@
 //! sitting idle (`sleep infinity`) in this workspace's own pod are the
 //! stand-in.
 //!
-//! What this test actually does:
+//! What each test in this file actually does:
 //! 1. Starts `ak server`/`ak worker` inside the idle sidecar containers
 //!    (`kubectl exec`, backgrounded — they're normally left idle so a
 //!    manual `task authentik:wipe-db` doesn't fight a running migration).
 //! 2. Polls Authentik's own `/-/health/ready/` until it reports ready.
-//! 3. Runs the *real* `AuthentikGroup` controller (`envtest` control plane
-//!    and the real `AuthentikHttpGateway`, no `wiremock`) against it —
+//! 3. Runs the *real* controller for one CRD (`envtest` control plane and
+//!    the real `AuthentikHttpGateway`, no `wiremock`) against it —
 //!    `group_controller.rs` in `adapters-inbound` is the mocked version of
-//!    this same scenario; this is its real-HTTP counterpart.
+//!    the group scenario; this is its real-HTTP counterpart, plus the same
+//!    shape for `AuthentikUser`.
 //! 4. Proves the round trip is genuine (not just a 201 that happened to
 //!    deserialize) by deleting the CR, confirming the finalizer's real
-//!    `delete_group` call landed, then recreating the same Authentik-side
+//!    `delete_*` call landed, then recreating the same Authentik-side
 //!    name: a second create only succeeds if the first was truly gone
 //!    server-side, otherwise Authentik rejects the name collision and
 //!    `status.authentikId` never gets set.
@@ -33,8 +34,9 @@ use std::time::{Duration, Instant};
 
 use adapters_inbound::controller::{self, Ctx};
 use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
-use api::AuthentikGroup;
 use api::group::AuthentikGroupSpec;
+use api::user::AuthentikUserSpec;
+use api::{AuthentikGroup, AuthentikStatus, AuthentikUser};
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::envtest::EnvTestCluster;
 use testkit::static_gateway_factory::StaticGatewayFactory;
@@ -181,6 +183,113 @@ fn wait_for_authentik_ready(deadline: Instant) {
     }
 }
 
+/// Every CRD here shares `#[kube(status = "AuthentikStatus")]` — this just
+/// gives the round-trip helpers below a uniform way to read
+/// `status.authentikId` across kinds without duplicating them per-CRD.
+trait HasAuthentikStatus {
+    fn authentik_status(&self) -> Option<&AuthentikStatus>;
+}
+
+impl HasAuthentikStatus for AuthentikGroup {
+    fn authentik_status(&self) -> Option<&AuthentikStatus> {
+        self.status.as_ref()
+    }
+}
+
+impl HasAuthentikStatus for AuthentikUser {
+    fn authentik_status(&self) -> Option<&AuthentikStatus> {
+        self.status.as_ref()
+    }
+}
+
+async fn wait_for_authentik_id<K>(api: &Api<K>, name: &str) -> String
+where
+    K: kube::Resource + Clone + std::fmt::Debug + serde::de::DeserializeOwned + HasAuthentikStatus,
+    K::DynamicType: Default,
+{
+    let result = tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let obj = api.get(name).await.expect("CR must be gettable");
+            if let Some(id) = obj
+                .authentik_status()
+                .and_then(|s| s.authentik_id.as_deref())
+            {
+                return id.to_string();
+            }
+            tokio::time::sleep(Duration::from_millis(300)).await;
+        }
+    })
+    .await;
+    result.unwrap_or_else(|_| {
+        panic!("controller must sync status.authentikId against the real sidecar Authentik within the timeout")
+    })
+}
+
+/// Shared shape for every `*_controller_round_trips_against_real_sidecar_authentik`
+/// test: create the CR, wait for the controller to sync a real Authentik-side
+/// pk onto `status.authentikId`, delete it and confirm the finalizer actually
+/// removed the Authentik-side object (not just the CR) rather than just
+/// returning a 201 that happened to deserialize, then recreate under the
+/// same name — a second create only succeeds, and only gets a *different*
+/// pk, if the first was genuinely gone server-side (otherwise Authentik
+/// rejects the name collision and `status.authentikId` never gets set).
+async fn assert_round_trips_against_real_authentik<K>(
+    api: &Api<K>,
+    name: &str,
+    make: impl Fn() -> K,
+) where
+    K: kube::Resource
+        + Clone
+        + std::fmt::Debug
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + HasAuthentikStatus,
+    K::DynamicType: Default,
+{
+    api.create(&PostParams::default(), &make())
+        .await
+        .expect("CR create must succeed");
+    let first_id = wait_for_authentik_id(api, name).await;
+
+    api.delete(name, &Default::default())
+        .await
+        .expect("CR delete must succeed");
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if api.get(name).await.is_err() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(300)).await;
+        }
+    })
+    .await
+    .expect(
+        "finalizer cleanup must remove the CR (and the real Authentik object) within the timeout",
+    );
+
+    api.create(&PostParams::default(), &make()).await.expect(
+        "recreating the same Authentik-side name must succeed once the first is truly gone",
+    );
+    let second_id = wait_for_authentik_id(api, name).await;
+    assert_ne!(
+        first_id, second_id,
+        "recreated object must get a fresh pk from real Authentik, not reuse the deleted one"
+    );
+
+    api.delete(name, &Default::default()).await.ok();
+}
+
+fn new_ctx(client: kube::Client) -> Arc<Ctx> {
+    let gateway = AuthentikHttpGateway::new(format!("{AUTHENTIK_BASE}/api/v3"), BOOTSTRAP_TOKEN);
+    let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
+    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
+    Arc::new(Ctx {
+        client,
+        gateway_factory,
+        secrets,
+    })
+}
+
 #[tokio::test]
 #[ignore = "needs this repo's Che devworkspace sidecars (devfile.yaml); run via `task test:live-authentik`"]
 async fn group_controller_round_trips_against_real_sidecar_authentik() {
@@ -193,20 +302,12 @@ async fn group_controller_round_trips_against_real_sidecar_authentik() {
 
     let cluster = EnvTestCluster::start().await;
     let client = cluster.client();
-
-    let gateway = AuthentikHttpGateway::new(format!("{AUTHENTIK_BASE}/api/v3"), BOOTSTRAP_TOKEN);
-    let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
-    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
-    let ctx = Arc::new(Ctx {
-        client: client.clone(),
-        gateway_factory,
-        secrets,
-    });
+    let ctx = new_ctx(client.clone());
 
     tokio::spawn(controller::group::run(client.clone(), ctx));
 
     let groups: Api<AuthentikGroup> = Api::all(client.clone());
-    let name = format!("weebo-sidecar-live-test-{}", std::process::id());
+    let name = format!("weebo-sidecar-live-test-group-{}", std::process::id());
 
     let make_group = || AuthentikGroup {
         metadata: ObjectMeta {
@@ -222,65 +323,42 @@ async fn group_controller_round_trips_against_real_sidecar_authentik() {
         status: None,
     };
 
-    async fn wait_for_authentik_id(groups: &Api<AuthentikGroup>, name: &str) -> String {
-        let result = tokio::time::timeout(Duration::from_secs(30), async {
-            loop {
-                let group = groups
-                    .get(name)
-                    .await
-                    .expect("AuthentikGroup CR must be gettable");
-                if let Some(status) = &group.status
-                    && let Some(id) = &status.authentik_id
-                {
-                    return id.clone();
-                }
-                tokio::time::sleep(Duration::from_millis(300)).await;
-            }
-        })
-        .await;
-        result.unwrap_or_else(|_| {
-            panic!("controller must sync status.authentikId against the real sidecar Authentik within the timeout")
-        })
-    }
+    assert_round_trips_against_real_authentik(&groups, &name, make_group).await;
+}
 
-    groups
-        .create(&PostParams::default(), &make_group())
-        .await
-        .expect("AuthentikGroup CR create must succeed");
-    let first_id = wait_for_authentik_id(&groups, &name).await;
+#[tokio::test]
+#[ignore = "needs this repo's Che devworkspace sidecars (devfile.yaml); run via `task test:live-authentik`"]
+async fn user_controller_round_trips_against_real_sidecar_authentik() {
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    groups
-        .delete(&name, &Default::default())
-        .await
-        .expect("AuthentikGroup CR delete must succeed");
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            if groups.get(&name).await.is_err() {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(300)).await;
-        }
-    })
-    .await
-    .expect(
-        "finalizer cleanup must remove the CR (and the real Authentik group) within the timeout",
-    );
+    let pod = workspace_pod_name();
+    ensure_ak_running(&pod, "authentik-server", "server");
+    ensure_ak_running(&pod, "authentik-worker", "worker");
+    wait_for_authentik_ready(Instant::now() + READY_TIMEOUT);
 
-    // Real round-trip proof: if `delete_group` hadn't actually removed the
-    // object server-side, Authentik would reject this second create as a
-    // name collision, `status.authentikId` would never be set, and the
-    // wait below would time out instead of returning a *different* pk.
-    groups
-        .create(&PostParams::default(), &make_group())
-        .await
-        .expect(
-            "recreating the same Authentik-side name must succeed once the first is truly gone",
-        );
-    let second_id = wait_for_authentik_id(&groups, &name).await;
-    assert_ne!(
-        first_id, second_id,
-        "recreated group must get a fresh pk from real Authentik, not reuse the deleted one"
-    );
+    let cluster = EnvTestCluster::start().await;
+    let client = cluster.client();
+    let ctx = new_ctx(client.clone());
 
-    groups.delete(&name, &Default::default()).await.ok();
+    tokio::spawn(controller::user::run(client.clone(), ctx));
+
+    let users: Api<AuthentikUser> = Api::all(client.clone());
+    let name = format!("weebo-sidecar-live-test-user-{}", std::process::id());
+
+    let make_user = || AuthentikUser {
+        metadata: ObjectMeta {
+            name: Some(name.clone()),
+            ..Default::default()
+        },
+        spec: AuthentikUserSpec {
+            username: name.clone(),
+            name: name.clone(),
+            email: format!("{name}@weebo.local"),
+            is_active: true,
+            group_refs: Default::default(),
+        },
+        status: None,
+    };
+
+    assert_round_trips_against_real_authentik(&users, &name, make_user).await;
 }

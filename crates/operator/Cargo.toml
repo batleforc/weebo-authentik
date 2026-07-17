@@ -27,5 +27,6 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 testkit = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 k8s-openapi = { workspace = true }
