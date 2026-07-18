@@ -51,7 +51,7 @@ async fn instance_controller_marks_ready_with_no_remote_object() {
         .await
         .expect("AuthentikInstance CR create must succeed");
 
-    let ready = wait_for(&instances, "prod", |instance| {
+    let authentik_id = wait_for(&instances, "prod", |instance| {
         instance
             .status
             .as_ref()
@@ -61,15 +61,9 @@ async fn instance_controller_marks_ready_with_no_remote_object() {
                     .iter()
                     .any(|c| c.type_ == "Ready" && c.status == "True")
             })
-            .map(|_| instance.clone())
+            .map(|status| status.authentik_id.clone())
     })
     .await;
 
-    assert_eq!(
-        ready
-            .status
-            .as_ref()
-            .and_then(|s| s.authentik_id.as_deref()),
-        None
-    );
+    assert_eq!(authentik_id, None);
 }

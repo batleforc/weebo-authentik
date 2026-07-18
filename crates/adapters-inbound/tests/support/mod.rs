@@ -45,43 +45,24 @@ pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
     })
 }
 
-/// Polls `api.get(name)` every 200ms until `extract` returns `Some`, up to
-/// a 15s timeout — the shape every ad-hoc `tokio::time::timeout` polling
-/// loop in this crate's integration tests used, just parameterized over
-/// what's being waited for (a status field, a `Ready` condition, ...).
-pub async fn wait_for<K, T, F>(api: &kube::Api<K>, name: &str, mut extract: F) -> T
+/// This crate's tuning (15s timeout, 200ms poll interval) of
+/// `testkit::polling`'s generic wait helpers, shared with `operator`'s
+/// real-sidecar-Authentik tests (which use a longer 30s/300ms budget — see
+/// `crates/operator/tests/sidecar_authentik.rs`).
+const TIMEOUT: Duration = Duration::from_secs(15);
+const POLL_INTERVAL: Duration = Duration::from_millis(200);
+
+pub async fn wait_for<K, T, F>(api: &kube::Api<K>, name: &str, extract: F) -> T
 where
     K: Clone + serde::de::DeserializeOwned + std::fmt::Debug,
     F: FnMut(&K) -> Option<T>,
 {
-    tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            let obj = api.get(name).await.expect("CR must be gettable");
-            if let Some(v) = extract(&obj) {
-                return v;
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("condition on {name:?} was not met within the 15s timeout"))
+    testkit::polling::wait_for(api, name, TIMEOUT, POLL_INTERVAL, extract).await
 }
 
-/// Polls `api.get(name)` every 200ms until it errors (i.e. the object is
-/// gone), up to a 15s timeout — the delete-then-wait-for-404 half of the
-/// finalizer-cleanup pattern.
 pub async fn wait_for_absence<K>(api: &kube::Api<K>, name: &str)
 where
     K: Clone + serde::de::DeserializeOwned + std::fmt::Debug,
 {
-    tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            if api.get(name).await.is_err() {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("{name:?} was not removed within the 15s timeout"))
+    testkit::polling::wait_for_absence(api, name, TIMEOUT, POLL_INTERVAL).await
 }

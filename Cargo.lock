@@ -3446,6 +3446,7 @@ dependencies = [
  "envtest",
  "kube",
  "rustls",
+ "serde",
  "serde_json",
  "tokio",
  "wiremock",

@@ -10,6 +10,7 @@ application = { workspace = true }
 kube = { workspace = true }
 wiremock = { workspace = true }
 tokio = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
 envtest = "0.3"

@@ -31,22 +31,20 @@ jobs:
       - name: Start a real, throwaway Authentik instance
         run: |
           docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" up -d
-          echo "waiting for Authentik server readiness..."
-          ready=false
-          for _ in $(seq 1 60); do
+
+          . deploy/e2e/wait-ready.sh
+          _authentik_server_check() {
             if docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" \
                 exec -T server wget -qO- http://localhost:9000/-/health/ready/ >/dev/null 2>&1; then
               echo "Authentik server is ready"
-              ready=true
-              break
+              return 0
             fi
-            sleep 5
-          done
-          if [ "$ready" != "true" ]; then
-            echo "::error::Authentik server never became ready within the timeout"
+            return 1
+          }
+          _authentik_server_diagnostics() {
             docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" logs
-            exit 1
-          fi
+          }
+          retry_until "Authentik server readiness" 60 _authentik_server_check _authentik_server_diagnostics
 
       - name: Create kind cluster
         run: mise exec -- kind create cluster --name "$KIND_CLUSTER"

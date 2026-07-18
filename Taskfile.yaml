@@ -23,6 +23,51 @@ tasks:
     cmds:
       - mise upgrade
       - cog install-hook -a -o
+
+  doctor:
+    desc: "Sanity-check this machine's local dev setup (mise tools, libclang, git hooks) and print next steps"
+    cmds:
+      - mise install
+      - |
+        echo "== weebo-authentik dev environment check =="
+        ok=true
+
+        if [ ! -e "$LIBCLANG_PATH" ]; then
+          echo "  [FAIL] LIBCLANG_PATH does not point at a real file: $LIBCLANG_PATH"
+          echo "         crates/testkit's envtest dependency needs a real libclang.so here"
+          echo "         for its bindgen build (mise's own 'clang' package isn't enough) —"
+          echo "         see crates/testkit/src/envtest.rs and this Taskfile's env: block."
+          ok=false
+        else
+          echo "  [ok] LIBCLANG_PATH -> $LIBCLANG_PATH"
+        fi
+
+        if ! mise exec -- go version >/dev/null 2>&1; then
+          echo "  [FAIL] go toolchain not available via mise (needed by envtest's bindgen build)"
+          ok=false
+        else
+          echo "  [ok] $(mise exec -- go version)"
+        fi
+
+        if [ -f .git/hooks/pre-commit ] && [ -f .git/hooks/commit-msg ]; then
+          echo "  [ok] cocogitto git hooks installed"
+        else
+          echo "  [warn] cocogitto git hooks not installed — run 'task init' (cog install-hook -a -o)"
+        fi
+
+        if [ "$ok" = "false" ]; then
+          echo ""
+          echo "Some checks failed — fix the above before running 'task lint' / 'task test:integration'."
+          exit 1
+        fi
+
+        echo ""
+        echo "Environment looks good. Next steps:"
+        echo "  task lint              # cargo fmt --check + clippy -D warnings"
+        echo "  task test              # fast unit + contract tests"
+        echo "  task test:integration  # + real envtest-backed controller tests"
+        echo "  task docs              # Fumadocs dev server"
+
   recu:
     desc: "Recuring job like regenerating Swagger spec"
     cmds:

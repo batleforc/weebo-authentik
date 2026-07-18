@@ -216,27 +216,31 @@ impl HasAuthentikStatus for AuthentikBrand {
     }
 }
 
+/// Timeout/poll-interval budget for this file's real-sidecar-Authentik
+/// waits (both the id-sync and finalizer-cleanup polls below) — longer
+/// than `adapters-inbound`'s wiremock-backed 15s/200ms
+/// (`crates/adapters-inbound/tests/support/mod.rs`) since a real Authentik
+/// round trip is slower than a mocked one.
+const REAL_AUTHENTIK_TIMEOUT: Duration = Duration::from_secs(30);
+const REAL_AUTHENTIK_POLL_INTERVAL: Duration = Duration::from_millis(300);
+
 async fn wait_for_authentik_id<K>(api: &Api<K>, name: &str) -> String
 where
     K: kube::Resource + Clone + std::fmt::Debug + serde::de::DeserializeOwned + HasAuthentikStatus,
     K::DynamicType: Default,
 {
-    let result = tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            let obj = api.get(name).await.expect("CR must be gettable");
-            if let Some(id) = obj
-                .authentik_status()
+    testkit::polling::wait_for(
+        api,
+        name,
+        REAL_AUTHENTIK_TIMEOUT,
+        REAL_AUTHENTIK_POLL_INTERVAL,
+        |obj| {
+            obj.authentik_status()
                 .and_then(|s| s.authentik_id.as_deref())
-            {
-                return id.to_string();
-            }
-            tokio::time::sleep(Duration::from_millis(300)).await;
-        }
-    })
-    .await;
-    result.unwrap_or_else(|_| {
-        panic!("controller must sync status.authentikId against the real sidecar Authentik within the timeout")
-    })
+                .map(str::to_string)
+        },
+    )
+    .await
 }
 
 /// Shared shape for every `*_controller_round_trips_against_real_sidecar_authentik`
@@ -268,18 +272,13 @@ async fn assert_round_trips_against_real_authentik<K>(
     api.delete(name, &Default::default())
         .await
         .expect("CR delete must succeed");
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            if api.get(name).await.is_err() {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(300)).await;
-        }
-    })
-    .await
-    .expect(
-        "finalizer cleanup must remove the CR (and the real Authentik object) within the timeout",
-    );
+    testkit::polling::wait_for_absence(
+        api,
+        name,
+        REAL_AUTHENTIK_TIMEOUT,
+        REAL_AUTHENTIK_POLL_INTERVAL,
+    )
+    .await;
 
     api.create(&PostParams::default(), &make()).await.expect(
         "recreating the same Authentik-side name must succeed once the first is truly gone",

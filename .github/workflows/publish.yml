@@ -17,22 +17,33 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Only tag :latest if this is the highest version tag
         id: latest
+        env:
+          # Routed through env instead of interpolating ${{ github.ref_name }}
+          # directly into the script below: a git tag name is not restricted
+          # to safe characters (`$`, backticks, `;` etc. are all valid ref
+          # names), so splicing it into `run:` as literal script text would
+          # let a maliciously-named pushed tag execute arbitrary shell here.
+          REF_NAME: ${{ github.ref_name }}
         run: |
           # A manual/backport push of an old v* tag (e.g. re-publishing
           # v1.2.4 after v2.0.0 already shipped) must not overwrite
           # :latest with an older image — compare this tag against every
-          # v* tag reachable in the repo using semver-aware sort.
-          highest=$(git tag -l 'v*' | sort -V | tail -n1)
-          tags="ghcr.io/batleforc/weebo-authentik-operator:${{ github.ref_name }}"
-          if [ "$highest" = "${{ github.ref_name }}" ]; then
+          # strict-semver v* tag on the remote using semver-aware sort.
+          # `git ls-remote` needs no local history, so this doesn't require
+          # the full-history checkout `fetch-depth: 0` would (the tag glob
+          # is also narrowed to `vX.Y.Z` so `sort -V` — which isn't full
+          # semver-precedence aware for prerelease/build suffixes — only
+          # ever compares tags of that exact shape).
+          highest=$(git ls-remote --tags --refs origin 'refs/tags/v[0-9]*.[0-9]*.[0-9]*' \
+            | sed 's#.*refs/tags/##' | sort -V | tail -n1)
+          tags="ghcr.io/batleforc/weebo-authentik-operator:${REF_NAME}"
+          if [ "$highest" = "$REF_NAME" ]; then
             tags="$(printf '%s\nghcr.io/batleforc/weebo-authentik-operator:latest' "$tags")"
           else
-            echo "::notice::${{ github.ref_name }} is not the highest version tag ($highest) — skipping the :latest tag"
+            echo "::notice::${REF_NAME} is not the highest version tag ($highest) — skipping the :latest tag"
           fi
           {
             echo "tags<<EOF"
