@@ -59,6 +59,7 @@ async fn apply(
     ctx: &Ctx,
 ) -> Result<Action, Error> {
     let name = brand.name_any();
+    let started = std::time::Instant::now();
     let authentik_id = brand.status.as_ref().and_then(|s| s.authentik_id.clone());
     let this = to_input(&name, brand);
 
@@ -84,6 +85,7 @@ async fn apply(
             ),
         },
     };
+    super::record_reconcile("AuthentikBrand", started, &outcome);
 
     match outcome {
         ReconcileOutcome::Synced {

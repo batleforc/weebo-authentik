@@ -59,10 +59,12 @@ async fn apply(
     let name = outpost.name_any();
     let authentik_id = outpost.status.as_ref().and_then(|s| s.authentik_id.clone());
 
+    let started = std::time::Instant::now();
     let outcome = match ctx.gateway_factory.default_gateway().await {
         Ok(gateway) => reconcile_outpost(outpost, authentik_id.as_deref(), gateway.as_ref()).await,
         Err(e) => errored_from_factory_error(e),
     };
+    super::record_reconcile("AuthentikOutpost", started, &outcome);
 
     match outcome {
         ReconcileOutcome::Synced {

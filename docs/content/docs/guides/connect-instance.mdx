@@ -39,6 +39,43 @@ spec:
 `AuthentikInstance` is cluster-scoped, so its name (`main` above) is
 what every `AuthentikApplication`'s `spec.instanceRef` points back to.
 
+## Secret storage backend
+
+`AuthentikApplication`'s oauth2 credentials (`AUTHENTIK_CLIENT_ID`/
+`AUTHENTIK_CLIENT_SECRET`/`AUTHENTIK_URL`) are written to a Kubernetes
+`Secret` by default — one per `AuthentikApplication` CR, same name/
+namespace. To write them to Vault instead, set `spec.secretStore` on
+the `AuthentikInstance`:
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikInstance
+metadata:
+  name: main
+spec:
+  url: https://login.example.com
+  tokenSecretRef:
+    name: authentik-api-token
+    namespace: weebo-authentik
+    key: token
+  secretStore:
+    backend: vault
+    vault:
+      address: https://vault.example.com:8200
+      mount: secret
+      pathPrefix: weebo-authentik # optional, this is the default
+      kubernetesAuthRole: weebo-authentik-operator
+      kubernetesAuthMount: kubernetes # optional, this is the default
+```
+
+The operator authenticates to Vault using its own ServiceAccount JWT
+against Vault's Kubernetes auth backend (`kubernetesAuthRole` must
+already be configured Vault-side to trust that ServiceAccount) — no
+static Vault token to provision or rotate. Credentials land at
+`<mount>/data/<pathPrefix>/<namespace>/<name>` (KV v2), one secret per
+`AuthentikApplication` CR, same naming convention as the Kubernetes
+backend.
+
 ## Multiple instances
 
 Only `AuthentikApplication` carries an explicit `instanceRef`.

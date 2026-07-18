@@ -42,6 +42,7 @@ use api::{AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikStatus, Aut
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::envtest::EnvTestCluster;
 use testkit::static_gateway_factory::StaticGatewayFactory;
+use testkit::static_secret_store_factory::StaticSecretStoreFactory;
 
 /// Sidecar containers share this pod's network namespace (no per-container
 /// DNS aliasing like docker-compose) — `localhost` is how the main
@@ -296,10 +297,11 @@ fn new_ctx(client: kube::Client) -> Arc<Ctx> {
     let gateway = AuthentikHttpGateway::new(format!("{AUTHENTIK_BASE}/api/v3"), BOOTSTRAP_TOKEN);
     let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
     let secrets = Arc::new(K8sSecretStore::new(client.clone()));
+    let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));
     Arc::new(Ctx {
         client,
         gateway_factory,
-        secrets,
+        secrets_factory,
     })
 }
 

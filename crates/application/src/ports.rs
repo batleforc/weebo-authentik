@@ -214,6 +214,39 @@ pub trait SecretStore: Send + Sync {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum SecretStoreFactoryError {
+    /// `instanceRef` does not resolve to an `AuthentikInstance` CR. Maps
+    /// to `domain::error::ReasonCode::InstanceRefNotFound` — same failure
+    /// mode as `GatewayFactoryError::InstanceNotFound`.
+    #[error("AuthentikInstance {0:?} not found")]
+    InstanceNotFound(String),
+    /// Kubernetes-side failure resolving the `AuthentikInstance`, or a
+    /// failure building/authenticating the chosen `SecretStore` backend
+    /// (e.g. Vault Kubernetes-auth login failed, KV mount misconfigured).
+    /// Maps to `domain::error::ReasonCode::SecretStoreError`.
+    #[error("failed resolving SecretStore backend: {0}")]
+    ResolutionFailed(String),
+}
+
+/// Produces a `SecretStore` for a given `AuthentikInstance` CR, resolving
+/// `spec.secretStore` fresh on every call rather than caching — mirrors
+/// `GatewayFactory`'s no-caching rationale (negligible cost given the
+/// ~300s reconcile requeue interval, always reflects config/token
+/// rotation immediately). Only `AuthentikApplication` ever needs a
+/// `SecretStore` (oauth2 credentials), and it always carries an explicit
+/// `instanceRef`, so unlike `GatewayFactory` there is no `default_store`.
+///
+/// `#[async_trait]` for the same `dyn`-compatibility reason as
+/// `AuthentikGateway`.
+#[async_trait::async_trait]
+pub trait SecretStoreFactory: Send + Sync {
+    async fn secret_store_for(
+        &self,
+        instance_ref: &str,
+    ) -> Result<Arc<dyn SecretStore>, SecretStoreFactoryError>;
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum GatewayFactoryError {
     /// `instanceRef` does not resolve to an `AuthentikInstance` CR. Maps
     /// to `domain::error::ReasonCode::InstanceRefNotFound`.

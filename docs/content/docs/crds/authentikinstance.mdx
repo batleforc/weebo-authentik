@@ -10,6 +10,7 @@ shared piece of infrastructure, not owned by a single namespace.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
+| `secretStore` | `object` | no | `{"backend":"kubernetes"}` | Where `SecretStore::write_oauth2_credentials`/`delete` writes this instance's oauth2 application credentials. Defaults to a Kubernetes `Secret` (`crates/adapters-outbound/src/secret_k8s.rs`) when unset. |
 | `tls` | `object` | no | `{"insecureSkipVerify":false}` |  |
 | `tokenSecretRef` | `object` | yes |  |  |
 | `url` | `string` | yes |  | Base URL of the Authentik instance, e.g. `https://login.example.com`. |

@@ -75,7 +75,7 @@ pub async fn reconcile_application(
                 .await
             {
                 return ReconcileOutcome::Errored {
-                    reason: ReasonCode::AuthentikApiError,
+                    reason: ReasonCode::SecretStoreError,
                     message: format!("failed writing oauth2 credentials secret: {e}"),
                 };
             }

@@ -4,6 +4,56 @@
   "scope": "Cluster",
   "description": "Connection to a real Authentik server. Cluster-scoped — an org-wide,\nshared piece of infrastructure, not owned by a single namespace.",
   "properties": {
+    "secretStore": {
+      "default": {
+        "backend": "kubernetes"
+      },
+      "description": "Where `SecretStore::write_oauth2_credentials`/`delete` writes this\ninstance's oauth2 application credentials. Defaults to a\nKubernetes `Secret` (`crates/adapters-outbound/src/secret_k8s.rs`)\nwhen unset.",
+      "properties": {
+        "backend": {
+          "default": "kubernetes",
+          "enum": [
+            "kubernetes",
+            "vault"
+          ],
+          "type": "string"
+        },
+        "vault": {
+          "nullable": true,
+          "properties": {
+            "address": {
+              "description": "Vault server address, e.g. `https://vault.example.com:8200`.",
+              "type": "string"
+            },
+            "kubernetesAuthMount": {
+              "default": "kubernetes",
+              "description": "Mount path of Vault's Kubernetes auth backend. Defaults to\n`kubernetes`, Vault's own default mount name.",
+              "type": "string"
+            },
+            "kubernetesAuthRole": {
+              "description": "Vault Kubernetes-auth role this operator authenticates as — its\nown ServiceAccount JWT is exchanged for a Vault token via\n`auth/<kubernetesAuthMount>/login`. See `.prompt/plan.md`'s note\non `vault.tf`'s OIDC federation for why a Vault-aware `SecretStore`\nexists at all (unrelated to this auth step, which is the\noperator authenticating *to* Vault, not Vault federating\nAuthentik as an OIDC provider).",
+              "type": "string"
+            },
+            "mount": {
+              "description": "KV v2 secrets engine mount (e.g. `secret`) credentials are written\nunder.",
+              "type": "string"
+            },
+            "pathPrefix": {
+              "default": "weebo-authentik",
+              "description": "Path prefix under `mount` — the final KV path is\n`<pathPrefix>/<namespace>/<name>`, one secret per\n`AuthentikApplication` CR (same convention as the Kubernetes\nbackend's Secret naming).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "address",
+            "kubernetesAuthRole",
+            "mount"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "tls": {
       "default": {
         "insecureSkipVerify": false

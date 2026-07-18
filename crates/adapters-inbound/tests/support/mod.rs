@@ -20,6 +20,7 @@ use adapters_inbound::controller::Ctx;
 use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
 use testkit::authentik_mock::AuthentikMock;
 use testkit::static_gateway_factory::StaticGatewayFactory;
+use testkit::static_secret_store_factory::StaticSecretStoreFactory;
 
 /// `let _ = tracing_subscriber::fmt().with_test_writer().try_init();` —
 /// idempotent across the many `#[tokio::test]` fns in a single binary
@@ -33,15 +34,18 @@ pub fn init_tracing() {
 /// `AuthentikHttpGateway` pointed at the test's `AuthentikMock` (wrapped in
 /// a `StaticGatewayFactory` so no real `AuthentikInstance` resolution is
 /// needed), and a real `K8sSecretStore` against the test's `envtest`
-/// client.
+/// client (wrapped in a `StaticSecretStoreFactory`, same rationale — the
+/// Vault backend is exercised by its own contract test, not these
+/// per-CRD controller tests).
 pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
     let gateway = AuthentikHttpGateway::new(format!("{}/api/v3", mock.base_path()), "test-token");
     let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
     let secrets = Arc::new(K8sSecretStore::new(client.clone()));
+    let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));
     Arc::new(Ctx {
         client,
         gateway_factory,
-        secrets,
+        secrets_factory,
     })
 }
 

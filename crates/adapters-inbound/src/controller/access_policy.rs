@@ -59,6 +59,7 @@ async fn apply(
     namespace: &str,
 ) -> Result<Action, Error> {
     let name = policy.name_any();
+    let started = std::time::Instant::now();
     let authentik_id = policy.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     // Same-namespace lookup, never a cluster-wide client — this is the
@@ -89,6 +90,7 @@ async fn apply(
         }
         None => reconcile_access_policy(policy, None, authentik_id.as_deref(), None).await,
     };
+    super::record_reconcile("AuthentikAccessPolicy", started, &outcome);
 
     match outcome {
         ReconcileOutcome::Synced {

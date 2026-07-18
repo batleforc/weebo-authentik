@@ -53,8 +53,11 @@ async fn apply(
     policy: &AuthentikNamespacePolicy,
 ) -> Result<Action, Error> {
     let name = policy.name_any();
+    let started = std::time::Instant::now();
+    let outcome = reconcile_namespace_policy(policy);
+    super::record_reconcile("AuthentikNamespacePolicy", started, &outcome);
 
-    match reconcile_namespace_policy(policy) {
+    match outcome {
         ReconcileOutcome::Synced { .. } => {
             patch_ready_condition(
                 api,

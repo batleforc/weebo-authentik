@@ -10,7 +10,6 @@ node_modules/
 .next/
 
 # Editors / OS
-.vscode/
 .idea/
 *.swp
 .DS_Store

@@ -3,6 +3,8 @@
 //! incoming `AdmissionReview` into a call to
 //! `application::use_cases::evaluate_admission`.
 
+use std::sync::LazyLock;
+
 use api::AuthentikNamespacePolicy;
 use api::namespace_policy::{Effect as ApiEffect, ResourceKind as ApiResourceKind};
 use application::use_cases::evaluate_admission::{AdmissionRequest, evaluate_admission};
@@ -12,7 +14,29 @@ use axum::{Json, Router};
 use domain::allow_list::{Effect, NamespaceRule, ResourceKind};
 use domain::error::ReasonCode;
 use kube::{Api, Client};
+use opentelemetry::metrics::Counter;
+use opentelemetry::{KeyValue, global};
 use serde_json::{Value, json};
+
+/// OTLP-exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (see
+/// `operator::telemetry::init`) — a safe no-op otherwise, same rationale
+/// as `controller::RECONCILE_TOTAL`.
+static WEBHOOK_DECISIONS_TOTAL: LazyLock<Counter<u64>> = LazyLock::new(|| {
+    global::meter("weebo-authentik-operator")
+        .u64_counter("weebo_authentik_webhook_decisions_total")
+        .with_description("Admission webhook decisions, by CRD kind and result (allow/deny)")
+        .build()
+});
+
+fn record_decision(kind: &str, allowed: bool) {
+    WEBHOOK_DECISIONS_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("kind", kind.to_string()),
+            KeyValue::new("result", if allowed { "allow" } else { "deny" }),
+        ],
+    );
+}
 
 #[derive(Clone)]
 pub struct WebhookState {
@@ -36,6 +60,7 @@ async fn validate(State(state): State<WebhookState>, Json(review): Json<Value>) 
         // The ValidatingWebhookConfiguration should only ever route
         // AuthentikApplication/AuthentikAccessPolicy here — an
         // unrecognized kind fails closed rather than assuming it's fine.
+        record_decision(kind_str, false);
         return Json(deny_response(
             uid,
             ReasonCode::NamespaceNotAllowed,
@@ -51,6 +76,7 @@ async fn validate(State(state): State<WebhookState>, Json(review): Json<Value>) 
             // already blocks the request cluster-wide if this webhook
             // 5xxs or times out; this explicit denial is a second,
             // in-band signal for the same fail-closed intent.
+            record_decision(kind_str, false);
             return Json(deny_response(
                 uid,
                 ReasonCode::NamespaceNotAllowed,
@@ -60,6 +86,7 @@ async fn validate(State(state): State<WebhookState>, Json(review): Json<Value>) 
     };
 
     let result = evaluate_admission(&AdmissionRequest { namespace, kind }, &rules);
+    record_decision(kind_str, result.allowed);
 
     if result.allowed {
         Json(allow_response(uid))

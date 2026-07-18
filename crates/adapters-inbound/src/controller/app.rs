@@ -4,6 +4,7 @@ use api::AuthentikApplication;
 use api::application::ProviderKind;
 use application::use_cases::ReconcileOutcome;
 use application::use_cases::errored_from_factory_error;
+use application::use_cases::errored_from_secret_store_factory_error;
 use application::use_cases::reconcile_application::reconcile_application;
 use domain::error::ReasonCode;
 use domain::status::ConditionStatus;
@@ -61,6 +62,7 @@ async fn apply(
     ctx: &Ctx,
 ) -> Result<Action, Error> {
     let name = app.name_any();
+    let started = std::time::Instant::now();
     let authentik_id = app.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let outcome = match ctx
@@ -68,17 +70,25 @@ async fn apply(
         .gateway_for(&app.spec.instance_ref)
         .await
     {
-        Ok(gateway) => {
-            reconcile_application(
-                app,
-                authentik_id.as_deref(),
-                gateway.as_ref(),
-                ctx.secrets.as_ref(),
-            )
+        Ok(gateway) => match ctx
+            .secrets_factory
+            .secret_store_for(&app.spec.instance_ref)
             .await
-        }
+        {
+            Ok(secrets) => {
+                reconcile_application(
+                    app,
+                    authentik_id.as_deref(),
+                    gateway.as_ref(),
+                    secrets.as_ref(),
+                )
+                .await
+            }
+            Err(e) => errored_from_secret_store_factory_error(e),
+        },
         Err(e) => errored_from_factory_error(e),
     };
+    super::record_reconcile("AuthentikApplication", started, &outcome);
 
     match outcome {
         ReconcileOutcome::Synced {
@@ -125,7 +135,12 @@ async fn cleanup(
         if matches!(app.spec.provider.kind, ProviderKind::Oauth2) {
             let namespace = app.metadata.namespace.clone().unwrap_or_default();
             let name = app.name_any();
-            ctx.secrets
+            let secrets = ctx
+                .secrets_factory
+                .secret_store_for(&app.spec.instance_ref)
+                .await
+                .map_err(|e| Error::SecretStore(e.to_string()))?;
+            secrets
                 .delete(&namespace, &name)
                 .await
                 .map_err(|e| Error::SecretStore(e.to_string()))?;

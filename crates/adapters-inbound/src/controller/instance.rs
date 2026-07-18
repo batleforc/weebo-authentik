@@ -53,8 +53,11 @@ async fn apply(
     instance: &AuthentikInstance,
 ) -> Result<Action, Error> {
     let name = instance.name_any();
+    let started = std::time::Instant::now();
+    let outcome = reconcile_instance(instance);
+    super::record_reconcile("AuthentikInstance", started, &outcome);
 
-    match reconcile_instance(instance) {
+    match outcome {
         ReconcileOutcome::Synced { .. } => {
             patch_ready_condition(
                 api,

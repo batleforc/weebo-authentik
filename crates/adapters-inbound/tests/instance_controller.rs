@@ -44,6 +44,7 @@ async fn instance_controller_marks_ready_with_no_remote_object() {
                         key: "token".to_string(),
                     },
                     tls: Default::default(),
+                    secret_store: Default::default(),
                 },
                 status: None,
             },

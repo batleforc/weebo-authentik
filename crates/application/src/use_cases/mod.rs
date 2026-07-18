@@ -61,3 +61,23 @@ pub fn errored_from_factory_error(err: crate::ports::GatewayFactoryError) -> Rec
         },
     }
 }
+
+/// Shared `SecretStoreFactoryError` -> `ReconcileOutcome` mapping, same
+/// rationale as `errored_from_factory_error` above (public: resolution
+/// happens in `adapters-inbound` controllers, before
+/// `reconcile_application` is ever called).
+pub fn errored_from_secret_store_factory_error(
+    err: crate::ports::SecretStoreFactoryError,
+) -> ReconcileOutcome {
+    use crate::ports::SecretStoreFactoryError;
+    match err {
+        SecretStoreFactoryError::InstanceNotFound(message) => ReconcileOutcome::Errored {
+            reason: ReasonCode::InstanceRefNotFound,
+            message,
+        },
+        SecretStoreFactoryError::ResolutionFailed(message) => ReconcileOutcome::Errored {
+            reason: ReasonCode::SecretStoreError,
+            message,
+        },
+    }
+}

@@ -53,6 +53,12 @@ pub enum ReasonCode {
     /// its token `Secret` (API error, missing secret, missing/non-utf8
     /// key). See `application::ports::GatewayFactoryError::ResolutionFailed`.
     InstanceResolutionFailed,
+    /// A `SecretStore` (Kubernetes or Vault backend) write/delete/auth
+    /// call failed — distinct from `AuthentikApiError` since it's a
+    /// separate failure surface (a Vault auth/KV error is not an
+    /// Authentik API error). See `application::ports::SecretStoreError`
+    /// and `SecretStoreFactoryError`.
+    SecretStoreError,
 }
 
 impl ReasonCode {
@@ -72,6 +78,7 @@ impl ReasonCode {
             ReasonCode::InstanceRefNotFound => "InstanceRefNotFound",
             ReasonCode::AmbiguousDefaultInstance => "AmbiguousDefaultInstance",
             ReasonCode::InstanceResolutionFailed => "InstanceResolutionFailed",
+            ReasonCode::SecretStoreError => "SecretStoreError",
         }
     }
 
@@ -108,6 +115,7 @@ mod tests {
             ReasonCode::InstanceRefNotFound,
             ReasonCode::AmbiguousDefaultInstance,
             ReasonCode::InstanceResolutionFailed,
+            ReasonCode::SecretStoreError,
         ] {
             let s = code.as_str();
             assert!(s.chars().next().unwrap().is_ascii_uppercase());

@@ -55,10 +55,12 @@ async fn apply(api: &Api<AuthentikUser>, user: &AuthentikUser, ctx: &Ctx) -> Res
     let name = user.name_any();
     let authentik_id = user.status.as_ref().and_then(|s| s.authentik_id.clone());
 
+    let started = std::time::Instant::now();
     let outcome = match ctx.gateway_factory.default_gateway().await {
         Ok(gateway) => reconcile_user(user, authentik_id.as_deref(), gateway.as_ref()).await,
         Err(e) => errored_from_factory_error(e),
     };
+    super::record_reconcile("AuthentikUser", started, &outcome);
 
     match outcome {
         ReconcileOutcome::Synced {

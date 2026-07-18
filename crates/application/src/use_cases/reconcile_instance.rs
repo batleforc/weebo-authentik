@@ -34,6 +34,7 @@ mod tests {
                     key: "token".to_string(),
                 },
                 tls: Default::default(),
+                secret_store: Default::default(),
             },
             status: None,
         };

@@ -4,13 +4,17 @@
 //! `.prompt/plan.md`, "Politique de mutation").
 
 use std::fmt::Debug;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+use std::time::Instant;
 
-use application::ports::{GatewayFactory, SecretStore};
+use application::ports::{GatewayFactory, SecretStoreFactory};
+use application::use_cases::ReconcileOutcome;
 use domain::error::ReasonCode;
 use domain::status::ConditionStatus;
 use kube::api::{Api, Patch, PatchParams};
 use kube::{Client, Resource};
+use opentelemetry::metrics::{Counter, Histogram};
+use opentelemetry::{KeyValue, global};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -37,7 +41,7 @@ pub const FINALIZER: &str = "authentik.weebo.io/finalizer";
 pub struct Ctx {
     pub client: Client,
     pub gateway_factory: Arc<dyn GatewayFactory>,
-    pub secrets: Arc<dyn SecretStore>,
+    pub secrets_factory: Arc<dyn SecretStoreFactory>,
 }
 
 /// Patches only the `Ready` condition via the `status` subresource. The
@@ -82,6 +86,52 @@ where
     )
     .await?;
     Ok(())
+}
+
+/// OTLP-exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (see
+/// `operator::telemetry::init`) — a safe no-op otherwise, since the
+/// `opentelemetry::global` facade records nothing until a real
+/// `MeterProvider` is installed, same as `tracing`'s macros being safe to
+/// call before a subscriber is set.
+const METER_NAME: &str = "weebo-authentik-operator";
+
+static RECONCILE_TOTAL: LazyLock<Counter<u64>> = LazyLock::new(|| {
+    global::meter(METER_NAME)
+        .u64_counter("weebo_authentik_reconcile_total")
+        .with_description(
+            "Reconcile attempts, by CRD kind, result (synced/errored), and reason code",
+        )
+        .build()
+});
+
+static RECONCILE_DURATION_SECONDS: LazyLock<Histogram<f64>> = LazyLock::new(|| {
+    global::meter(METER_NAME)
+        .f64_histogram("weebo_authentik_reconcile_duration_seconds")
+        .with_description("Reconcile duration in seconds, by CRD kind")
+        .build()
+});
+
+/// Records one reconcile attempt's outcome — call from every controller's
+/// `apply()` right after computing `outcome`, before patching status.
+/// `kind` is the CRD's own kind string (e.g. `"AuthentikApplication"`),
+/// `started` is when that `apply()` call began.
+pub fn record_reconcile(kind: &'static str, started: Instant, outcome: &ReconcileOutcome) {
+    let (result, reason) = match outcome {
+        ReconcileOutcome::Synced { .. } => ("synced", ReasonCode::Reconciled.as_str()),
+        ReconcileOutcome::Errored { reason, .. } => ("errored", reason.as_str()),
+    };
+    RECONCILE_TOTAL.add(
+        1,
+        &[
+            KeyValue::new("kind", kind),
+            KeyValue::new("result", result),
+            KeyValue::new("reason", reason),
+        ],
+    );
+    RECONCILE_DURATION_SECONDS.record(
+        started.elapsed().as_secs_f64(),
+        &[KeyValue::new("kind", kind)],
+    );
 }
 
 /// Patches `status.authentikId` alongside `Ready: True` in a single

@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use adapters_inbound::controller::{self, Ctx};
 use adapters_inbound::webhook::{self, WebhookState};
-use adapters_outbound::{AuthentikGatewayFactory, K8sSecretStore};
-use application::ports::{GatewayFactory, SecretStore};
+use adapters_outbound::{AuthentikGatewayFactory, AuthentikSecretStoreFactory};
+use application::ports::{GatewayFactory, SecretStoreFactory};
 use axum_server::tls_rustls::RustlsConfig;
 use kube::Client;
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
@@ -48,12 +48,16 @@ async fn main() -> anyhow::Result<()> {
     // `.prompt/plan.md`.
     let gateway_factory: Arc<dyn GatewayFactory> =
         Arc::new(AuthentikGatewayFactory::new(client.clone()));
-    let secrets: Arc<dyn SecretStore> = Arc::new(K8sSecretStore::new(client.clone()));
+    // Resolves K8sSecretStore/VaultSecretStore per AuthentikInstance CR
+    // (`spec.secretStore`, defaulting to Kubernetes) — see
+    // `application::ports::SecretStoreFactory`.
+    let secrets_factory: Arc<dyn SecretStoreFactory> =
+        Arc::new(AuthentikSecretStoreFactory::new(client.clone()));
 
     let ctx = Arc::new(Ctx {
         client: client.clone(),
         gateway_factory,
-        secrets,
+        secrets_factory,
     });
 
     let webhook_state = WebhookState {
