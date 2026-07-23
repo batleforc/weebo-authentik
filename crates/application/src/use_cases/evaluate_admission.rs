@@ -19,8 +19,9 @@ pub struct AdmissionResult {
 pub fn evaluate_admission(
     request: &AdmissionRequest<'_>,
     rules: &[NamespaceRule],
+    policies_exist: bool,
 ) -> AdmissionResult {
-    match allow_list::evaluate(request.namespace, request.kind, rules) {
+    match allow_list::evaluate(request.namespace, request.kind, rules, policies_exist) {
         Decision::Allowed => AdmissionResult {
             allowed: true,
             reason: None,
@@ -38,13 +39,28 @@ mod tests {
     use domain::allow_list::Effect;
 
     #[test]
-    fn denies_by_default() {
+    fn allows_when_no_policies_exist() {
         let result = evaluate_admission(
             &AdmissionRequest {
                 namespace: "team-a",
                 kind: ResourceKind::AuthentikApplication,
             },
             &[],
+            false,
+        );
+        assert!(result.allowed);
+        assert_eq!(result.reason, None);
+    }
+
+    #[test]
+    fn denies_by_default_once_a_policy_exists() {
+        let result = evaluate_admission(
+            &AdmissionRequest {
+                namespace: "team-a",
+                kind: ResourceKind::AuthentikApplication,
+            },
+            &[],
+            true,
         );
         assert!(!result.allowed);
         assert_eq!(result.reason, Some(ReasonCode::NamespaceNotAllowed));
@@ -63,6 +79,7 @@ mod tests {
                 kind: ResourceKind::AuthentikApplication,
             },
             &rules,
+            true,
         );
         assert!(result.allowed);
         assert_eq!(result.reason, None);

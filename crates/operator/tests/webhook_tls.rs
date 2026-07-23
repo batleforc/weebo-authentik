@@ -109,7 +109,21 @@ async fn webhook_serves_real_tls_and_responds() {
                 "request": {
                     "uid": "11111111-1111-1111-1111-111111111111",
                     "namespace": "default",
-                    "kind": { "kind": "AuthentikApplication" }
+                    "kind": {
+                        "group": "authentik.weebo.io", "version": "v1alpha1",
+                        "kind": "AuthentikApplication",
+                    },
+                    // A real apiserver always sends resource/operation/
+                    // userInfo too — the webhook's typed AdmissionRequest
+                    // (kube::core::admission) requires them, unlike the
+                    // pre-typed-refactor handler which only read uid/
+                    // namespace/kind.kind and defaulted the rest.
+                    "resource": {
+                        "group": "authentik.weebo.io", "version": "v1alpha1",
+                        "resource": "authentikapplications",
+                    },
+                    "operation": "CREATE",
+                    "userInfo": {},
                 }
             })
             .to_string()
@@ -126,6 +140,10 @@ async fn webhook_serves_real_tls_and_responds() {
         serde_json::from_slice(&output.stdout).expect("response must be valid JSON");
     assert_eq!(body["kind"], "AdmissionReview");
     assert!(body["response"]["uid"].is_string());
+    // The envtest cluster has no AuthentikNamespacePolicy at all, so
+    // default-deny must apply — this is the fail-closed decision the
+    // webhook exists to enforce, not just its TLS transport.
+    assert_eq!(body["response"]["allowed"], false);
 
     std::fs::remove_dir_all(&dir).ok();
 }

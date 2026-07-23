@@ -59,7 +59,7 @@ pub async fn import_outposts(
             }
         };
 
-        let name = crate::slugify(&outpost.name);
+        let name = crate::common::slugify(&outpost.name);
         let cr = AuthentikOutpost {
             metadata: ObjectMeta {
                 name: Some(name.clone()),
@@ -75,7 +75,7 @@ pub async fn import_outposts(
                 ..Default::default()
             }),
         };
-        crate::write_cr(out_dir, "authentikoutpost", &name, &cr)?;
+        crate::common::write_cr(out_dir, "authentikoutpost", &name, &cr)?;
     }
 
     Ok(list.results)

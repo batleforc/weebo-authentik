@@ -1,3 +1,9 @@
+//! Most `reconcile_*` use-cases below are `async fn` — they call an
+//! `AuthentikGateway`/`SecretStoreFactory` over the network. `reconcile_instance`
+//! and `reconcile_namespace_policy` are plain sync `fn` instead: both CRDs are
+//! purely Kubernetes-side config with no remote Authentik object to reconcile
+//! against. Don't assume async across the family — check the specific module.
+
 pub mod evaluate_admission;
 pub mod reconcile_access_policy;
 pub mod reconcile_application;

@@ -20,8 +20,9 @@ change; this section is just an index into the repo, not a substitute.
 - `crates/adapters-inbound` — kube.rs controllers (one per CRD) + the
   admission webhook (`axum`).
 - `crates/adapters-outbound` — `AuthentikHttpGateway` (wraps the generated
-  `authentik-client`), `K8sSecretStore`, `VaultSecretStore` (stub, see
-  `secret_vault.rs`).
+  `authentik-client`), `K8sSecretStore`, `VaultSecretStore` (both real
+  `SecretStore` implementations; see `secret_vault.rs` for the Vault KV v2 +
+  Kubernetes-auth one).
 - `crates/operator` — the binary: wires everything, leader election,
   webhook TLS.
 - `crates/importer` — one-shot tool that reads a live Authentik instance

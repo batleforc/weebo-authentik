@@ -5,6 +5,7 @@ includes:
   tests:
     taskfile: ./.task/test.yaml
     flatten: true
+  mise: ./.task/mise.yaml
 
 # `testkit` (dev-dependency of `adapters-inbound`, pulled in by any cargo
 # invocation that builds its tests, including `clippy --all-targets`) pulls

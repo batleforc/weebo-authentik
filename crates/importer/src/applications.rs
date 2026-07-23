@@ -22,17 +22,29 @@ use uuid::Uuid;
 
 const EMBEDDED_OUTPOST_NAME: &str = "authentik Embedded Outpost";
 
-#[allow(clippy::too_many_arguments)]
+/// The lookup tables `import_applications` needs, pre-computed once in
+/// `main.rs` by the other `import_*`/`flow_pk_to_slug_map` calls that run
+/// before it.
+pub(crate) struct ImportLookups<'a> {
+    pub groups_by_pk: &'a HashMap<Uuid, String>,
+    pub flows_by_pk: &'a HashMap<Uuid, String>,
+    pub outposts: &'a [models::Outpost],
+}
+
 pub async fn import_applications(
     configuration: &Configuration,
     out_dir: &Path,
     instance_ref: &str,
     namespace: &str,
     application_slugs: Option<&[String]>,
-    groups_by_pk: &HashMap<Uuid, String>,
-    flows_by_pk: &HashMap<Uuid, String>,
-    outposts: &[models::Outpost],
+    lookups: &ImportLookups<'_>,
 ) -> anyhow::Result<()> {
+    let ImportLookups {
+        groups_by_pk,
+        flows_by_pk,
+        outposts,
+    } = *lookups;
+
     let property_mappings_by_pk = property_mapping_pk_to_name_map(configuration).await?;
     let certificates_by_pk = certificate_pk_to_name_map(configuration).await?;
 
@@ -149,7 +161,7 @@ pub async fn import_applications(
                         if o.name == EMBEDDED_OUTPOST_NAME {
                             None
                         } else {
-                            Some(crate::slugify(&o.name))
+                            Some(crate::common::slugify(&o.name))
                         }
                     });
                 ProviderSpec {
@@ -180,7 +192,7 @@ pub async fn import_applications(
             }
         };
 
-        let app_name = crate::slugify(&app.slug);
+        let app_name = crate::common::slugify(&app.slug);
         let app_cr = AuthentikApplication {
             metadata: ObjectMeta {
                 name: Some(app_name.clone()),
@@ -202,7 +214,7 @@ pub async fn import_applications(
                 ..Default::default()
             }),
         };
-        crate::write_cr(out_dir, "authentikapplication", &app_name, &app_cr)?;
+        crate::common::write_cr(out_dir, "authentikapplication", &app_name, &app_cr)?;
 
         import_policy_bindings(
             configuration,
@@ -254,7 +266,7 @@ async fn import_policy_bindings(
             continue;
         };
 
-        let policy_name = format!("{app_name}-{}", crate::slugify(group_name));
+        let policy_name = format!("{app_name}-{}", crate::common::slugify(group_name));
         let policy_cr = AuthentikAccessPolicy {
             metadata: ObjectMeta {
                 name: Some(policy_name.clone()),
@@ -272,7 +284,7 @@ async fn import_policy_bindings(
                 ..Default::default()
             }),
         };
-        crate::write_cr(out_dir, "authentikaccesspolicy", &policy_name, &policy_cr)?;
+        crate::common::write_cr(out_dir, "authentikaccesspolicy", &policy_name, &policy_cr)?;
     }
 
     Ok(())

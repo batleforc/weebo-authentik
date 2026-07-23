@@ -66,7 +66,7 @@ pub async fn import_groups(
             })
             .unwrap_or_default();
 
-        let name = crate::slugify(&group.name);
+        let name = crate::common::slugify(&group.name);
         let cr = AuthentikGroup {
             metadata: ObjectMeta {
                 name: Some(name.clone()),
@@ -83,7 +83,7 @@ pub async fn import_groups(
                 ..Default::default()
             }),
         };
-        crate::write_cr(out_dir, "authentikgroup", &name, &cr)?;
+        crate::common::write_cr(out_dir, "authentikgroup", &name, &cr)?;
     }
 
     Ok(pk_to_name)

@@ -1,3 +1,4 @@
+use api::instance::VaultSecretStoreSpec;
 use application::ports::{Oauth2Credentials, SecretStore, SecretStoreError};
 use vaultrs::client::{Client as _, VaultClient, VaultClientSettingsBuilder};
 use vaultrs::error::ClientError;
@@ -25,16 +26,9 @@ impl VaultSecretStore {
     /// token) rather than by this method, so the Vault login flow itself
     /// stays testable against a fake JWT without touching a real
     /// filesystem path.
-    pub async fn login(
-        address: &str,
-        mount: &str,
-        path_prefix: &str,
-        kubernetes_auth_role: &str,
-        kubernetes_auth_mount: &str,
-        jwt: &str,
-    ) -> Result<Self, SecretStoreError> {
+    pub async fn new(spec: &VaultSecretStoreSpec, jwt: &str) -> Result<Self, SecretStoreError> {
         let settings = VaultClientSettingsBuilder::default()
-            .address(address)
+            .address(&spec.address)
             .build()
             .map_err(|e| SecretStoreError::Write(format!("building Vault client settings: {e}")))?;
         let mut client = VaultClient::new(settings)
@@ -42,23 +36,23 @@ impl VaultSecretStore {
 
         let auth_info = kubernetes::login(
             &client,
-            kubernetes_auth_mount,
-            kubernetes_auth_role,
+            &spec.kubernetes_auth_mount,
+            &spec.kubernetes_auth_role,
             jwt.trim(),
         )
         .await
         .map_err(|e| {
             SecretStoreError::Write(format!(
-                "Vault Kubernetes auth login (mount {kubernetes_auth_mount:?}, role \
-                 {kubernetes_auth_role:?}) failed: {e}"
+                "Vault Kubernetes auth login (mount {:?}, role {:?}) failed: {e}",
+                spec.kubernetes_auth_mount, spec.kubernetes_auth_role
             ))
         })?;
         client.set_token(&auth_info.client_token);
 
         Ok(Self {
             client,
-            mount: mount.to_string(),
-            path_prefix: path_prefix.to_string(),
+            mount: spec.mount.clone(),
+            path_prefix: spec.path_prefix.clone(),
         })
     }
 

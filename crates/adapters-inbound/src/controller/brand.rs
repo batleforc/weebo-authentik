@@ -6,8 +6,6 @@ use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_brand::{
     BrandAction, BrandReconcileInput, plan_brand_action, reconcile_brand,
 };
-use domain::error::ReasonCode;
-use domain::status::ConditionStatus;
 use futures::StreamExt;
 use kube::api::Api;
 use kube::runtime::Controller;
@@ -16,17 +14,7 @@ use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
 use kube::runtime::watcher;
 use kube::{Client, ResourceExt};
 
-use super::{Ctx, FINALIZER, patch_ready_condition, patch_synced_status};
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("kube error: {0}")]
-    Kube(#[from] kube::Error),
-    #[error("finalizer error: {0}")]
-    Finalizer(String),
-    #[error("authentik gateway error: {0}")]
-    Gateway(String),
-}
+use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikBrand> = Api::all(client);
@@ -86,27 +74,7 @@ async fn apply(
         },
     };
     super::record_reconcile("AuthentikBrand", started, &outcome);
-
-    match outcome {
-        ReconcileOutcome::Synced {
-            authentik_id: Some(id),
-        } => {
-            patch_synced_status(api, &name, &id, "brand synced").await?;
-        }
-        ReconcileOutcome::Synced { authentik_id: None } => {
-            patch_ready_condition(
-                api,
-                &name,
-                ConditionStatus::True,
-                ReasonCode::Reconciled,
-                "brand synced",
-            )
-            .await?;
-        }
-        ReconcileOutcome::Errored { reason, message } => {
-            patch_ready_condition(api, &name, ConditionStatus::False, reason, message).await?;
-        }
-    }
+    super::patch_reconcile_outcome(api, &name, outcome, "brand synced").await?;
 
     Ok(Action::requeue(std::time::Duration::from_secs(300)))
 }
@@ -178,8 +146,4 @@ async fn list_default_claimants(
         });
     }
     Ok(claimants)
-}
-
-fn error_policy(_obj: Arc<AuthentikBrand>, _err: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(std::time::Duration::from_secs(30))
 }

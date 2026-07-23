@@ -7,6 +7,7 @@
 //! `K8sSecretStore::delete`). No real Vault instance involved.
 
 use adapters_outbound::VaultSecretStore;
+use api::instance::VaultSecretStoreSpec;
 use application::ports::{Oauth2Credentials, SecretStore};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -54,16 +55,16 @@ async fn mock_login(server: &MockServer) {
 
 async fn store(server: &MockServer) -> VaultSecretStore {
     mock_login(server).await;
-    VaultSecretStore::login(
-        &server.uri(),
-        MOUNT,
-        PATH_PREFIX,
-        ROLE,
-        "kubernetes",
-        FAKE_JWT,
-    )
-    .await
-    .expect("login against the mocked Vault Kubernetes-auth endpoint must succeed")
+    let spec = VaultSecretStoreSpec {
+        address: server.uri(),
+        mount: MOUNT.to_string(),
+        path_prefix: PATH_PREFIX.to_string(),
+        kubernetes_auth_role: ROLE.to_string(),
+        kubernetes_auth_mount: "kubernetes".to_string(),
+    };
+    VaultSecretStore::new(&spec, FAKE_JWT)
+        .await
+        .expect("login against the mocked Vault Kubernetes-auth endpoint must succeed")
 }
 
 #[tokio::test]

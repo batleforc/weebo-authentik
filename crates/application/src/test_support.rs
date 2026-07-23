@@ -5,10 +5,13 @@
 //! real `wiremock`/`envtest` I/O for layers 2-3): these tests must stay
 //! synchronous-fast and dependency-free, not spin up a mock HTTP server.
 
-use api::application::{Oauth2ProviderSpec, ProxyProviderSpec};
+use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{AuthentikApplication, AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikUser};
 
-use crate::ports::{AuthentikGateway, GatewayError, Oauth2ProviderUpsertResult};
+use crate::ports::{
+    AuthentikGateway, GatewayError, Oauth2Credentials, Oauth2ProviderUpsertResult,
+    RemoteApplication, SecretStore, SecretStoreError,
+};
 
 /// Scriptable `AuthentikGateway` double. Every field defaults to `None`; a
 /// method whose field is unset panics naming itself if called — a test
@@ -22,6 +25,11 @@ pub struct FakeGateway {
     pub create_result: Option<Result<String, GatewayError>>,
     pub update_result: Option<Result<(), GatewayError>>,
     pub upsert_policy_binding_result: Option<Result<String, GatewayError>>,
+    pub get_application_result: Option<Result<RemoteApplication, GatewayError>>,
+    pub delete_provider_result: Option<Result<(), GatewayError>>,
+    pub upsert_oauth2_provider_result: Option<Result<Oauth2ProviderUpsertResult, GatewayError>>,
+    pub upsert_proxy_provider_result: Option<Result<String, GatewayError>>,
+    pub attach_outpost_result: Option<Result<(), GatewayError>>,
 }
 
 impl FakeGateway {
@@ -66,7 +74,7 @@ impl AuthentikGateway for FakeGateway {
         _app: &AuthentikApplication,
         _provider_id: i32,
     ) -> Result<String, GatewayError> {
-        unimplemented!("create_application not scripted on FakeGateway")
+        self.take_create()
     }
     async fn update_application(
         &self,
@@ -74,7 +82,7 @@ impl AuthentikGateway for FakeGateway {
         _app: &AuthentikApplication,
         _provider_id: i32,
     ) -> Result<(), GatewayError> {
-        unimplemented!("update_application not scripted on FakeGateway")
+        self.take_update()
     }
     async fn delete_application(&self, _authentik_id: &str) -> Result<(), GatewayError> {
         unimplemented!("delete_application not scripted on FakeGateway")
@@ -82,8 +90,19 @@ impl AuthentikGateway for FakeGateway {
     async fn get_application(
         &self,
         _authentik_id: &str,
-    ) -> Result<serde_json::Value, GatewayError> {
-        unimplemented!("get_application not scripted on FakeGateway")
+    ) -> Result<RemoteApplication, GatewayError> {
+        self.get_application_result
+            .clone()
+            .expect("test did not script a get_application response on FakeGateway")
+    }
+    async fn delete_provider(
+        &self,
+        _authentik_id: i32,
+        _kind: ProviderKind,
+    ) -> Result<(), GatewayError> {
+        self.delete_provider_result
+            .clone()
+            .expect("test did not script a delete_provider response on FakeGateway")
     }
 
     async fn create_group(&self, _group: &AuthentikGroup) -> Result<String, GatewayError> {
@@ -132,7 +151,9 @@ impl AuthentikGateway for FakeGateway {
         _outpost_ref: Option<&str>,
         _provider_authentik_id: &str,
     ) -> Result<(), GatewayError> {
-        unimplemented!("attach_outpost not scripted on FakeGateway")
+        self.attach_outpost_result
+            .clone()
+            .expect("test did not script an attach_outpost response on FakeGateway")
     }
 
     async fn create_brand(&self, _brand: &AuthentikBrand) -> Result<String, GatewayError> {
@@ -165,7 +186,9 @@ impl AuthentikGateway for FakeGateway {
         _name: &str,
         _spec: &Oauth2ProviderSpec,
     ) -> Result<Oauth2ProviderUpsertResult, GatewayError> {
-        unimplemented!("upsert_oauth2_provider not scripted on FakeGateway")
+        self.upsert_oauth2_provider_result
+            .clone()
+            .expect("test did not script an upsert_oauth2_provider response on FakeGateway")
     }
     async fn upsert_proxy_provider(
         &self,
@@ -173,7 +196,9 @@ impl AuthentikGateway for FakeGateway {
         _name: &str,
         _spec: &ProxyProviderSpec,
     ) -> Result<String, GatewayError> {
-        unimplemented!("upsert_proxy_provider not scripted on FakeGateway")
+        self.upsert_proxy_provider_result
+            .clone()
+            .expect("test did not script an upsert_proxy_provider response on FakeGateway")
     }
 
     async fn upsert_policy_binding(
@@ -190,5 +215,36 @@ impl AuthentikGateway for FakeGateway {
     }
     async fn delete_policy_binding(&self, _authentik_id: &str) -> Result<(), GatewayError> {
         unimplemented!("delete_policy_binding not scripted on FakeGateway")
+    }
+}
+
+/// `SecretStore` double for `reconcile_application` tests. Every field
+/// defaults to `None`; a method whose field is unset panics naming itself
+/// if called — same convention as `FakeGateway`. `FakeSecretStore::default()`
+/// is exactly the old always-panics behavior, for tests (e.g. a proxy-kind
+/// provider, which has no credentials to store) that must never reach a
+/// secret write/delete at all.
+#[derive(Default)]
+pub struct FakeSecretStore {
+    pub write_oauth2_credentials_result: Option<Result<(), SecretStoreError>>,
+    pub delete_result: Option<Result<(), SecretStoreError>>,
+}
+
+#[async_trait::async_trait]
+impl SecretStore for FakeSecretStore {
+    async fn write_oauth2_credentials(
+        &self,
+        _namespace: &str,
+        _name: &str,
+        _credentials: &Oauth2Credentials,
+    ) -> Result<(), SecretStoreError> {
+        self.write_oauth2_credentials_result
+            .clone()
+            .expect("test did not script a write_oauth2_credentials response on FakeSecretStore")
+    }
+    async fn delete(&self, _namespace: &str, _name: &str) -> Result<(), SecretStoreError> {
+        self.delete_result
+            .clone()
+            .expect("test did not script a delete response on FakeSecretStore")
     }
 }

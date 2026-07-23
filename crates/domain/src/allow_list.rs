@@ -32,11 +32,27 @@ pub enum Decision {
 /// The reason attached whenever `evaluate` returns `Denied`.
 pub const DENY_REASON: ReasonCode = ReasonCode::NamespaceNotAllowed;
 
-/// Default-deny: `(namespace, kind)` is allowed only if at least one rule
-/// explicitly allows it. Any matching `Deny` rule wins over any matching
-/// `Allow` rule regardless of list order — a narrower deny always overrides
-/// a broader allow, never the other way around.
-pub fn evaluate(namespace: &str, kind: ResourceKind, rules: &[NamespaceRule]) -> Decision {
+/// Default-deny, *unless no `AuthentikNamespacePolicy` exists in the
+/// cluster at all* — in that case every namespace is allowed, since there
+/// is no policy to enforce yet. `policies_exist` must reflect whether any
+/// `AuthentikNamespacePolicy` object was found, not merely whether `rules`
+/// is non-empty (a policy with zero rules still counts as "exists" and
+/// keeps default-deny in force).
+///
+/// Once at least one policy exists, `(namespace, kind)` is allowed only if
+/// at least one rule explicitly allows it. Any matching `Deny` rule wins
+/// over any matching `Allow` rule regardless of list order — a narrower
+/// deny always overrides a broader allow, never the other way around.
+pub fn evaluate(
+    namespace: &str,
+    kind: ResourceKind,
+    rules: &[NamespaceRule],
+    policies_exist: bool,
+) -> Decision {
+    if !policies_exist {
+        return Decision::Allowed;
+    }
+
     let mut decision = Decision::Denied;
     for rule in rules {
         let matches =
@@ -65,8 +81,16 @@ mod tests {
     }
 
     #[test]
-    fn default_deny_with_no_rules() {
-        let decision = evaluate("team-a", ResourceKind::AuthentikApplication, &[]);
+    fn allowed_when_no_policies_exist_at_all() {
+        let decision = evaluate("team-a", ResourceKind::AuthentikApplication, &[], false);
+        assert_eq!(decision, Decision::Allowed);
+    }
+
+    #[test]
+    fn default_deny_once_a_policy_exists_even_with_no_matching_rules() {
+        // A policy exists but has no rules covering this namespace/kind —
+        // still default-deny, distinct from the "no policy at all" case.
+        let decision = evaluate("team-a", ResourceKind::AuthentikApplication, &[], true);
         assert_eq!(decision, Decision::Denied);
     }
 
@@ -78,11 +102,11 @@ mod tests {
             Effect::Allow,
         )];
         assert_eq!(
-            evaluate("team-a", ResourceKind::AuthentikApplication, &rules),
+            evaluate("team-a", ResourceKind::AuthentikApplication, &rules, true),
             Decision::Allowed
         );
         assert_eq!(
-            evaluate("team-b", ResourceKind::AuthentikApplication, &rules),
+            evaluate("team-b", ResourceKind::AuthentikApplication, &rules, true),
             Decision::Denied
         );
     }
@@ -95,7 +119,7 @@ mod tests {
             Effect::Allow,
         )];
         assert_eq!(
-            evaluate("team-a", ResourceKind::AuthentikAccessPolicy, &rules),
+            evaluate("team-a", ResourceKind::AuthentikAccessPolicy, &rules, true),
             Decision::Denied
         );
     }
@@ -111,7 +135,8 @@ mod tests {
             evaluate(
                 "team-a",
                 ResourceKind::AuthentikApplication,
-                &allow_then_deny
+                &allow_then_deny,
+                true
             ),
             Decision::Denied
         );
@@ -124,7 +149,8 @@ mod tests {
             evaluate(
                 "team-a",
                 ResourceKind::AuthentikApplication,
-                &deny_then_allow
+                &deny_then_allow,
+                true
             ),
             Decision::Denied
         );

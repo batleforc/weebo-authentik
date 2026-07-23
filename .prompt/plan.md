@@ -127,7 +127,12 @@ que l'allow-list gouverne).
   schema qui ajouterait par erreur un tel champ.
 - `AuthentikNamespacePolicy` (cluster-scoped) : règles allow/deny par
   namespace sur qui peut créer `AuthentikApplication`/
-  `AuthentikAccessPolicy`. Default-deny. Appliquée via
+  `AuthentikAccessPolicy`. Default-deny **dès qu'au moins une
+  `AuthentikNamespacePolicy` existe dans le cluster** — y compris pour un
+  namespace non couvert par aucune règle. Tant qu'aucune
+  `AuthentikNamespacePolicy` n'existe encore (cluster non bootstrappé),
+  tous les namespaces sont autorisés : pas de policy à faire respecter.
+  Appliquée via
   `ValidatingWebhookConfiguration` (endpoint admission maison, servi par
   l'opérateur). Renommée depuis "AuthentikAccessPolicy" pour éviter la
   collision avec la CRD ci-dessus qui, elle, correspond au
@@ -436,7 +441,9 @@ artefact généré qu'on garde versionné.
   l'exemple réel harbor pour rester ancré dans le vécu Terraform.
 - Fonctionnement de l'allow-list (`AuthentikNamespacePolicy`) : comment
   un namespace obtient le droit de créer des ressources, comportement
-  par défaut (deny), message d'erreur reçu si refusé.
+  par défaut (deny dès qu'une policy existe quelque part dans le
+  cluster ; allow tant qu'aucune n'existe encore), message d'erreur reçu
+  si refusé.
 
 Ouvert / pas tranché ici : où le site Fumadocs est hébergé/déployé
 (GitHub Pages, Vercel, self-hosted) — pas bloquant pour la conception du

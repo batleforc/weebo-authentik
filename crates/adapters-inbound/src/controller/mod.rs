@@ -1,6 +1,6 @@
 //! One `kube::runtime::Controller` per CRD: real finalizer add/remove and
 //! `status` patch plumbing, reconcile bodies delegate to
-//! `application::use_cases::*` (mostly still `todo!()` there — see
+//! `application::use_cases::*` (fully implemented, not a stub — see
 //! `.prompt/plan.md`, "Politique de mutation").
 
 use std::fmt::Debug;
@@ -12,6 +12,7 @@ use application::use_cases::ReconcileOutcome;
 use domain::error::ReasonCode;
 use domain::status::ConditionStatus;
 use kube::api::{Api, Patch, PatchParams};
+use kube::runtime::controller::Action;
 use kube::{Client, Resource};
 use opentelemetry::metrics::{Counter, Histogram};
 use opentelemetry::{KeyValue, global};
@@ -42,6 +43,29 @@ pub struct Ctx {
     pub client: Client,
     pub gateway_factory: Arc<dyn GatewayFactory>,
     pub secrets_factory: Arc<dyn SecretStoreFactory>,
+}
+
+/// Shared reconcile-error type for every controller. Not every variant is
+/// constructed by every controller (e.g. `instance`/`namespace_policy` never
+/// touch a gateway or secret store), which is fine for a `pub` type used
+/// elsewhere in the crate — the alternative was 8 verbatim-copied enums.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("kube error: {0}")]
+    Kube(#[from] kube::Error),
+    #[error("finalizer error: {0}")]
+    Finalizer(String),
+    #[error("authentik gateway error: {0}")]
+    Gateway(String),
+    #[error("secret store error: {0}")]
+    SecretStore(String),
+}
+
+/// Shared by every controller's `Controller::run(reconcile, error_policy,
+/// ctx)` call — the body never depended on the CRD kind `K`, only on
+/// `Error`/`Ctx`, so making it generic is a pure deletion of duplication.
+pub fn error_policy<K>(_obj: Arc<K>, _err: &Error, _ctx: Arc<Ctx>) -> Action {
+    Action::requeue(std::time::Duration::from_secs(30))
 }
 
 /// Patches only the `Ready` condition via the `status` subresource. The
@@ -86,6 +110,44 @@ where
     )
     .await?;
     Ok(())
+}
+
+/// Shared `ReconcileOutcome` -> `status` patch translation — call this
+/// instead of matching on `outcome` directly in each controller's
+/// `apply()`. `synced_message` is used only for the `Ready` condition's
+/// message on a successful sync (e.g. `"group synced"`). Correct even for
+/// CRDs whose use-case never sets `authentik_id` (`AuthentikInstance`,
+/// `AuthentikNamespacePolicy`): `Synced { authentik_id: Some(_) }` is
+/// simply never constructed for those, so only the `None` arm below ever
+/// fires for them.
+pub async fn patch_reconcile_outcome<K>(
+    api: &Api<K>,
+    name: &str,
+    outcome: ReconcileOutcome,
+    synced_message: &str,
+) -> Result<(), kube::Error>
+where
+    K: Resource + Clone + Debug + DeserializeOwned + Serialize,
+    K::DynamicType: Default,
+{
+    match outcome {
+        ReconcileOutcome::Synced {
+            authentik_id: Some(id),
+        } => patch_synced_status(api, name, &id, synced_message).await,
+        ReconcileOutcome::Synced { authentik_id: None } => {
+            patch_ready_condition(
+                api,
+                name,
+                ConditionStatus::True,
+                ReasonCode::Reconciled,
+                synced_message,
+            )
+            .await
+        }
+        ReconcileOutcome::Errored { reason, message } => {
+            patch_ready_condition(api, name, ConditionStatus::False, reason, message).await
+        }
+    }
 }
 
 /// OTLP-exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (see

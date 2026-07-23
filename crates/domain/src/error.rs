@@ -23,6 +23,10 @@ pub enum ReasonCode {
     /// A proxy provider's `outpostRef` does not resolve to an
     /// `AuthentikOutpost`.
     OutpostRefNotFound,
+    /// An `AuthentikGroup.spec.parentRef`, `AuthentikUser.spec.groupRefs`
+    /// entry, or `AuthentikAccessPolicy.spec.groupRef` does not resolve to
+    /// an `AuthentikGroup`'s Authentik-side name.
+    GroupRefNotFound,
     /// Create was rejected because an object with the same name/slug
     /// already exists in Authentik and isn't tracked by this CR.
     AuthentikObjectAlreadyExists,
@@ -39,6 +43,12 @@ pub enum ReasonCode {
     /// schema-only stubs, never implemented by a reconciler. See
     /// `.prompt/plan.md`, decision 2.
     UnsupportedProviderKind,
+    /// `AuthentikApplication.spec.provider.kind` is `oauth2`/`proxy` but
+    /// the matching `spec.provider.oauth2`/`spec.provider.proxy` field
+    /// isn't set. Schema-valid (kube-core can't express "exactly one of"
+    /// as a hard constraint — see `api::application::ProviderSpec`'s doc),
+    /// but not a shape any reconciler can act on.
+    InvalidProviderSpec,
     /// Catch-all for an `AuthentikGateway` call that failed for a reason
     /// not covered by a more specific code (network error, unexpected
     /// Authentik API response, flow/property-mapping/group name that
@@ -59,6 +69,12 @@ pub enum ReasonCode {
     /// Authentik API error). See `application::ports::SecretStoreError`
     /// and `SecretStoreFactoryError`.
     SecretStoreError,
+    /// `AuthentikApplication.spec.provider.kind` changed from what's
+    /// currently live in Authentik, but the CR lacks the
+    /// `authentik.weebo.io/allow-disruptive-update` annotation authorizing
+    /// the delete-and-recreate this requires (rotates `client_secret`,
+    /// drops outpost bindings — can disrupt active sessions).
+    DisruptiveProviderKindChangeNotAllowed,
 }
 
 impl ReasonCode {
@@ -70,15 +86,20 @@ impl ReasonCode {
             ReasonCode::ApplicationRefNotFound => "ApplicationRefNotFound",
             ReasonCode::NamespaceNotAllowed => "NamespaceNotAllowed",
             ReasonCode::OutpostRefNotFound => "OutpostRefNotFound",
+            ReasonCode::GroupRefNotFound => "GroupRefNotFound",
             ReasonCode::AuthentikObjectAlreadyExists => "AuthentikObjectAlreadyExists",
             ReasonCode::NoAccessPolicyBound => "NoAccessPolicyBound",
             ReasonCode::Reconciled => "Reconciled",
             ReasonCode::UnsupportedProviderKind => "UnsupportedProviderKind",
+            ReasonCode::InvalidProviderSpec => "InvalidProviderSpec",
             ReasonCode::AuthentikApiError => "AuthentikApiError",
             ReasonCode::InstanceRefNotFound => "InstanceRefNotFound",
             ReasonCode::AmbiguousDefaultInstance => "AmbiguousDefaultInstance",
             ReasonCode::InstanceResolutionFailed => "InstanceResolutionFailed",
             ReasonCode::SecretStoreError => "SecretStoreError",
+            ReasonCode::DisruptiveProviderKindChangeNotAllowed => {
+                "DisruptiveProviderKindChangeNotAllowed"
+            }
         }
     }
 
@@ -107,15 +128,18 @@ mod tests {
             ReasonCode::ApplicationRefNotFound,
             ReasonCode::NamespaceNotAllowed,
             ReasonCode::OutpostRefNotFound,
+            ReasonCode::GroupRefNotFound,
             ReasonCode::AuthentikObjectAlreadyExists,
             ReasonCode::NoAccessPolicyBound,
             ReasonCode::Reconciled,
             ReasonCode::UnsupportedProviderKind,
+            ReasonCode::InvalidProviderSpec,
             ReasonCode::AuthentikApiError,
             ReasonCode::InstanceRefNotFound,
             ReasonCode::AmbiguousDefaultInstance,
             ReasonCode::InstanceResolutionFailed,
             ReasonCode::SecretStoreError,
+            ReasonCode::DisruptiveProviderKindChangeNotAllowed,
         ] {
             let s = code.as_str();
             assert!(s.chars().next().unwrap().is_ascii_uppercase());

@@ -1,6 +1,7 @@
 use api::AuthentikUser;
+use domain::error::ReasonCode;
 
-use crate::ports::AuthentikGateway;
+use crate::ports::{AuthentikGateway, GatewayError};
 use crate::use_cases::{ReconcileOutcome, errored_from_gateway_error};
 
 /// Note the CR carries no credential field by design (see `api::user`) so
@@ -18,6 +19,15 @@ pub async fn reconcile_user(
     match result {
         Ok(id) => ReconcileOutcome::Synced {
             authentik_id: Some(id),
+        },
+        // `spec.groupRefs` entries are resolved by name inside
+        // create_user/update_user — see `ports.rs`'s doc on `create_user`.
+        // Same precedent as `reconcile_application`'s `attach_outpost`
+        // handling: a `NotFound` from this call is reported as a group ref
+        // not resolving, not a generic API error.
+        Err(GatewayError::NotFound(message)) => ReconcileOutcome::Errored {
+            reason: ReasonCode::GroupRefNotFound,
+            message,
         },
         Err(e) => errored_from_gateway_error(e),
     }
@@ -71,13 +81,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn gateway_error_maps_to_its_reason_code() {
+    async fn unresolved_group_ref_maps_to_group_ref_not_found() {
         let gateway = FakeGateway::create(Err(GatewayError::NotFound("group missing".to_string())));
         let outcome = reconcile_user(&user("batleforc"), None, &gateway).await;
         assert!(matches!(
             outcome,
             ReconcileOutcome::Errored {
-                reason: ReasonCode::AuthentikApiError,
+                reason: ReasonCode::GroupRefNotFound,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn other_gateway_errors_map_to_the_generic_reason_code() {
+        let gateway = FakeGateway::create(Err(GatewayError::AlreadyExists("dup".to_string())));
+        let outcome = reconcile_user(&user("batleforc"), None, &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::AuthentikObjectAlreadyExists,
                 ..
             }
         ));

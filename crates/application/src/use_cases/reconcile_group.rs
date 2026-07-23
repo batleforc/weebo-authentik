@@ -1,6 +1,7 @@
 use api::AuthentikGroup;
+use domain::error::ReasonCode;
 
-use crate::ports::AuthentikGateway;
+use crate::ports::{AuthentikGateway, GatewayError};
 use crate::use_cases::{ReconcileOutcome, errored_from_gateway_error};
 
 pub async fn reconcile_group(
@@ -19,6 +20,15 @@ pub async fn reconcile_group(
     match result {
         Ok(id) => ReconcileOutcome::Synced {
             authentik_id: Some(id),
+        },
+        // `spec.parentRef`, if set, is resolved by name inside
+        // create_group/update_group — see `ports.rs`'s doc on
+        // `create_group`. Same precedent as `reconcile_application`'s
+        // `attach_outpost` handling: a `NotFound` from this call is
+        // reported as the ref not resolving, not a generic API error.
+        Err(GatewayError::NotFound(message)) => ReconcileOutcome::Errored {
+            reason: ReasonCode::GroupRefNotFound,
+            message,
         },
         Err(e) => errored_from_gateway_error(e),
     }
@@ -78,6 +88,21 @@ mod tests {
             outcome,
             ReconcileOutcome::Errored {
                 reason: ReasonCode::AuthentikObjectAlreadyExists,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn unresolved_parent_ref_maps_to_group_ref_not_found() {
+        let gateway = FakeGateway::create(Err(GatewayError::NotFound(
+            "group \"missing-parent\" not found".to_string(),
+        )));
+        let outcome = reconcile_group(&group("weebo-user"), None, &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::GroupRefNotFound,
                 ..
             }
         ));

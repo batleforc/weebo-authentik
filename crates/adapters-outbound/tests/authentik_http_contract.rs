@@ -7,7 +7,7 @@
 //! depends on. No real Authentik instance involved, unlike layer 4.
 
 use adapters_outbound::AuthentikHttpGateway;
-use api::application::{Oauth2ProviderSpec, RedirectUri};
+use api::application::{Oauth2ProviderSpec, ProviderKind, RedirectUri};
 use api::brand::AuthentikBrandSpec;
 use api::group::AuthentikGroupSpec;
 use api::outpost::{AuthentikOutpostSpec, OutpostType};
@@ -78,6 +78,46 @@ async fn create_group_conflict_maps_to_already_exists() {
     assert!(matches!(err, GatewayError::AlreadyExists(_)));
 }
 
+/// This exact body shape (`{"name": ["Group with this name already
+/// exists."]}`, HTTP 400) is what a real Authentik instance returns for a
+/// name collision — confirmed live against the sidecar Authentik in this
+/// workspace, not guessed.
+#[tokio::test]
+async fn create_group_400_with_already_exists_body_maps_to_already_exists() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_create_group(
+        400,
+        serde_json::json!({"name": ["Group with this name already exists."]}),
+    )
+    .await;
+
+    let err = gateway(&mock)
+        .create_group(&group("weebo-user"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, GatewayError::AlreadyExists(_)));
+}
+
+/// A genuine validation error also arrives as HTTP 400 (confirmed live:
+/// a missing/unresolvable oauth2 provider flow reference returns this
+/// same status with a body that never says "already exists") — it must
+/// not be misreported as a name/slug collision.
+#[tokio::test]
+async fn create_group_400_without_already_exists_body_maps_to_api_error() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_create_group(
+        400,
+        serde_json::json!({"name": ["This field is required."]}),
+    )
+    .await;
+
+    let err = gateway(&mock)
+        .create_group(&group("weebo-user"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, GatewayError::Api(_)));
+}
+
 #[tokio::test]
 async fn delete_group_on_404_is_idempotent() {
     let mock = AuthentikMock::start().await;
@@ -88,7 +128,7 @@ async fn delete_group_on_404_is_idempotent() {
 }
 
 #[tokio::test]
-async fn get_application_success_returns_the_application_json() {
+async fn get_application_success_with_no_provider_returns_empty_remote_application() {
     let mock = AuthentikMock::start().await;
     mock.mock_get_application(
         "harbor",
@@ -102,8 +142,49 @@ async fn get_application_success_returns_the_application_json() {
     )
     .await;
 
-    let value = gateway(&mock).get_application("harbor").await.unwrap();
-    assert_eq!(value["slug"], "harbor");
+    let remote = gateway(&mock).get_application("harbor").await.unwrap();
+    assert_eq!(remote.provider_id, None);
+    assert_eq!(remote.provider_meta_model_name, None);
+}
+
+#[tokio::test]
+async fn get_application_success_with_a_provider_extracts_its_id_and_kind() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_get_application(
+        "harbor",
+        200,
+        serde_json::json!({
+            "pk": "22222222-2222-2222-2222-222222222222",
+            "name": "Harbor", "slug": "harbor",
+            "provider": 5,
+            "provider_obj": {
+                "pk": 5,
+                "name": "harbor-oauth2",
+                "authentication_flow": null,
+                "authorization_flow": "11111111-1111-1111-1111-111111111111",
+                "invalidation_flow": "33333333-3333-3333-3333-333333333333",
+                "property_mappings": null,
+                "component": "ak-provider-oauth2-form",
+                "assigned_application_slug": "harbor",
+                "assigned_application_name": "Harbor",
+                "assigned_backchannel_application_slug": null,
+                "assigned_backchannel_application_name": null,
+                "verbose_name": "OAuth2/OpenID Provider",
+                "verbose_name_plural": "OAuth2/OpenID Providers",
+                "meta_model_name": "authentik_providers_oauth2.oauth2provider",
+            },
+            "backchannel_providers_obj": [],
+            "launch_url": null, "meta_icon_url": null, "meta_icon_themed_urls": null,
+        }),
+    )
+    .await;
+
+    let remote = gateway(&mock).get_application("harbor").await.unwrap();
+    assert_eq!(remote.provider_id, Some(5));
+    assert_eq!(
+        remote.provider_meta_model_name.as_deref(),
+        Some("authentik_providers_oauth2.oauth2provider")
+    );
 }
 
 #[tokio::test]
@@ -163,6 +244,37 @@ async fn delete_outpost_on_404_is_idempotent() {
     mock.mock_delete("/outposts/instances/missing/", 404).await;
 
     let result = gateway(&mock).delete_outpost("missing").await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn delete_provider_hits_the_oauth2_endpoint_for_oauth2_kind() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/providers/oauth2/5/", 204).await;
+
+    let result = gateway(&mock)
+        .delete_provider(5, ProviderKind::Oauth2)
+        .await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn delete_provider_hits_the_proxy_endpoint_for_proxy_kind() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/providers/proxy/7/", 204).await;
+
+    let result = gateway(&mock).delete_provider(7, ProviderKind::Proxy).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn delete_provider_on_404_is_idempotent() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/providers/oauth2/99/", 404).await;
+
+    let result = gateway(&mock)
+        .delete_provider(99, ProviderKind::Oauth2)
+        .await;
     assert!(result.is_ok());
 }
 

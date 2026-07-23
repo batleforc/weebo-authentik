@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use api::application::{Oauth2ProviderSpec, ProxyProviderSpec};
+use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{AuthentikApplication, AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikUser};
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -52,12 +52,24 @@ pub trait AuthentikGateway: Send + Sync {
         provider_id: i32,
     ) -> Result<(), GatewayError>;
     async fn delete_application(&self, authentik_id: &str) -> Result<(), GatewayError>;
-    /// Raw Authentik `Application` object (includes the current `provider`
-    /// FK) — callers needing the provider id for an update read it from
-    /// here rather than the CR, which never stores it. `authentik_id` is
-    /// the application's slug (Authentik's applications API is
-    /// slug-keyed).
-    async fn get_application(&self, authentik_id: &str) -> Result<serde_json::Value, GatewayError>;
+    /// The current remote `Application`'s provider — callers needing the
+    /// provider id for an update, or its kind (to detect a
+    /// `spec.provider.kind` change across reconciles), read it from here
+    /// rather than the CR, which never stores it. `authentik_id` is the
+    /// application's slug (Authentik's applications API is slug-keyed).
+    async fn get_application(&self, authentik_id: &str) -> Result<RemoteApplication, GatewayError>;
+    /// Deletes a provider outright by id and kind — used only when
+    /// `reconcile_application` detects an authorized `spec.provider.kind`
+    /// change (see its module doc): oauth2 and proxy providers have
+    /// separate update endpoints, so PATCHing the old id against the new
+    /// kind isn't possible, and the old-kind provider is deleted before a
+    /// new one of the new kind is created via
+    /// `upsert_oauth2_provider`/`upsert_proxy_provider`.
+    async fn delete_provider(
+        &self,
+        authentik_id: i32,
+        kind: ProviderKind,
+    ) -> Result<(), GatewayError>;
 
     /// `group.spec.parent_ref`, if set, is resolved to an Authentik group
     /// by matching `name` via the Authentik API — there is no
@@ -169,6 +181,22 @@ pub trait AuthentikGateway: Send + Sync {
     async fn delete_policy_binding(&self, authentik_id: &str) -> Result<(), GatewayError>;
 }
 
+/// The subset of Authentik's remote `Application` object callers need —
+/// adapters translate their own wire format into this at the port
+/// boundary, same discipline as every other typed method here.
+#[derive(Debug, Clone, Default)]
+pub struct RemoteApplication {
+    /// The currently attached provider's pk, if any.
+    pub provider_id: Option<i32>,
+    /// Authentik's internal model name for the current provider (e.g.
+    /// `"authentik_providers_oauth2.oauth2provider"`) — used by
+    /// `reconcile_application` to detect a `spec.provider.kind` change.
+    /// `None` alongside a `provider_id` is treated the same as no
+    /// provider attached at all (shouldn't happen in practice: Authentik
+    /// returns `provider_obj` whenever `provider` is set).
+    pub provider_meta_model_name: Option<String>,
+}
+
 /// Result of upserting an oauth2 provider: the pk (as `authentik_id`
 /// elsewhere) plus the credentials `reconcile_application` must hand to
 /// `SecretStore` — proxy providers have no equivalent since auth happens
@@ -187,7 +215,7 @@ pub struct Oauth2Credentials {
     pub authentik_url: String,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum SecretStoreError {
     #[error("secret store write failed: {0}")]
     Write(String),

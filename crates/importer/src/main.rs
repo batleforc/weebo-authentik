@@ -20,12 +20,13 @@
 
 mod applications;
 mod brands;
+mod common;
 mod flows;
 mod groups;
 mod outposts;
 mod users;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use authentik_client::apis::configuration::Configuration;
 use clap::Parser;
@@ -82,15 +83,18 @@ async fn main() -> anyhow::Result<()> {
     let flows_by_pk = flows::flow_pk_to_slug_map(&configuration).await?;
     brands::import_brands(&configuration, &args.out, &flows_by_pk).await?;
     let outposts = outposts::import_outposts(&configuration, &args.out).await?;
+    let lookups = applications::ImportLookups {
+        groups_by_pk: &groups_by_pk,
+        flows_by_pk: &flows_by_pk,
+        outposts: &outposts,
+    };
     applications::import_applications(
         &configuration,
         &args.out,
         &args.instance_ref,
         &args.namespace,
         args.applications.as_deref(),
-        &groups_by_pk,
-        &flows_by_pk,
-        &outposts,
+        &lookups,
     )
     .await?;
 
@@ -104,43 +108,5 @@ async fn main() -> anyhow::Result<()> {
         args.out.display()
     );
 
-    Ok(())
-}
-
-/// A Kubernetes object name must be a valid RFC 1123 DNS subdomain
-/// (lowercase alphanumeric and `-`, no leading/trailing `-`) — Authentik
-/// names/usernames/domains have no such constraint, so every generated
-/// CR's `metadata.name` goes through this, while `spec.name`/
-/// `spec.username`/etc. keep the exact original value.
-pub(crate) fn slugify(input: &str) -> String {
-    let mut slug = String::with_capacity(input.len());
-    let mut last_was_dash = false;
-    for c in input.chars() {
-        if c.is_ascii_alphanumeric() {
-            slug.push(c.to_ascii_lowercase());
-            last_was_dash = false;
-        } else if !last_was_dash {
-            slug.push('-');
-            last_was_dash = true;
-        }
-    }
-    let trimmed = slug.trim_matches('-');
-    let truncated = &trimmed[..trimmed.len().min(253)];
-    if truncated.is_empty() {
-        "unnamed".to_string()
-    } else {
-        truncated.to_string()
-    }
-}
-
-pub(crate) fn write_cr<T: serde::Serialize>(
-    out_dir: &Path,
-    kind: &str,
-    name: &str,
-    cr: &T,
-) -> anyhow::Result<()> {
-    let yaml = serde_norway::to_string(cr)?;
-    let path = out_dir.join(format!("{kind}-{name}.yaml"));
-    std::fs::write(&path, yaml)?;
     Ok(())
 }

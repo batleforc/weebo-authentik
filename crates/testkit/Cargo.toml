@@ -13,5 +13,5 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
-envtest = "0.3"
+envtest = { workspace = true }
 rustls = { workspace = true }

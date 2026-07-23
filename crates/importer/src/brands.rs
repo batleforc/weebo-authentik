@@ -49,7 +49,7 @@ pub async fn import_brands(
                 .cloned()
         };
 
-        let name = crate::slugify(&brand.domain);
+        let name = crate::common::slugify(&brand.domain);
         let cr = AuthentikBrand {
             metadata: ObjectMeta {
                 name: Some(name.clone()),
@@ -80,7 +80,7 @@ pub async fn import_brands(
                 ..Default::default()
             }),
         };
-        crate::write_cr(out_dir, "authentikbrand", &name, &cr)?;
+        crate::common::write_cr(out_dir, "authentikbrand", &name, &cr)?;
     }
 
     Ok(())

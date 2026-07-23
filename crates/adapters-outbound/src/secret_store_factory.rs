@@ -50,16 +50,9 @@ impl AuthentikSecretStoreFactory {
                          {SERVICE_ACCOUNT_TOKEN_PATH}: {e}"
                     ))
                 })?;
-                let store = VaultSecretStore::login(
-                    &vault.address,
-                    &vault.mount,
-                    &vault.path_prefix,
-                    &vault.kubernetes_auth_role,
-                    &vault.kubernetes_auth_mount,
-                    jwt.trim(),
-                )
-                .await
-                .map_err(|e| SecretStoreFactoryError::ResolutionFailed(e.to_string()))?;
+                let store = VaultSecretStore::new(vault, jwt.trim())
+                    .await
+                    .map_err(|e| SecretStoreFactoryError::ResolutionFailed(e.to_string()))?;
                 Ok(Arc::new(store))
             }
         }

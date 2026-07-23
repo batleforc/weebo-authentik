@@ -64,7 +64,7 @@ pub async fn import_users(
             })
             .unwrap_or_default();
 
-        let name = crate::slugify(&user.username);
+        let name = crate::common::slugify(&user.username);
         let cr = AuthentikUser {
             metadata: ObjectMeta {
                 name: Some(name.clone()),
@@ -82,7 +82,7 @@ pub async fn import_users(
                 ..Default::default()
             }),
         };
-        crate::write_cr(out_dir, "authentikuser", &name, &cr)?;
+        crate::common::write_cr(out_dir, "authentikuser", &name, &cr)?;
     }
 
     Ok(())

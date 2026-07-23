@@ -17,3 +17,6 @@ node_modules/
 # Local env / secrets
 .env
 .env.*
+
+# desloppify local state (per-machine, not shared)
+.desloppify/

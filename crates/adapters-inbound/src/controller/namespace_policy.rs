@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use api::AuthentikNamespacePolicy;
-use application::use_cases::ReconcileOutcome;
 use application::use_cases::reconcile_namespace_policy::reconcile_namespace_policy;
-use domain::error::ReasonCode;
-use domain::status::ConditionStatus;
 use futures::StreamExt;
 use kube::api::Api;
 use kube::runtime::Controller;
@@ -13,15 +10,7 @@ use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
 use kube::runtime::watcher;
 use kube::{Client, ResourceExt};
 
-use super::{Ctx, FINALIZER, patch_ready_condition};
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("kube error: {0}")]
-    Kube(#[from] kube::Error),
-    #[error("finalizer error: {0}")]
-    Finalizer(String),
-}
+use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikNamespacePolicy> = Api::all(client);
@@ -56,26 +45,7 @@ async fn apply(
     let started = std::time::Instant::now();
     let outcome = reconcile_namespace_policy(policy);
     super::record_reconcile("AuthentikNamespacePolicy", started, &outcome);
-
-    match outcome {
-        ReconcileOutcome::Synced { .. } => {
-            patch_ready_condition(
-                api,
-                &name,
-                ConditionStatus::True,
-                ReasonCode::Reconciled,
-                "policy accepted",
-            )
-            .await?;
-        }
-        ReconcileOutcome::Errored { reason, message } => {
-            patch_ready_condition(api, &name, ConditionStatus::False, reason, message).await?;
-        }
-    }
+    super::patch_reconcile_outcome(api, &name, outcome, "policy accepted").await?;
 
     Ok(Action::requeue(std::time::Duration::from_secs(300)))
-}
-
-fn error_policy(_obj: Arc<AuthentikNamespacePolicy>, _err: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(std::time::Duration::from_secs(30))
 }
