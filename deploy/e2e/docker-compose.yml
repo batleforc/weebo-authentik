@@ -12,6 +12,7 @@
 # an admin user and a ready-to-use API token on first boot, with no
 # interactive setup-wizard step — required for a fully automated CI run.
 x-authentik-env: &authentik-env
+  AUTHENTIK_SECRET_KEY: e2e-only-not-a-real-secret-key-0123456789
   AUTHENTIK_REDIS__HOST: redis
   AUTHENTIK_POSTGRESQL__HOST: postgresql
   AUTHENTIK_POSTGRESQL__USER: authentik
