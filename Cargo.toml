@@ -57,3 +57,9 @@ uuid = { version = "1", features = ["v4"] }
 kube-leader-election = "0.44"
 envtest = "0.3"
 tower = { version = "0.5", features = ["util"] }
+
+# Debug info on test binaries balloons target/ across this many crates
+# (envtest alone links kube-apiserver/etcd); CI runners have run out of
+# disk mid-build over this without it.
+[profile.test]
+debug = false

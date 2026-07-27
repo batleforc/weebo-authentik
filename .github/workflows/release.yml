@@ -5,9 +5,15 @@ name: Release
 # separate workflow (publish.yml) triggered by the tag this one creates —
 # keeps "decide the next version" decoupled from "build and push
 # artifacts for it".
+# Disabled on push: the branch ruleset on main requires PRs + signed
+# commits, and only the repo-admin role bypasses it — the default
+# GITHUB_TOKEN (github-actions bot) doesn't, so the "Push bump commit and
+# tag" step's direct push to main was rejected on every run. Left as
+# workflow_dispatch so it can still be run by hand until the auth story
+# (bot PAT with bypass, or a dedicated bypass actor on the ruleset) is
+# sorted out.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch: {}
 
 permissions:
   contents: write

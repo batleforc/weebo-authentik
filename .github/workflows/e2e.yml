@@ -44,7 +44,12 @@ jobs:
           _authentik_server_diagnostics() {
             docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" logs
           }
-          retry_until "Authentik server readiness" 60 _authentik_server_check _authentik_server_diagnostics
+          # 60 attempts (5min) wasn't enough: the last failed run showed
+          # the server printing zero log lines — still mid cold-start
+          # bootstrap (config load, DB migrations) — when the timeout
+          # fired. Authentik's first-boot migrations are the known slow
+          # part; give it up to 15min before giving up.
+          retry_until "Authentik server readiness" 180 _authentik_server_check _authentik_server_diagnostics
 
       - name: Create kind cluster
         run: mise exec -- kind create cluster --name "$KIND_CLUSTER"
