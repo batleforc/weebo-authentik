@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.4.0](https://github.com/batleforc/proxyauthK8s/compare/e14c7f6c1d0f587545c941cb191b13a0bdf85e64..v0.4.0) - 2026-08-16
+#### Features
+- add doc - ([b568466](https://github.com/batleforc/proxyauthK8s/commit/b568466b38fad0dac8e76e210af11a35e335f096)) - Max Batleforc
+- mise en place cache - ([b4edfab](https://github.com/batleforc/proxyauthK8s/commit/b4edfabc4e9d08955f27d10a5fd1ea67269988fb)) - Max Batleforc
+- wip - ([68fa37c](https://github.com/batleforc/proxyauthK8s/commit/68fa37ce0d5cee03c812408dd10fdab0cc397ac6)) - Max Batleforc
+- wip - ([017ef28](https://github.com/batleforc/proxyauthK8s/commit/017ef2893f020cffe59de20960de1a46038b57c1)) - Max Batleforc
+- wip ci - ([6ccca23](https://github.com/batleforc/proxyauthK8s/commit/6ccca23dd1aa5c840c846a94144a398c0ec545a4)) - Max Batleforc
+- wip - ([e14c7f6](https://github.com/batleforc/proxyauthK8s/commit/e14c7f6c1d0f587545c941cb191b13a0bdf85e64)) - Max Batleforc
+
+- - -
+
 ## [v0.3.0](https://github.com/batleforc/proxyauthK8s/compare/7d2a422946348101f12b7fe8067b68b4f5bb83a0..v0.3.0) - 2026-07-18
 #### Features
 - wip - ([f263f0a](https://github.com/batleforc/proxyauthK8s/commit/f263f0a7e08b8704c965797973d49fec0e4bd7c8)) - Max Batleforc
