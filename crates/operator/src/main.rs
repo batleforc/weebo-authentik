@@ -7,9 +7,13 @@ use std::time::Duration;
 use adapters_inbound::controller::{self, Ctx};
 use adapters_inbound::webhook::{self, WebhookState};
 use adapters_outbound::{AuthentikGatewayFactory, AuthentikSecretStoreFactory};
+use api::AuthentikInstance;
 use application::ports::{GatewayFactory, SecretStoreFactory};
 use axum_server::tls_rustls::RustlsConfig;
+use futures::StreamExt;
 use kube::Client;
+use kube::api::Api;
+use kube::runtime::{reflector, watcher};
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 
 /// How often the webhook's TLS cert/key are re-read from disk, so
@@ -39,20 +43,47 @@ async fn main() -> anyhow::Result<()> {
 
     let client = Client::try_default().await?;
 
-    // Resolves an AuthentikGateway per AuthentikInstance CR (url/token
-    // come from the CR's tokenSecretRef, read fresh on every call — see
+    // Both factories resolve `AuthentikInstance` CRs on every reconcile;
+    // rather than each doing a per-call apiserver GET/LIST, they share a
+    // single reflector-backed `Store` kept live by the watch spawned here.
+    // The store is cluster-scoped and tiny (one CR per Authentik server),
+    // so the reflector is cheap and reflects config edits as soon as the
+    // watch delivers them.
+    let (instance_store, instance_writer) = reflector::store::<AuthentikInstance>();
+    let instance_reflector = reflector::reflector(
+        instance_writer,
+        watcher(
+            Api::<AuthentikInstance>::all(client.clone()),
+            watcher::Config::default(),
+        ),
+    );
+    tokio::spawn(async move {
+        instance_reflector
+            .for_each(|event| async move {
+                if let Err(err) = event {
+                    tracing::warn!(error = %err, "AuthentikInstance reflector watch error");
+                }
+            })
+            .await;
+    });
+
+    // Resolves an AuthentikGateway per AuthentikInstance CR (url from the
+    // CR, token read fresh from its tokenSecretRef on every call — see
     // `application::ports::GatewayFactory`). CRDs with no `instanceRef`
     // field go through `default_gateway`, which requires exactly one
     // AuthentikInstance CR to exist; true multi-instance cohabitation for
     // those CRDs remains the explicitly-deferred item from
     // `.prompt/plan.md`.
-    let gateway_factory: Arc<dyn GatewayFactory> =
-        Arc::new(AuthentikGatewayFactory::new(client.clone()));
+    let gateway_factory: Arc<dyn GatewayFactory> = Arc::new(
+        AuthentikGatewayFactory::with_instance_store(client.clone(), instance_store.clone()),
+    );
     // Resolves K8sSecretStore/VaultSecretStore per AuthentikInstance CR
     // (`spec.secretStore`, defaulting to Kubernetes) — see
-    // `application::ports::SecretStoreFactory`.
-    let secrets_factory: Arc<dyn SecretStoreFactory> =
-        Arc::new(AuthentikSecretStoreFactory::new(client.clone()));
+    // `application::ports::SecretStoreFactory`. Caches the Vault login for
+    // its lease lifetime rather than re-authenticating per reconcile.
+    let secrets_factory: Arc<dyn SecretStoreFactory> = Arc::new(
+        AuthentikSecretStoreFactory::with_instance_store(client.clone(), instance_store),
+    );
 
     let ctx = Arc::new(Ctx {
         client: client.clone(),

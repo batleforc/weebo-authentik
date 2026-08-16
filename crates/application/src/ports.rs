@@ -256,13 +256,18 @@ pub enum SecretStoreFactoryError {
     ResolutionFailed(String),
 }
 
-/// Produces a `SecretStore` for a given `AuthentikInstance` CR, resolving
-/// `spec.secretStore` fresh on every call rather than caching — mirrors
-/// `GatewayFactory`'s no-caching rationale (negligible cost given the
-/// ~300s reconcile requeue interval, always reflects config/token
-/// rotation immediately). Only `AuthentikApplication` ever needs a
+/// Produces a `SecretStore` for a given `AuthentikInstance` CR from its
+/// `spec.secretStore`. Only `AuthentikApplication` ever needs a
 /// `SecretStore` (oauth2 credentials), and it always carries an explicit
 /// `instanceRef`, so unlike `GatewayFactory` there is no `default_store`.
+///
+/// The concrete adapter (`AuthentikSecretStoreFactory`) caches the Vault
+/// backend's login for its lease lifetime — each `login` mints a throwaway
+/// Vault token, so re-authenticating per reconcile churned tokens
+/// needlessly; a KV op rejected as unauthorized self-heals by re-logging-in
+/// (see `secret_vault.rs`). The Kubernetes backend is a zero-cost wrapper
+/// and is not cached. This is an adapter-side concern the port stays
+/// agnostic to.
 ///
 /// `#[async_trait]` for the same `dyn`-compatibility reason as
 /// `AuthentikGateway`.
@@ -293,12 +298,14 @@ pub enum GatewayFactoryError {
     ResolutionFailed(String),
 }
 
-/// Produces an `AuthentikGateway` for a given `AuthentikInstance` CR,
-/// resolving `url`/`tokenSecretRef` fresh on every call rather than
-/// caching — negligible cost given the ~300s reconcile requeue interval,
-/// and always reflects token rotation immediately. See
-/// `.prompt/plan.md`; `AuthentikApplication.spec.instanceRef` is the only
-/// CRD field that names an instance explicitly today, so every other CRD
+/// Produces an `AuthentikGateway` for a given `AuthentikInstance` CR.
+/// The concrete adapter (`AuthentikGatewayFactory`) resolves the
+/// `AuthentikInstance` through a shared reflector `Store` (live-updated, so
+/// config edits are reflected without a per-call apiserver read) and still
+/// reads the `tokenSecretRef` token fresh on every call so rotation is
+/// picked up immediately. See `.prompt/plan.md`;
+/// `AuthentikApplication.spec.instanceRef` is the only CRD field that names
+/// an instance explicitly today, so every other CRD
 /// (`AuthentikGroup`/`AuthentikUser`/`AuthentikOutpost`/`AuthentikBrand`)
 /// goes through `default_gateway` instead.
 ///

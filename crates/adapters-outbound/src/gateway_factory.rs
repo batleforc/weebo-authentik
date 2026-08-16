@@ -5,19 +5,40 @@ use application::ports::{AuthentikGateway, GatewayFactory, GatewayFactoryError};
 use k8s_openapi::api::core::v1::Secret;
 use kube::Client;
 use kube::api::Api;
+use kube::runtime::reflector::Store;
 
 use crate::authentik_http::AuthentikHttpGateway;
+use crate::instance_resolver::InstanceResolver;
 
-/// Resolves an `AuthentikGateway` fresh on every call by reading the
-/// target `AuthentikInstance` CR and its `tokenSecretRef` `Secret` — no
-/// caching, see `application::ports::GatewayFactory`.
+/// Resolves an `AuthentikGateway` for a given `AuthentikInstance` CR.
+///
+/// The `AuthentikInstance` itself is read through an `InstanceResolver` —
+/// served from a live reflector `Store` when one is wired in (see
+/// `with_instance_store`), or a live apiserver call otherwise. The
+/// `tokenSecretRef` `Secret` is still read fresh on every call so token
+/// rotation is picked up immediately, and the built HTTP gateway is not
+/// cached.
 pub struct AuthentikGatewayFactory {
     client: Client,
+    instances: InstanceResolver,
 }
 
 impl AuthentikGatewayFactory {
     pub fn new(client: Client) -> Self {
-        Self { client }
+        Self {
+            instances: InstanceResolver::new(client.clone()),
+            client,
+        }
+    }
+
+    /// Resolve `AuthentikInstance` CRs from a shared reflector `Store`
+    /// instead of a per-call apiserver GET/LIST — wired by
+    /// `operator::main`, which owns the reflector that keeps `store` fresh.
+    pub fn with_instance_store(client: Client, store: Store<AuthentikInstance>) -> Self {
+        Self {
+            instances: InstanceResolver::with_store(client.clone(), store),
+            client,
+        }
     }
 
     async fn build_gateway(
@@ -63,28 +84,24 @@ impl GatewayFactory for AuthentikGatewayFactory {
         &self,
         instance_ref: &str,
     ) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError> {
-        let instances: Api<AuthentikInstance> = Api::all(self.client.clone());
-        let instance = instances.get_opt(instance_ref).await.map_err(|e| {
-            GatewayFactoryError::ResolutionFailed(format!(
-                "fetching AuthentikInstance {instance_ref:?}: {e}"
-            ))
-        })?;
-        let Some(instance) = instance else {
-            return Err(GatewayFactoryError::InstanceNotFound(
-                instance_ref.to_string(),
-            ));
-        };
+        let instance = self
+            .instances
+            .get(instance_ref)
+            .await
+            .map_err(GatewayFactoryError::ResolutionFailed)?
+            .ok_or_else(|| GatewayFactoryError::InstanceNotFound(instance_ref.to_string()))?;
         self.build_gateway(&instance).await
     }
 
     async fn default_gateway(&self) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError> {
-        let instances: Api<AuthentikInstance> = Api::all(self.client.clone());
-        let list = instances.list(&Default::default()).await.map_err(|e| {
-            GatewayFactoryError::ResolutionFailed(format!("listing AuthentikInstance: {e}"))
-        })?;
+        let instances = self
+            .instances
+            .list()
+            .await
+            .map_err(GatewayFactoryError::ResolutionFailed)?;
 
-        match list.items.len() {
-            1 => self.build_gateway(&list.items[0]).await,
+        match instances.len() {
+            1 => self.build_gateway(&instances[0]).await,
             0 => Err(GatewayFactoryError::AmbiguousDefault(
                 "no AuthentikInstance CR exists".to_string(),
             )),

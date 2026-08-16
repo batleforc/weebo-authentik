@@ -1,5 +1,6 @@
 pub mod authentik_http;
 pub mod gateway_factory;
+mod instance_resolver;
 pub mod secret_k8s;
 pub mod secret_store_factory;
 pub mod secret_vault;

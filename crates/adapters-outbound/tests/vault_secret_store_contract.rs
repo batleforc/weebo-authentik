@@ -6,6 +6,8 @@
 //! behavior every `SecretStore` backend must share with
 //! `K8sSecretStore::delete`). No real Vault instance involved.
 
+use std::time::Duration;
+
 use adapters_outbound::VaultSecretStore;
 use api::instance::VaultSecretStoreSpec;
 use application::ports::{Oauth2Credentials, SecretStore};
@@ -20,8 +22,10 @@ const PATH_PREFIX: &str = "weebo-authentik";
 /// Vault wraps every response (including auth logins) in a common
 /// envelope (`vaultrs::api::EndpointResult`) — `request_id`/`lease_id`/
 /// `lease_duration`/`renewable` are required at the top level in
-/// addition to (for a login) the nested `auth` object.
-fn login_response() -> serde_json::Value {
+/// addition to (for a login) the nested `auth` object. `lease_duration`/
+/// `renewable` on the nested `auth` object drive `VaultSecretStore`'s
+/// cache TTL, so they are parameterized here.
+fn login_response_with_lease(lease_duration: u64, renewable: bool) -> serde_json::Value {
     serde_json::json!({
         "request_id": "fake-request-id",
         "lease_id": "",
@@ -36,13 +40,39 @@ fn login_response() -> serde_json::Value {
             "policies": ["default"],
             "token_policies": ["default"],
             "metadata": {},
-            "lease_duration": 3600,
-            "renewable": true,
+            "lease_duration": lease_duration,
+            "renewable": renewable,
             "entity_id": "fake-entity",
             "token_type": "service",
             "orphan": true
         }
     })
+}
+
+fn login_response() -> serde_json::Value {
+    login_response_with_lease(3600, true)
+}
+
+fn write_path() -> String {
+    format!("/v1/{MOUNT}/data/{PATH_PREFIX}/default/weebo-app")
+}
+
+fn credentials() -> Oauth2Credentials {
+    Oauth2Credentials {
+        client_id: "client-id-123".to_string(),
+        client_secret: "client-secret-456".to_string(),
+        authentik_url: "https://login.example.com".to_string(),
+    }
+}
+
+fn spec(server: &MockServer) -> VaultSecretStoreSpec {
+    VaultSecretStoreSpec {
+        address: server.uri(),
+        mount: MOUNT.to_string(),
+        path_prefix: PATH_PREFIX.to_string(),
+        kubernetes_auth_role: ROLE.to_string(),
+        kubernetes_auth_mount: "kubernetes".to_string(),
+    }
 }
 
 async fn mock_login(server: &MockServer) {
@@ -55,14 +85,7 @@ async fn mock_login(server: &MockServer) {
 
 async fn store(server: &MockServer) -> VaultSecretStore {
     mock_login(server).await;
-    let spec = VaultSecretStoreSpec {
-        address: server.uri(),
-        mount: MOUNT.to_string(),
-        path_prefix: PATH_PREFIX.to_string(),
-        kubernetes_auth_role: ROLE.to_string(),
-        kubernetes_auth_mount: "kubernetes".to_string(),
-    };
-    VaultSecretStore::new(&spec, FAKE_JWT)
+    VaultSecretStore::new(&spec(server), FAKE_JWT)
         .await
         .expect("login against the mocked Vault Kubernetes-auth endpoint must succeed")
 }
@@ -181,4 +204,130 @@ async fn delete_is_idempotent_when_vault_returns_404() {
         result.is_ok(),
         "a 404 from Vault on delete must be treated as already-deleted, not an error: {result:?}"
     );
+}
+
+/// The cache TTL the factory reuses a store for is 80% of the login
+/// lease — headroom to refresh before the Vault token actually expires.
+#[tokio::test]
+async fn cache_ttl_is_eighty_percent_of_a_renewable_lease() {
+    let server = MockServer::start().await;
+    let store = store(&server).await; // login_response(): lease 3600s, renewable
+
+    assert_eq!(store.cache_ttl(), Some(Duration::from_secs(3600 * 4 / 5)));
+}
+
+/// A non-renewable (or zero-lease) login token must not be cached — the
+/// factory re-logs-in every call rather than risk pinning a dead token.
+#[tokio::test]
+async fn cache_ttl_is_none_for_a_non_renewable_login() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/kubernetes/login"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(login_response_with_lease(3600, false)),
+        )
+        .mount(&server)
+        .await;
+
+    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT)
+        .await
+        .expect("login must succeed");
+
+    assert_eq!(store.cache_ttl(), None);
+}
+
+/// A 403 from Vault on a write means the token lapsed or was revoked out
+/// of band — the store must re-login once and retry, not fail the write.
+#[tokio::test]
+async fn write_relogins_and_retries_once_on_a_403() {
+    let server = MockServer::start().await;
+    // Exactly two logins: the initial one plus the self-heal.
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/kubernetes/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(login_response()))
+        .expect(2)
+        .mount(&server)
+        .await;
+
+    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT)
+        .await
+        .expect("login must succeed");
+
+    // First write attempt is rejected as unauthorized (higher priority,
+    // one-shot); the retry after re-login lands on the 200.
+    Mock::given(method("POST"))
+        .and(path(write_path()))
+        .respond_with(ResponseTemplate::new(403).set_body_json(serde_json::json!({
+            "errors": ["permission denied"]
+        })))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(write_path()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "request_id": "fake-request-id",
+            "lease_id": "",
+            "lease_duration": 0,
+            "renewable": false,
+            "auth": null,
+            "wrap_info": null,
+            "warnings": null,
+            "data": { "version": 1, "created_time": "2026-01-01T00:00:00Z", "deletion_time": "", "destroyed": false }
+        })))
+        .mount(&server)
+        .await;
+
+    let result = store
+        .write_oauth2_credentials("default", "weebo-app", &credentials())
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "a 403 must trigger a re-login and a successful retry, not surface as an error: {result:?}"
+    );
+    // Verifies the login `.expect(2)` — the self-heal login actually fired.
+    server.verify().await;
+}
+
+/// Same self-heal contract on delete: a 403 re-logs-in and retries, and
+/// the retry still honors the idempotent-404 rule.
+#[tokio::test]
+async fn delete_relogins_and_retries_once_on_a_403() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/kubernetes/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(login_response()))
+        .expect(2)
+        .mount(&server)
+        .await;
+
+    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT)
+        .await
+        .expect("login must succeed");
+
+    let delete_path = format!("/v1/{MOUNT}/metadata/{PATH_PREFIX}/default/weebo-app");
+    Mock::given(method("DELETE"))
+        .and(path(delete_path.clone()))
+        .respond_with(ResponseTemplate::new(403).set_body_json(serde_json::json!({
+            "errors": ["permission denied"]
+        })))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path(delete_path))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&server)
+        .await;
+
+    let result = store.delete("default", "weebo-app").await;
+
+    assert!(
+        result.is_ok(),
+        "a 403 on delete must trigger a re-login and a successful retry: {result:?}"
+    );
+    server.verify().await;
 }

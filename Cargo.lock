@@ -2263,6 +2263,7 @@ dependencies = [
  "api",
  "application",
  "axum-server",
+ "futures",
  "k8s-openapi",
  "kube",
  "kube-leader-election",
