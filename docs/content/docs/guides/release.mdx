@@ -1,0 +1,185 @@
+---
+title: Release to your cluster
+description: Deploy a published version of weebo-authentik-operator to a real cluster, and operate it day-2 (upgrade, rollback, uninstall).
+---
+
+This is the production deployment runbook. If you only want to try the
+operator from a checkout of this repo, the shorter
+[Install via Helm](/docs/guides/install) guide installs straight from the
+local chart path instead — everything below is about deploying a
+**published, versioned release** and operating it over time.
+
+## What a "release" is here
+
+Each release publishes two artifacts, versioned together (the version in
+`Cargo.toml` and `Chart.yaml` is bumped in lockstep before the tag — see
+`.hooks/bump-versions.sh` / `cog.toml`):
+
+| Artifact | Location |
+| --- | --- |
+| Operator image | `ghcr.io/batleforc/weebo-authentik-operator:<version>` |
+| Helm chart (OCI) | `oci://ghcr.io/batleforc/charts/weebo-authentik` |
+
+The image tag defaults to the chart's `appVersion`, so installing chart
+`X.Y.Z` runs operator image `X.Y.Z` with no extra wiring. `:latest` is
+only ever moved to the highest semver tag, so pin an explicit
+`--version` in anything you keep.
+
+## Prerequisites
+
+- **Kubernetes** with a working admission-webhook path (any supported
+  cluster; the webhook is a standard `ValidatingWebhookConfiguration`).
+- **Helm 3.8+** (OCI registries are GA from 3.8).
+- **[cert-manager](https://cert-manager.io/)** installed, **plus an
+  `Issuer`/`ClusterIssuer` you already own**. The chart creates the
+  webhook `Certificate`, but never the issuer — that's a cluster-admin
+  concern. Without it, `helm install` fails to render
+  (`certManager.issuerRef.name` is required).
+- A reachable **Authentik** instance and an API token (needed after
+  install, in [Connect an AuthentikInstance](/docs/guides/connect-instance)).
+
+If the image/chart repo is private to you, `helm registry login ghcr.io`
+and a pull secret (`imagePullSecrets` in values) are also needed.
+
+## 1. Pick a version and write a values file
+
+Keep production settings in a file rather than a wall of `--set`:
+
+```yaml
+# values-prod.yaml
+replicaCount: 2 # webhook active on every replica; only the leader reconciles
+
+certManager:
+  issuerRef:
+    name: my-cluster-issuer # REQUIRED — an existing Issuer/ClusterIssuer
+    kind: ClusterIssuer
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Optional: export reconcile metrics/traces (see crates/operator/src/telemetry.rs)
+extraEnv:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: http://otel-collector.observability:4317
+```
+
+## 2. Install
+
+```bash
+helm install weebo-authentik oci://ghcr.io/batleforc/charts/weebo-authentik \
+  --version <X.Y.Z> \
+  --namespace weebo-authentik --create-namespace \
+  --values values-prod.yaml
+```
+
+The install renders the CRDs, the operator `Deployment`/`Service`, its
+cluster-wide `ClusterRole`/`ClusterRoleBinding`, the webhook
+`Certificate` + `ValidatingWebhookConfiguration`, a
+`PodDisruptionBudget`, and the ArgoCD `health.lua` ConfigMap. See
+[Install via Helm → What gets installed](/docs/guides/install) for the
+full inventory, and the chart's `NOTES.txt` (printed after install) for
+the ArgoCD wiring steps.
+
+## 3. Verify
+
+```bash
+# Operator up (2/2 by default), leader elected:
+kubectl -n weebo-authentik get deploy,pod
+kubectl -n weebo-authentik get lease weebo-authentik-operator-leader
+
+# Webhook certificate issued by cert-manager:
+kubectl -n weebo-authentik get certificate
+
+# CRDs registered:
+kubectl get crd | grep authentik.weebo.io
+```
+
+A healthy install shows the pods `Running`, the `Certificate` `Ready`,
+and one holder on the `Lease`. Next, point it at Authentik:
+[Connect an AuthentikInstance](/docs/guides/connect-instance).
+
+## Day-2: upgrade
+
+```bash
+helm upgrade weebo-authentik oci://ghcr.io/batleforc/charts/weebo-authentik \
+  --version <NEW> \
+  --namespace weebo-authentik \
+  --values values-prod.yaml
+```
+
+<Callout type="warn">
+**Helm does not upgrade CRDs.** CRDs ship in the chart's `crds/`
+directory, which Helm installs once and then never upgrades or deletes
+(this is Helm's documented behavior, not a chart bug). When a release
+changes a CRD schema, apply the new definitions yourself **before** the
+`helm upgrade`:
+
+```bash
+kubectl apply -f deploy/crd/            # from a checkout at the target tag
+# or pull them out of the chart:
+helm pull oci://ghcr.io/batleforc/charts/weebo-authentik --version <NEW> --untar
+kubectl apply -f weebo-authentik/crds/
+```
+</Callout>
+
+Rolling the `Deployment` is safe at any replica count: the webhook stays
+served by the non-restarting replicas, and leadership simply moves to
+whichever replica holds the `Lease`.
+
+## Day-2: rollback
+
+```bash
+helm rollback weebo-authentik <REVISION> --namespace weebo-authentik
+```
+
+Rollback reverts the `Deployment` (image tag included) and the other
+templated resources. It does **not** roll back CRDs — a rollback across a
+CRD-schema change needs the matching older CRDs re-applied the same way
+as an upgrade.
+
+## Day-2: uninstall (read before running)
+
+```bash
+helm uninstall weebo-authentik --namespace weebo-authentik
+```
+
+Two things `helm uninstall` deliberately leaves behind, both of which
+matter:
+
+- **CRDs are not removed** (again, Helm never deletes `crds/`). Any
+  `AuthentikInstance`/`AuthentikApplication`/… objects you created also
+  remain.
+- **Finalizers need a running operator to clear.** Every managed CR
+  carries `authentik.weebo.io/finalizer`; deleting such a CR triggers
+  the operator to delete the corresponding Authentik object, then remove
+  the finalizer. If you uninstall the operator **first** and delete the
+  CRs **after**, they hang in `Terminating` forever with nothing to
+  process the finalizer.
+
+Safe teardown order, depending on intent:
+
+- **Keep the Authentik-side objects**, drop only the operator: delete the
+  CRs' finalizers first if you must remove the CRs
+  (`kubectl patch <kind> <name> -p '{"metadata":{"finalizers":[]}}' --type merge`),
+  or just leave the CRs in place; then `helm uninstall`; then optionally
+  `kubectl delete crd -l ...` once no CRs remain.
+- **Delete the Authentik-side objects too**: `kubectl delete` the CRs
+  **while the operator is still running** (let the finalizers run),
+  confirm they're gone, then `helm uninstall`, then delete the CRDs.
+
+## Cutting a release (maintainers)
+
+If you maintain this repo rather than consume it: releases are automated.
+`release.yml` (currently `workflow_dispatch`) runs `cog bump --auto`,
+which derives the next version from conventional commits, bumps
+`Cargo.toml` + `Chart.yaml` together, and pushes a `vX.Y.Z` tag.
+`publish.yml` fires on that tag and builds/pushes the image and chart
+above. You don't build or push artifacts by hand.

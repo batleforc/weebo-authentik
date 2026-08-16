@@ -1,0 +1,218 @@
+---
+title: Migrate from Terraform
+description: Adopt the Authentik objects an existing Terraform module manages into weebo-authentik CRDs, without recreating or disrupting them.
+---
+
+This operator was built to replace a hand-maintained Terraform module.
+The `crates/importer` tool reads your **live** Authentik instance and
+emits ready-to-adopt CR YAML, so the objects Terraform created keep
+their identity and are taken over in place — never destroyed and
+recreated.
+
+## How adoption works (read this first)
+
+The reconcilers **never adopt an existing Authentik object by matching on
+its name**. A CR takes over a pre-existing object in exactly one way: its
+`status.authentikId` is already set to that object's Authentik primary
+key. The importer pre-populates `status.authentikId` on every CR it
+generates — that is the whole point of the tool.
+
+<Callout type="warn">
+**`kubectl apply -f` silently drops `status`.** Kubernetes strips the
+`status` subresource on create/update, so applying the generated files is
+only half the job — you must patch each object's `status` subresource
+separately (step 4). If you skip it, the first reconcile sees no
+`authentikId`, tries **attempt-create-first**, and collides with the very
+object you meant to adopt (a `AuthentikObjectAlreadyExists` error). The
+collision is *non-destructive* — attempt-create-first never overwrites or
+deletes the existing object — but the CR stays `Errored` until you supply
+the id.
+</Callout>
+
+## Prerequisites
+
+- The operator is **installed and healthy** ([Release to your
+  cluster](/docs/guides/release)) and an `AuthentikInstance` is connected
+  ([Connect an AuthentikInstance](/docs/guides/connect-instance)). The
+  importer does **not** create the `AuthentikInstance` — it's
+  user-authored — but its generated `AuthentikApplication`s reference one
+  by name via `--instance-ref`.
+- A **read-access Authentik API token** and network reachability to the
+  Authentik API from wherever you run the importer.
+- A **Rust toolchain** to run the importer. It is a one-shot migration
+  tool and is **not** shipped in the operator image — run it from a
+  checkout with `cargo run -p importer` (this repo uses
+  [`mise`](https://mise.jdx.dev/) to provide the toolchain; `mise install`
+  then the command below).
+- `kubectl` **1.24+** (for `--subresource=status`) and
+  [`yq`](https://github.com/mikefarah/yq) for the status-patch loop.
+
+## Migrate namespace by namespace
+
+`AuthentikApplication`/`AuthentikAccessPolicy` are namespaced, so
+migration is done one target namespace at a time (matching the Terraform
+module's per-team layout). Cluster-scoped kinds
+(`AuthentikGroup`/`AuthentikUser`/`AuthentikBrand`/`AuthentikOutpost`) are
+regenerated on **every** run regardless of `--namespace` — import them
+once and reuse.
+
+### 1. Run the importer
+
+```bash
+AUTHENTIK_TOKEN=<read-token> cargo run -p importer -- \
+  --authentik-url https://login.example.com \
+  --instance-ref main \
+  --namespace team-a \
+  --out import-output/team-a
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--authentik-url` | Base URL of the Authentik instance to read from. |
+| `--authentik-token` | API token (or the `AUTHENTIK_TOKEN` env var, as above). |
+| `--instance-ref` | Name of the `AuthentikInstance` CR generated `AuthentikApplication`s should point at (`spec.instanceRef`). |
+| `--namespace` | Namespace stamped on every generated `AuthentikApplication`/`AuthentikAccessPolicy`. |
+| `--applications` | Optional comma-separated slug allow-list; defaults to every application. |
+| `--out` | Output directory — one YAML file per generated CR (default `import-output`). |
+
+The tool writes one `<kind>-<name>.yaml` per object and prints a
+reminder about the status-patch step below.
+
+### 2. Review the generated CRs
+
+Skim the output before applying anything. A few expected behaviors:
+
+- `metadata.name` is **slugified** to a valid RFC 1123 name (lowercased,
+  non-alphanumerics collapsed to `-`), while `spec.name` /
+  `spec.username` / domains keep the exact original value. Names that
+  slugify to the same string will collide — rename in that case.
+- Every file carries a `status.authentikId`. That is intentional (it's
+  what step 4 applies).
+- `AuthentikBrand.spec.defaultApplicationRef` is deliberately left unset
+  — that cross-namespace reference isn't resolved by the operator yet.
+  Wire it by hand later if you relied on it.
+
+### 3. Clear the admission webhook for the target namespace
+
+The webhook enforces a namespace allow-list for
+`AuthentikApplication`/`AuthentikAccessPolicy`, defaulting to **deny**
+*once any `AuthentikNamespacePolicy` exists in the cluster*. Two cases:
+
+- **No `AuthentikNamespacePolicy` anywhere yet** → everything is allowed;
+  you can apply the imported Applications directly. (Add policies after
+  migration; see the [allow-list guide](/docs/guides/allow-list).)
+- **Policies already exist** → the target namespace must be allow-listed
+  first, or the webhook will reject the create:
+
+  ```yaml
+  apiVersion: authentik.weebo.io/v1alpha1
+  kind: AuthentikNamespacePolicy # cluster-scoped — no metadata.namespace
+  metadata:
+    name: allow-team-a
+  spec:
+    rules:
+      - namespaces: ["team-a"]
+        allowedKinds: ["AuthentikApplication", "AuthentikAccessPolicy"]
+        effect: Allow
+  ```
+
+  See the [allow-list guide](/docs/guides/allow-list) for the full rule
+  semantics (deny-wins, default-deny).
+
+Cluster-scoped kinds (Group/User/Brand/Outpost/Instance) are **not**
+gated by the webhook, so they can be applied at any time.
+
+### 4. Apply the CRs, then patch their status
+
+Apply the specs, then re-attach each `status.authentikId` from the
+generated files (which still contain it, even though `apply` ignored it).
+Apply cluster-scoped kinds first, then the namespaced ones:
+
+```bash
+DIR=import-output/team-a
+kubectl apply -f "$DIR"
+
+# Re-attach status.authentikId to every object the importer generated.
+for f in "$DIR"/*.yaml; do
+  kind=$(yq '.kind' "$f")
+  name=$(yq '.metadata.name' "$f")
+  ns=$(yq '.metadata.namespace // ""' "$f")
+  aid=$(yq '.status.authentikId // ""' "$f")
+  [ -z "$aid" ] || [ "$aid" = "null" ] && continue
+  nsflag=""; [ -n "$ns" ] && [ "$ns" != "null" ] && nsflag="-n $ns"
+  kubectl patch $nsflag "$kind" "$name" \
+    --subresource=status --type merge \
+    -p "{\"status\":{\"authentikId\":\"$aid\"}}"
+done
+```
+
+<Callout type="info">
+Between the `apply` and the `patch`, a reconcile may fire on an
+`AuthentikApplication` and briefly report `AuthentikObjectAlreadyExists`.
+That's the harmless, non-destructive collision described above — once the
+status is patched, the next reconcile adopts cleanly. To keep the noise
+down, migrate one namespace at a time and run the patch loop immediately
+after the apply.
+</Callout>
+
+### 5. Verify adoption
+
+```bash
+# Every managed object should reach Ready=True and carry the id you patched:
+kubectl get authentikgroups,authentikusers,authentikbrands,authentikoutposts -A \
+  -o custom-columns=KIND:.kind,NAME:.metadata.name,ID:.status.authentikId,READY:.status.conditions[0].status
+kubectl -n team-a get authentikapplications,authentikaccesspolicies \
+  -o custom-columns=NAME:.metadata.name,ID:.status.authentikId,READY:.status.conditions[0].status
+```
+
+Confirm each object is `Ready=True` with the expected `authentikId`, and
+spot-check in the Authentik admin UI that nothing was duplicated or
+recreated. Repeat steps 1-5 for the next namespace.
+
+## Decommission Terraform (do not `destroy`)
+
+Once the operator is confirmed authoritative and at parity, stop
+Terraform from managing those objects **without deleting them**:
+
+<Callout type="warn">
+Never run `terraform destroy` (or `terraform apply` after deleting the
+resources from config) against the objects you just adopted — that would
+delete the real Authentik objects the CRs now own. Use
+`terraform state rm` so Terraform *forgets* them instead.
+</Callout>
+
+1. **Freeze Terraform** for the migrated scope while you run the import
+   and verification (pause its CI/CD apply), so the two systems can't
+   fight over the same objects mid-migration.
+2. For each adopted object, remove it from Terraform state:
+
+   ```bash
+   terraform state rm 'authentik_group.team_a'
+   terraform state rm 'authentik_application.dashboard'
+   # ...one per adopted resource
+   ```
+
+3. Delete the corresponding resource blocks from the `.tf` files and run
+   `terraform plan` — it should show **no changes** (Terraform no longer
+   knows about them, the operator owns them now).
+4. Once every namespace is migrated and `terraform plan` is clean, retire
+   the module.
+
+## Caveats and limitations
+
+- **Importer is source-only.** It isn't in the operator image; run it via
+  `cargo run -p importer` from a checkout.
+- **Cluster-scoped kinds regenerate each run.** Group/User/Brand/Outpost
+  are emitted on every invocation regardless of `--namespace` — import
+  them once; re-running is idempotent as long as you don't re-`apply`
+  stale copies.
+- **`defaultApplicationRef` on brands is not resolved** by the operator
+  yet, so the importer leaves it unset.
+- **Single instance for cluster-scoped kinds.** Group/User/Brand/Outpost
+  resolve against the one `AuthentikInstance` in the cluster and error
+  (`AmbiguousDefaultInstance`) if there's more than one — see
+  [Connect an AuthentikInstance → Multiple instances](/docs/guides/connect-instance).
+- **Rollback.** Nothing here deletes Authentik objects, so a botched
+  import is recoverable: fix the CRs (or `kubectl delete` them *before*
+  their finalizers matter — while Terraform still owns the objects), and
+  re-run. Keep Terraform as the source of truth until step 5 passes.
