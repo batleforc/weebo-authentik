@@ -176,8 +176,9 @@ version = "2.1.217"
 backend = "aqua:anthropics/claude-code"
 
 [tools.claude."platforms.linux-x64"]
-checksum = "blake3:db68dc3891b41081f71087a0ce37d583023139ed848c397b4aabce62d628908e"
-url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/2.1.217/linux-x64/claude"
+checksum = "sha256:31af12d3b7cc8f2d3854bbf11e4283068b5a946d143160c0f9fa8b7e9c907d40"
+url = "https://github.com/anthropics/claude-code/releases/download/v2.1.217/claude-linux-x64.tar.gz"
+url_api = "https://api.github.com/repos/anthropics/claude-code/releases/assets/485093155"
 
 [[tools.cocogitto]]
 version = "7.0.0"

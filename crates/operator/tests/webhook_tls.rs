@@ -9,6 +9,9 @@ use std::io::Write;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use api::AuthentikNamespacePolicy;
+use api::namespace_policy::{AuthentikNamespacePolicySpec, Effect, NamespaceRule, ResourceKind};
+use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::envtest::EnvTestCluster;
 
 struct KillOnDrop(Child);
@@ -23,6 +26,34 @@ impl Drop for KillOnDrop {
 #[tokio::test]
 async fn webhook_serves_real_tls_and_responds() {
     let cluster = EnvTestCluster::start().await;
+
+    // Create a policy that covers only `team-a` so that a policy *exists* in
+    // the cluster but does not cover the `default` namespace used by the
+    // request below. This is what puts default-deny in force: with no policy
+    // at all the webhook fails *open* (see webhook_admission.rs's
+    // `no_policies_at_all_allows_every_namespace`), so the fail-closed
+    // decision this test asserts only materializes once a policy is present.
+    let policies: Api<AuthentikNamespacePolicy> = Api::all(cluster.client());
+    policies
+        .create(
+            &PostParams::default(),
+            &AuthentikNamespacePolicy {
+                metadata: ObjectMeta {
+                    name: Some("allow-team-a".to_string()),
+                    ..Default::default()
+                },
+                spec: AuthentikNamespacePolicySpec {
+                    rules: vec![NamespaceRule {
+                        namespaces: vec!["team-a".to_string()],
+                        allowed_kinds: vec![ResourceKind::AuthentikApplication],
+                        effect: Effect::Allow,
+                    }],
+                },
+                status: None,
+            },
+        )
+        .await
+        .expect("AuthentikNamespacePolicy CR create must succeed");
 
     let dir = std::env::temp_dir().join(format!("webhook-tls-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -140,9 +171,10 @@ async fn webhook_serves_real_tls_and_responds() {
         serde_json::from_slice(&output.stdout).expect("response must be valid JSON");
     assert_eq!(body["kind"], "AdmissionReview");
     assert!(body["response"]["uid"].is_string());
-    // The envtest cluster has no AuthentikNamespacePolicy at all, so
-    // default-deny must apply — this is the fail-closed decision the
-    // webhook exists to enforce, not just its TLS transport.
+    // A policy exists (covering only `team-a`), so the `default` namespace
+    // in the request matches no rule and default-deny applies — this is the
+    // fail-closed decision the webhook exists to enforce, not just its TLS
+    // transport.
     assert_eq!(body["response"]["allowed"], false);
 
     std::fs::remove_dir_all(&dir).ok();
