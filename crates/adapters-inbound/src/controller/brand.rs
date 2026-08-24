@@ -74,9 +74,10 @@ async fn apply(
         },
     };
     super::record_reconcile("AuthentikBrand", started, &outcome);
+    let action = super::requeue_after(&outcome);
     super::patch_reconcile_outcome(api, &name, outcome, "brand synced").await?;
 
-    Ok(Action::requeue(std::time::Duration::from_secs(300)))
+    Ok(action)
 }
 
 async fn sync_brand(

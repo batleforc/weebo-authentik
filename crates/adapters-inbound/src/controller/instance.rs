@@ -45,7 +45,8 @@ async fn apply(
     let started = std::time::Instant::now();
     let outcome = reconcile_instance(instance);
     super::record_reconcile("AuthentikInstance", started, &outcome);
+    let action = super::requeue_after(&outcome);
     super::patch_reconcile_outcome(api, &name, outcome, "instance accepted").await?;
 
-    Ok(Action::requeue(std::time::Duration::from_secs(300)))
+    Ok(action)
 }

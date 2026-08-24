@@ -80,9 +80,10 @@ async fn apply(
         None => application_ref_not_found(policy),
     };
     super::record_reconcile("AuthentikAccessPolicy", started, &outcome);
+    let action = super::requeue_after(&outcome);
     super::patch_reconcile_outcome(api, &name, outcome, "access policy synced").await?;
 
-    Ok(Action::requeue(std::time::Duration::from_secs(300)))
+    Ok(action)
 }
 
 async fn cleanup(

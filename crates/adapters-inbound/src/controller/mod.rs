@@ -68,6 +68,24 @@ pub fn error_policy<K>(_obj: Arc<K>, _err: &Error, _ctx: Arc<Ctx>) -> Action {
     Action::requeue(std::time::Duration::from_secs(30))
 }
 
+/// Requeue delay to return from a successful `apply()`, chosen from the
+/// reconcile *outcome*. A clean `Synced` only needs the slow steady-state
+/// re-check (drift correction). An `Errored` outcome, though, is often a
+/// transient cross-CRD ordering case — e.g. an `AuthentikAccessPolicy`
+/// whose `applicationRef` exists but hasn't synced its `authentikId` yet —
+/// and no controller here watches the CRD it depends on, so nothing else
+/// wakes it. Requeuing those on the same 5-minute cadence stalls
+/// convergence for up to 5 minutes (and times out the e2e golden-path
+/// waits, which poll for ~150s); a short backoff, matching `error_policy`'s
+/// hard-error cadence, lets the dependency resolve in seconds. Mirrors a
+/// hard `Err`'s `error_policy` requeue, kept as one number.
+pub fn requeue_after(outcome: &ReconcileOutcome) -> Action {
+    match outcome {
+        ReconcileOutcome::Synced { .. } => Action::requeue(std::time::Duration::from_secs(300)),
+        ReconcileOutcome::Errored { .. } => Action::requeue(std::time::Duration::from_secs(30)),
+    }
+}
+
 /// Patches only the `Ready` condition via the `status` subresource. The
 /// `ReasonCode`-only signature is the same type-level constraint as
 /// `domain::error::ReasonCode` — a reconciler cannot compile a
