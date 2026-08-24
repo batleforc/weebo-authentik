@@ -89,8 +89,16 @@ jobs:
         run: mise exec -- kubectl apply -f deploy/crd/
 
       - name: Install the operator chart
+        # --skip-crds: the CRDs were already applied by the "Install CRDs"
+        # step above via `kubectl apply` (field manager
+        # kubectl-client-side-apply). The chart also ships them in its
+        # crds/ dir, and Helm 4 installs those with server-side apply,
+        # which conflicts on .spec.versions with the field ownership
+        # kubectl established. Skipping Helm's CRD install keeps a single
+        # source of truth (the explicit kubectl step) and avoids the clash.
         run: |
           mise exec -- helm install weebo-authentik deploy/charts/weebo-authentik \
+            --skip-crds \
             --set image.repository=weebo-authentik-operator \
             --set image.tag=e2e \
             --set image.pullPolicy=Never \
