@@ -208,6 +208,29 @@ jobs:
       - name: Admission webhook denies an unlisted namespace by default
         run: |
           mise exec -- kubectl create namespace e2e-unlisted
+
+          # The allow-list is fail-open until at least one
+          # AuthentikNamespacePolicy exists (domain::allow_list::evaluate,
+          # policies_exist=false → allow) — that's why the golden-path apps
+          # in `default` above were accepted with no policy present. Create
+          # one now that allow-lists `default` (where those resources live)
+          # but not `e2e-unlisted`, so default-deny kicks in for the
+          # unlisted namespace below. The webhook reads policy rules live on
+          # each request and does not gate AuthentikNamespacePolicy itself,
+          # so this takes effect immediately with no need to wait for it to
+          # reconcile (it sets no authentikId, so `wait_ready` never would).
+          cat <<'EOF' | mise exec -- kubectl apply -f -
+          apiVersion: authentik.weebo.io/v1alpha1
+          kind: AuthentikNamespacePolicy
+          metadata:
+            name: e2e-allowlist
+          spec:
+            rules:
+              - namespaces: [default]
+                allowedKinds: [AuthentikApplication, AuthentikAccessPolicy]
+                effect: Allow
+          EOF
+
           cat <<'EOF' > /tmp/denied-application.yaml
           apiVersion: authentik.weebo.io/v1alpha1
           kind: AuthentikApplication
