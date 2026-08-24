@@ -55,8 +55,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # The server image ships no wget/curl, so the health endpoint can't be
+    # probed with an HTTP client from inside the container (goauthentik/
+    # authentik#15769). `ak healthcheck` is authentik's built-in, supported
+    # readiness command — it checks the server is up and reachable.
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9000/-/health/ready/"]
+      test: ["CMD", "ak", "healthcheck"]
       interval: 5s
       timeout: 5s
       retries: 60

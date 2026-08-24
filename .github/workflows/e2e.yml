@@ -33,9 +33,14 @@ jobs:
           docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" up -d
 
           . deploy/e2e/wait-ready.sh
+          # The server image ships no wget/curl, so probe readiness with
+          # authentik's built-in `ak healthcheck` command rather than an
+          # HTTP client against /-/health/ready/ (goauthentik/authentik
+          # #15769 — the old wget check exited 127 every attempt and could
+          # never pass, regardless of the server's actual state).
           _authentik_server_check() {
             if docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" \
-                exec -T server wget -qO- http://localhost:9000/-/health/ready/ >/dev/null 2>&1; then
+                exec -T server ak healthcheck >/dev/null 2>&1; then
               echo "Authentik server is ready"
               return 0
             fi
@@ -44,11 +49,8 @@ jobs:
           _authentik_server_diagnostics() {
             docker compose -f deploy/e2e/docker-compose.yml -p "$COMPOSE_PROJECT" logs
           }
-          # 60 attempts (5min) wasn't enough: the last failed run showed
-          # the server printing zero log lines — still mid cold-start
-          # bootstrap (config load, DB migrations) — when the timeout
-          # fired. Authentik's first-boot migrations are the known slow
-          # part; give it up to 15min before giving up.
+          # Authentik's first-boot migrations are the known slow part;
+          # give it up to 15min before giving up.
           retry_until "Authentik server readiness" 180 _authentik_server_check _authentik_server_diagnostics
 
       - name: Create kind cluster

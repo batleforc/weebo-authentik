@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adapters-inbound"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "adapters-outbound",
  "api",
@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "adapters-outbound"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "api",
  "application",
@@ -151,7 +151,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "api"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "domain",
  "k8s-openapi",
@@ -163,7 +163,7 @@ dependencies = [
 
 [[package]]
 name = "application"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "api",
  "async-trait",
@@ -762,7 +762,7 @@ dependencies = [
 
 [[package]]
 name = "crdgen"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "api",
@@ -970,7 +970,7 @@ dependencies = [
 
 [[package]]
 name = "domain"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "dunce"
@@ -1654,7 +1654,7 @@ dependencies = [
 
 [[package]]
 name = "importer"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "api",
@@ -2255,7 +2255,7 @@ dependencies = [
 
 [[package]]
 name = "operator"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "adapters-inbound",
  "adapters-outbound",
@@ -3437,7 +3437,7 @@ dependencies = [
 
 [[package]]
 name = "testkit"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "api",
  "application",
