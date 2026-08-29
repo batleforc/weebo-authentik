@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.5.0](https://github.com/batleforc/proxyauthK8s/compare/04447aecf316a3348166c789b47b23973045bcf6..v0.5.0) - 2026-08-24
+#### Features
+- WIP - ([e158810](https://github.com/batleforc/proxyauthK8s/commit/e1588101ef52cf999d70020d0b94bc5cb2089e40)) - Max Batleforc
+- work on fixing the E2E test - ([ccbd532](https://github.com/batleforc/proxyauthK8s/commit/ccbd532f5cf6a0c80abdc5b522514e204d591198)) - Max Batleforc
+- --skip-crd - ([03757f0](https://github.com/batleforc/proxyauthK8s/commit/03757f0511a956852e620c0cb11458e6600c8b4e)) - Max Batleforc
+- make the ci/cd work (i hope) - ([04447ae](https://github.com/batleforc/proxyauthK8s/commit/04447aecf316a3348166c789b47b23973045bcf6)) - Max Batleforc
+
+- - -
+
 ## [v0.4.0](https://github.com/batleforc/proxyauthK8s/compare/e14c7f6c1d0f587545c941cb191b13a0bdf85e64..v0.4.0) - 2026-08-16
 #### Features
 - add doc - ([b568466](https://github.com/batleforc/proxyauthK8s/commit/b568466b38fad0dac8e76e210af11a35e335f096)) - Max Batleforc
