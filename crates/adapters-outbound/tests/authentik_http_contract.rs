@@ -9,9 +9,13 @@
 use adapters_outbound::AuthentikHttpGateway;
 use api::application::{Oauth2ProviderSpec, ProviderKind, RedirectUri};
 use api::brand::AuthentikBrandSpec;
+use api::flow::{
+    AuthentikFlowSpec, FlowAuthentication, FlowDeniedAction, FlowDesignation, FlowLayout,
+    PolicyEngineMode,
+};
 use api::group::AuthentikGroupSpec;
 use api::outpost::{AuthentikOutpostSpec, OutpostType};
-use api::{AuthentikBrand, AuthentikGroup, AuthentikOutpost};
+use api::{AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost};
 use application::ports::{AuthentikGateway, GatewayError};
 use kube::api::ObjectMeta;
 use testkit::authentik_mock::AuthentikMock;
@@ -124,6 +128,83 @@ async fn delete_group_on_404_is_idempotent() {
     mock.mock_delete("/core/groups/missing/", 404).await;
 
     let result = gateway(&mock).delete_group("missing").await;
+    assert!(result.is_ok());
+}
+
+/// A flow spec exercising the non-default arm of every enum-mapping helper
+/// in `authentik_http/flows.rs` — the request must serialize without panic
+/// and round-trip the create.
+fn flow(slug: &str) -> AuthentikFlow {
+    AuthentikFlow {
+        metadata: ObjectMeta {
+            name: Some(slug.to_string()),
+            ..Default::default()
+        },
+        spec: AuthentikFlowSpec {
+            slug: slug.to_string(),
+            name: slug.to_string(),
+            title: "Device code".to_string(),
+            designation: FlowDesignation::StageConfiguration,
+            authentication: Some(FlowAuthentication::RequireOutpost),
+            policy_engine_mode: Some(PolicyEngineMode::All),
+            compatibility_mode: Some(true),
+            layout: Some(FlowLayout::SidebarLeftFrameBackground),
+            denied_action: Some(FlowDeniedAction::MessageContinue),
+            background: Some("/static/bg.jpg".to_string()),
+        },
+        status: None,
+    }
+}
+
+fn flow_response(slug: &str) -> serde_json::Value {
+    serde_json::json!({
+        "pk": "33333333-3333-3333-3333-333333333333",
+        "policybindingmodel_ptr_id": "44444444-4444-4444-4444-444444444444",
+        "name": slug,
+        "slug": slug,
+        "title": "Device code",
+        "designation": "stage_configuration",
+        "background_url": "/static/bg.jpg",
+        "background_themed_urls": null,
+        "stages": [],
+        "policies": [],
+        "cache_count": 0,
+        "export_url": format!("/api/v3/flows/instances/{slug}/export/"),
+    })
+}
+
+#[tokio::test]
+async fn create_flow_success_returns_the_slug() {
+    let mock = AuthentikMock::start().await;
+    // Flows are slug-keyed: the stored identity is the response slug, not
+    // the `pk` UUID.
+    mock.mock_post("/flows/instances/", 201, flow_response("device-code"))
+        .await;
+
+    let result = gateway(&mock).create_flow(&flow("device-code")).await;
+    assert_eq!(result.unwrap(), "device-code");
+}
+
+#[tokio::test]
+async fn create_flow_conflict_maps_to_already_exists() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_post(
+        "/flows/instances/",
+        409,
+        serde_json::json!({"slug": ["flow with this slug already exists."]}),
+    )
+    .await;
+
+    let result = gateway(&mock).create_flow(&flow("device-code")).await;
+    assert!(matches!(result, Err(GatewayError::AlreadyExists(_))));
+}
+
+#[tokio::test]
+async fn delete_flow_on_404_is_idempotent() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/flows/instances/missing/", 404).await;
+
+    let result = gateway(&mock).delete_flow("missing").await;
     assert!(result.is_ok());
 }
 
