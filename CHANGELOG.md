@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.7.0](https://github.com/batleforc/proxyauthK8s/compare/510f2f8d023e2a57b8cfb90dbb1385afd4332139..v0.7.0) - 2026-08-31
+#### Features
+- enhance the test - ([ff0248e](https://github.com/batleforc/proxyauthK8s/commit/ff0248e92aff50b3f98297be4dfc3f5973ce8df0)) - Max Batleforc
+- add handling of certificate and flow - ([510f2f8](https://github.com/batleforc/proxyauthK8s/commit/510f2f8d023e2a57b8cfb90dbb1385afd4332139)) - Max Batleforc
+
+- - -
+
 ## [v0.6.0](https://github.com/batleforc/proxyauthK8s/compare/4501202d5a8526a14a8e9671b22ec05dfa412a3e..v0.6.0) - 2026-08-31
 #### Features
 - doc and cert - ([4501202](https://github.com/batleforc/proxyauthK8s/commit/4501202d5a8526a14a8e9671b22ec05dfa412a3e)) - Max Batleforc
