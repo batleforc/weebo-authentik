@@ -137,9 +137,20 @@ que l'allow-list gouverne).
   l'opérateur). Renommée depuis "AuthentikAccessPolicy" pour éviter la
   collision avec la CRD ci-dessus qui, elle, correspond au
   `policy_binding` Terraform.
-- Flow : **référencé** par slug (string, résolu au reconcile), pas de
-  CRUD CRD dédiée en v1 — reflète l'usage Terraform actuel (un seul flow
-  custom, le reste en lookup). CRUD complet = v2 si besoin émerge.
+- Flow : **CRD `AuthentikFlow` ajoutée** (cluster-scoped, slug-keyed comme
+  `AuthentikApplication`). Gère l'objet flow lui-même
+  (`name`/`title`/`designation`/`authentication`/`policyEngineMode`/
+  `layout`/`deniedAction`/`background`/`compatibilityMode`). **Hors scope**
+  de cette CRD : les stage bindings et policies du flow (le module
+  Terraform ne définit qu'un flow custom device-code, le reste en lookup).
+  Les autres CRD (`AuthentikBrand`, providers) continuent de **référencer**
+  un flow **par slug** (jamais un lookup de CR Kubernetes) — que ce slug
+  soit géré par un `AuthentikFlow` ou un flow built-in d'Authentik.
+  Adapters : `reconcile_flow.rs`, `authentik_http/flows.rs` (mapping
+  enums API <-> `authentik-client`), `controller/flow.rs`. Import :
+  `importer::flows::import_flows` émet un CR par flow.
+  Historique : ce doc reléguait auparavant Flow à un simple référencement
+  par slug sans CRUD dédiée ; la CRD a été ajoutée par la suite.
 - `AuthentikBrand` (cluster-scoped, cf. rectification ci-dessous) :
   correction par rapport à une version précédente de ce doc qui reléguait
   Brand en v2 — Terraform gère bien `authentik_brand` avec un champ
@@ -358,6 +369,19 @@ namespace (utile seulement à partir du moment où plusieurs instances
 Authentik cohabitent) ; convention de nommage par défaut des Secrets K8s/
 chemins Vault produits par `SecretStore` (à trancher au moment d'écrire
 l'adapter, pas un choix structurant).
+
+**Fan-out multi-cibles par application (implémenté après v1)** :
+`AuthentikApplication.spec.secretTargets` permet à une application de
+router ses credentials oauth2 vers plusieurs destinations à la fois
+(mélange K8s Secret + chemins Vault), chaque cible Vault pouvant fixer un
+`path` explicite. Vide (défaut) = comportement historique (l'unique
+destination de `AuthentikInstance.spec.secretStore`). La cible Vault
+réutilise la *connexion* Vault de l'instance (adresse, mount, auth) — elle
+ne choisit que le chemin sous ce mount ; l'instance doit donc porter un
+bloc `secretStore.vault` même si son `backend` par défaut est
+`kubernetes`. Adapter : `secret_fanout.rs` (`FanOutSecretStore`), câblé
+par `AuthentikSecretStoreFactory` qui reçoit désormais l'`AuthentikApplication`
+entière (plus seulement l'`instanceRef`).
 
 ## Architecture hexagonale
 

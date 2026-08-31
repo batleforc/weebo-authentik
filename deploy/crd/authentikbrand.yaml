@@ -51,8 +51,9 @@ spec:
                 type: string
               flowAuthentication:
                 description: |-
-                  Flow slugs, resolved at reconcile time — no `AuthentikFlow` CRD in
-                  v1, see `.prompt/plan.md`.
+                  Flow slugs, resolved at reconcile time. These reference a flow by
+                  slug whether or not an `AuthentikFlow` CR manages it — the
+                  reference is always slug-based, never a Kubernetes CR lookup.
                 nullable: true
                 type: string
               flowInvalidation:

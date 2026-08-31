@@ -55,11 +55,7 @@ async fn apply(
         .gateway_for(&app.spec.instance_ref)
         .await
     {
-        Ok(gateway) => match ctx
-            .secrets_factory
-            .secret_store_for(&app.spec.instance_ref)
-            .await
-        {
+        Ok(gateway) => match ctx.secrets_factory.secret_store_for(app).await {
             Ok(secrets) => {
                 reconcile_application(
                     app,
@@ -103,7 +99,7 @@ async fn cleanup(
             let name = app.name_any();
             let secrets = ctx
                 .secrets_factory
-                .secret_store_for(&app.spec.instance_ref)
+                .secret_store_for(app)
                 .await
                 .map_err(|e| Error::SecretStore(e.to_string()))?;
             secrets

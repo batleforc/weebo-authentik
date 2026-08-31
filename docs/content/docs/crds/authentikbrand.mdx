@@ -20,7 +20,7 @@ wired up in the `application` crate's `reconcile_brand` use-case).
 | `default` | `boolean` | no | `false` |  |
 | `defaultApplicationRef` | `string` | no |  | Name of an `AuthentikApplication` CR, same-namespace convention does not apply here since this CRD is cluster-scoped. |
 | `domain` | `string` | yes |  |  |
-| `flowAuthentication` | `string` | no |  | Flow slugs, resolved at reconcile time — no `AuthentikFlow` CRD in v1, see `.prompt/plan.md`. |
+| `flowAuthentication` | `string` | no |  | Flow slugs, resolved at reconcile time. These reference a flow by slug whether or not an `AuthentikFlow` CR manages it — the reference is always slug-based, never a Kubernetes CR lookup. |
 | `flowInvalidation` | `string` | no |  |  |
 | `flowRecovery` | `string` | no |  |  |
 | `flowUnenrollment` | `string` | no |  |  |

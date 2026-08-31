@@ -2,6 +2,7 @@ use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::instance::SecretStoreBackend;
 use crate::status::AuthentikStatus;
 
 /// Mirrors `authentik_application` + its `protocol_provider`. Namespaced —
@@ -25,6 +26,48 @@ pub struct AuthentikApplicationSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub meta_icon: Option<String>,
     pub provider: ProviderSpec,
+    /// Where this application's oauth2 credentials are written. When empty
+    /// (the default), the credentials go to the single destination defined
+    /// by the `AuthentikInstance`'s `secretStore` (a Kubernetes `Secret`
+    /// named after this CR, or the instance's Vault path convention) —
+    /// exactly the pre-existing behavior. When non-empty, the credentials
+    /// are **fanned out** to every listed target; Kubernetes and Vault
+    /// targets may be mixed (e.g. two Vault paths plus one Kubernetes
+    /// Secret), and each Vault target may pin an explicit path. Only
+    /// meaningful for `provider.kind: oauth2` — proxy providers carry no
+    /// client secret, so this is ignored for them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub secret_targets: Vec<SecretTarget>,
+}
+
+/// One destination the oauth2 credentials are written to when an
+/// `AuthentikApplication` opts into explicit `secretTargets` fan-out.
+///
+/// Vault targets reuse the connection/auth config from the owning
+/// `AuthentikInstance`'s `secretStore.vault` (address, mount,
+/// Kubernetes-auth role) — an application selects only *where under that
+/// mount* to write, never how to reach Vault. A Vault target therefore
+/// requires the instance to carry a `secretStore.vault` block even if the
+/// instance's default `backend` is `kubernetes`; that mismatch surfaces as
+/// a reconcile error, not a silent skip.
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretTarget {
+    /// Which backend this copy of the credentials is written to.
+    pub backend: SecretStoreBackend,
+    /// Vault targets only: the exact KV v2 path (under the instance's
+    /// `secretStore.vault.mount`) to write to, e.g.
+    /// `apps/frontend/oauth`. When unset, the instance's default
+    /// `<pathPrefix>/<namespace>/<name>` convention is used. Ignored for
+    /// `kubernetes` targets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// Kubernetes targets only: the name of the `Secret` to write, in this
+    /// application's own namespace. When unset, defaults to the
+    /// application CR's name (the pre-existing single-destination
+    /// convention). Ignored for `vault` targets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// `oauth2`/`proxy` are implemented in v1 (both are in real use in the
@@ -71,7 +114,15 @@ pub struct Oauth2ProviderSpec {
     pub client_id: Option<String>,
     pub authorization_flow: String,
     pub invalidation_flow: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Name of an existing Authentik certificate key pair used to sign
+    /// tokens. Resolved by name at reconcile time (never created by this
+    /// operator). Defaults to Authentik's built-in
+    /// `"authentik Self-signed Certificate"` when the field is omitted;
+    /// set it explicitly to `null` to create a provider with no signing
+    /// key. The default is only applied on *absence* — an explicit `null`
+    /// is preserved — so the importer, which emits `null` for a provider
+    /// that genuinely has no signing key, keeps migration parity.
+    #[serde(default = "default_signing_key")]
     pub signing_key: Option<String>,
     #[serde(default)]
     pub allowed_redirect_uris: Vec<RedirectUri>,
@@ -79,6 +130,14 @@ pub struct Oauth2ProviderSpec {
     pub property_mappings: Vec<String>,
     #[serde(default)]
     pub grant_types: Vec<String>,
+}
+
+/// Authentik's built-in self-signed certificate key pair, present on every
+/// instance — the sensible default signing key when a provider doesn't
+/// name one explicitly. See `.prompt/plan.md` (certificate key pairs are
+/// always a lookup of an existing cert, never created by this operator).
+fn default_signing_key() -> Option<String> {
+    Some("authentik Self-signed Certificate".to_string())
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]

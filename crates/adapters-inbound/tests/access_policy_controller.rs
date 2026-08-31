@@ -165,6 +165,7 @@ async fn syncs_the_binding_once_the_application_has_synced() {
                         outpost_ref: None,
                     }),
                 },
+                secret_targets: Vec::new(),
             },
             status: None,
         },

@@ -27,6 +27,7 @@ pub mod access_policy;
 /// prelude for a bare leading path segment.
 pub mod app;
 pub mod brand;
+pub mod flow;
 pub mod group;
 pub mod instance;
 pub mod namespace_policy;

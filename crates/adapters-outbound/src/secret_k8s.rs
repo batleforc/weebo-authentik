@@ -13,6 +13,10 @@ const FIELD_MANAGER: &str = "weebo-authentik-operator";
 /// oauth2 app in the Terraform module being replaced:
 /// `AUTHENTIK_CLIENT_ID`/`AUTHENTIK_CLIENT_SECRET`/`AUTHENTIK_URL`. Never
 /// called for proxy providers — see `.prompt/plan.md`.
+///
+/// `Clone` is a shared-`Client` (Arc) clone, so `FanOutSecretStore` can
+/// hold one per Kubernetes target for free.
+#[derive(Clone)]
 pub struct K8sSecretStore {
     client: Client,
 }

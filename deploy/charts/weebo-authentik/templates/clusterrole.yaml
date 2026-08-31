@@ -13,6 +13,7 @@ rules:
     resources:
       - authentikinstances
       - authentikgroups
+      - authentikflows
       - authentikoutposts
       - authentikusers
       - authentikbrands
@@ -24,6 +25,7 @@ rules:
     resources:
       - authentikinstances/status
       - authentikgroups/status
+      - authentikflows/status
       - authentikoutposts/status
       - authentikusers/status
       - authentikbrands/status
@@ -35,6 +37,7 @@ rules:
     resources:
       - authentikinstances/finalizers
       - authentikgroups/finalizers
+      - authentikflows/finalizers
       - authentikoutposts/finalizers
       - authentikusers/finalizers
       - authentikbrands/finalizers

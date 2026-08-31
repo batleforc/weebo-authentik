@@ -199,6 +199,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::join!(
         controller::instance::run(client.clone(), ctx.clone()),
         controller::group::run(client.clone(), ctx.clone()),
+        controller::flow::run(client.clone(), ctx.clone()),
         controller::user::run(client.clone(), ctx.clone()),
         controller::outpost::run(client.clone(), ctx.clone()),
         controller::brand::run(client.clone(), ctx.clone()),

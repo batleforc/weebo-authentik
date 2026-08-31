@@ -1,0 +1,101 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikFlow",
+  "scope": "Cluster",
+  "description": "Mirrors `authentik_flow`. Cluster-scoped — flows are org-wide\nauthentication/authorization pipelines referenced by slug from brands\nand application providers, not owned by a namespace. Only reachable via\ncluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).\n\nFlows are **slug-keyed** in Authentik's API (create returns a `pk`\nUUID, but update/delete operate on the slug), so `status.authentikId`\nstores the slug — same convention as `AuthentikApplication`, whose\napplications API is likewise slug-keyed.\n\nThis CRD manages the flow object itself (name/title/designation/…). Its\n**stage bindings and policies are out of scope** — the Terraform module\nbeing replaced defines a single custom flow (device-code) and otherwise\nreferences Authentik's built-in flows, so slug-referencing from\n`AuthentikBrand`/`AuthentikApplication` remains the norm; this CRD just\nlets that one custom flow (and any future ones) be declared as a CR\ninstead of assumed to pre-exist.",
+  "properties": {
+    "authentication": {
+      "description": "Required level of authentication to access the flow. Defaults to\nAuthentik's own default when unset.",
+      "enum": [
+        "none",
+        "require_authenticated",
+        "require_unauthenticated",
+        "require_superuser",
+        "require_redirect",
+        "require_outpost",
+        "require_token",
+        null
+      ],
+      "nullable": true,
+      "type": "string"
+    },
+    "background": {
+      "description": "Background image shown during flow execution (a URL or a static\npath served by Authentik).",
+      "nullable": true,
+      "type": "string"
+    },
+    "compatibilityMode": {
+      "description": "Increases compatibility with mobile password managers.",
+      "nullable": true,
+      "type": "boolean"
+    },
+    "deniedAction": {
+      "description": "What happens when the flow denies access to a user.",
+      "enum": [
+        "message_continue",
+        "message",
+        "continue",
+        null
+      ],
+      "nullable": true,
+      "type": "string"
+    },
+    "designation": {
+      "description": "What the flow is used for (authentication, authorization, …).",
+      "enum": [
+        "authentication",
+        "authorization",
+        "invalidation",
+        "enrollment",
+        "unenrollment",
+        "recovery",
+        "stage_configuration"
+      ],
+      "type": "string"
+    },
+    "layout": {
+      "description": "Visual layout of the flow's pages.",
+      "enum": [
+        "stacked",
+        "content_left",
+        "content_right",
+        "sidebar_left",
+        "sidebar_right",
+        "sidebar_left_frame_background",
+        "sidebar_right_frame_background",
+        null
+      ],
+      "nullable": true,
+      "type": "string"
+    },
+    "name": {
+      "description": "Internal name of the flow.",
+      "type": "string"
+    },
+    "policyEngineMode": {
+      "description": "How the flow's bound policies are combined. Defaults to Authentik's\nown default (`any`) when unset.",
+      "enum": [
+        "all",
+        "any",
+        null
+      ],
+      "nullable": true,
+      "type": "string"
+    },
+    "slug": {
+      "description": "Visible in the URL and the identity every other CRD uses to\nreference this flow (`AuthentikBrand.flow*`,\n`Oauth2ProviderSpec.authorizationFlow`, …). Immutable in practice:\nchanging it creates a new flow rather than renaming the old one.",
+      "type": "string"
+    },
+    "title": {
+      "description": "Title shown to users on the flow's pages.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "designation",
+    "name",
+    "slug",
+    "title"
+  ],
+  "type": "object"
+}

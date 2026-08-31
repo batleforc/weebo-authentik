@@ -76,6 +76,57 @@ static Vault token to provision or rotate. Credentials land at
 `AuthentikApplication` CR, same naming convention as the Kubernetes
 backend.
 
+### Per-application targets and fan-out
+
+The `secretStore` above defines a single default destination for every
+application on the instance. An individual `AuthentikApplication` can
+override that by listing explicit `spec.secretTargets`, each selecting a
+`backend` and — for Vault — an exact `path`. When one or more targets
+are set, the credentials are **written to every one of them**; Kubernetes
+and Vault targets may be mixed, so a single application can populate two
+Vault paths and a Kubernetes `Secret` at once:
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikApplication
+metadata:
+  name: frontend
+  namespace: team-a
+spec:
+  instanceRef: main
+  name: Frontend
+  slug: frontend
+  provider:
+    kind: oauth2
+    oauth2:
+      authorizationFlow: default-authorization-flow
+      invalidationFlow: default-invalidation-flow
+  secretTargets:
+    - backend: vault
+      path: apps/frontend/oauth # exact KV path under the instance's mount
+    - backend: vault
+      path: shared/frontend-credentials
+    - backend: kubernetes
+      name: frontend-oauth # Secret name; defaults to the CR name
+```
+
+Notes:
+
+- A `vault` target reuses the connection/auth config from the instance's
+  `secretStore.vault` (address, mount, Kubernetes-auth role) — it only
+  chooses _where under that mount_ to write. The instance must therefore
+  carry a `secretStore.vault` block for Vault targets to work, even if the
+  instance's default `backend` is `kubernetes`; otherwise the application
+  reconcile errors.
+- A `vault` target with no `path` falls back to the default
+  `<pathPrefix>/<namespace>/<name>` convention; a `kubernetes` target with
+  no `name` falls back to the application CR's name (in the application's
+  own namespace).
+- Leaving `secretTargets` empty (the default) keeps the historical
+  behavior: the single destination from the instance's `secretStore`.
+- `secretTargets` is only meaningful for `provider.kind: oauth2` — proxy
+  providers carry no client secret, so it is ignored for them.
+
 ## Multiple instances
 
 Only `AuthentikApplication` carries an explicit `instanceRef`.

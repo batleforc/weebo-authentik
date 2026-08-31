@@ -1,0 +1,43 @@
+---
+title: AuthentikFlow
+description: Mirrors `authentik_flow`.
+---
+
+Mirrors `authentik_flow`. Cluster-scoped — flows are org-wide
+authentication/authorization pipelines referenced by slug from brands
+and application providers, not owned by a namespace. Only reachable via
+cluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).
+
+Flows are **slug-keyed** in Authentik's API (create returns a `pk`
+UUID, but update/delete operate on the slug), so `status.authentikId`
+stores the slug — same convention as `AuthentikApplication`, whose
+applications API is likewise slug-keyed.
+
+This CRD manages the flow object itself (name/title/designation/…). Its
+**stage bindings and policies are out of scope** — the Terraform module
+being replaced defines a single custom flow (device-code) and otherwise
+references Authentik's built-in flows, so slug-referencing from
+`AuthentikBrand`/`AuthentikApplication` remains the norm; this CRD just
+lets that one custom flow (and any future ones) be declared as a CR
+instead of assumed to pre-exist.
+
+## Spec fields
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `authentication` | `string` | no |  | Required level of authentication to access the flow. Defaults to Authentik's own default when unset. |
+| `background` | `string` | no |  | Background image shown during flow execution (a URL or a static path served by Authentik). |
+| `compatibilityMode` | `boolean` | no |  | Increases compatibility with mobile password managers. |
+| `deniedAction` | `string` | no |  | What happens when the flow denies access to a user. |
+| `designation` | `string` | yes |  | What the flow is used for (authentication, authorization, …). |
+| `layout` | `string` | no |  | Visual layout of the flow's pages. |
+| `name` | `string` | yes |  | Internal name of the flow. |
+| `policyEngineMode` | `string` | no |  | How the flow's bound policies are combined. Defaults to Authentik's own default (`any`) when unset. |
+| `slug` | `string` | yes |  | Visible in the URL and the identity every other CRD uses to reference this flow (`AuthentikBrand.flow*`, `Oauth2ProviderSpec.authorizationFlow`, …). Immutable in practice: changing it creates a new flow rather than renaming the old one. |
+| `title` | `string` | yes |  | Title shown to users on the flow's pages. |
+
+## Build a manifest
+
+Fill in the fields below to generate a ready-to-apply `AuthentikFlow` YAML manifest.
+
+<CrdForm kind="AuthentikFlow" />

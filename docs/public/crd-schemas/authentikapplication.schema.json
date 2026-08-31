@@ -78,6 +78,8 @@
               "type": "array"
             },
             "signingKey": {
+              "default": "authentik Self-signed Certificate",
+              "description": "Name of an existing Authentik certificate key pair used to sign\ntokens. Resolved by name at reconcile time (never created by this\noperator). Defaults to Authentik's built-in\n`\"authentik Self-signed Certificate\"` when the field is omitted;\nset it explicitly to `null` to create a provider with no signing\nkey. The default is only applied on *absence* — an explicit `null`\nis preserved — so the importer, which emits `null` for a provider\nthat genuinely has no signing key, keeps migration parity.",
               "nullable": true,
               "type": "string"
             }
@@ -122,6 +124,37 @@
         "kind"
       ],
       "type": "object"
+    },
+    "secretTargets": {
+      "description": "Where this application's oauth2 credentials are written. When empty\n(the default), the credentials go to the single destination defined\nby the `AuthentikInstance`'s `secretStore` (a Kubernetes `Secret`\nnamed after this CR, or the instance's Vault path convention) —\nexactly the pre-existing behavior. When non-empty, the credentials\nare **fanned out** to every listed target; Kubernetes and Vault\ntargets may be mixed (e.g. two Vault paths plus one Kubernetes\nSecret), and each Vault target may pin an explicit path. Only\nmeaningful for `provider.kind: oauth2` — proxy providers carry no\nclient secret, so this is ignored for them.",
+      "items": {
+        "description": "One destination the oauth2 credentials are written to when an\n`AuthentikApplication` opts into explicit `secretTargets` fan-out.\n\nVault targets reuse the connection/auth config from the owning\n`AuthentikInstance`'s `secretStore.vault` (address, mount,\nKubernetes-auth role) — an application selects only *where under that\nmount* to write, never how to reach Vault. A Vault target therefore\nrequires the instance to carry a `secretStore.vault` block even if the\ninstance's default `backend` is `kubernetes`; that mismatch surfaces as\na reconcile error, not a silent skip.",
+        "properties": {
+          "backend": {
+            "description": "Which backend this copy of the credentials is written to.",
+            "enum": [
+              "kubernetes",
+              "vault"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Kubernetes targets only: the name of the `Secret` to write, in this\napplication's own namespace. When unset, defaults to the\napplication CR's name (the pre-existing single-destination\nconvention). Ignored for `vault` targets.",
+            "nullable": true,
+            "type": "string"
+          },
+          "path": {
+            "description": "Vault targets only: the exact KV v2 path (under the instance's\n`secretStore.vault.mount`) to write to, e.g.\n`apps/frontend/oauth`. When unset, the instance's default\n`<pathPrefix>/<namespace>/<name>` convention is used. Ignored for\n`kubernetes` targets.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "backend"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "slug": {
       "type": "string"

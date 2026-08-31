@@ -2,14 +2,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use api::AuthentikInstance;
+use api::application::SecretTarget;
 use api::instance::{SecretStoreBackend, VaultSecretStoreSpec};
+use api::{AuthentikApplication, AuthentikInstance};
 use application::ports::{SecretStore, SecretStoreFactory, SecretStoreFactoryError};
 use kube::Client;
 use kube::runtime::reflector::Store;
 use tokio::sync::Mutex;
 
 use crate::instance_resolver::InstanceResolver;
+use crate::secret_fanout::FanOutSecretStore;
 use crate::secret_k8s::K8sSecretStore;
 use crate::secret_vault::VaultSecretStore;
 
@@ -29,16 +31,25 @@ struct CachedVaultStore {
     spec: VaultSecretStoreSpec,
 }
 
-/// Resolves a `SecretStore` for the target `AuthentikInstance` CR's
-/// `spec.secretStore`.
+/// Resolves a `SecretStore` for the target `AuthentikApplication` CR.
+///
+/// Routing is driven by the application's `spec.secretTargets`:
+/// - **empty** (the default) → the single destination defined by the
+///   owning `AuthentikInstance`'s `spec.secretStore` (a Kubernetes
+///   `Secret`, or the instance's Vault path convention) — the historical
+///   behavior, unchanged.
+/// - **non-empty** → a `FanOutSecretStore` writing to every listed Vault
+///   path / Kubernetes Secret, mixing backends freely.
 ///
 /// The `AuthentikInstance` CR is read through an `InstanceResolver` (a live
 /// reflector `Store` when wired via `with_instance_store`, a live apiserver
-/// call otherwise). The **Vault login is cached**, keyed by `instanceRef`:
-/// re-authenticating on every reconcile mints a throwaway Vault token each
-/// time, so the built `VaultSecretStore` is reused for the lifetime of its
-/// login lease. The Kubernetes backend is a zero-cost wrapper around the
-/// shared client and is never cached.
+/// call otherwise) and always supplies the Vault **connection** (address,
+/// mount, Kubernetes-auth role) that both the default Vault destination and
+/// any Vault target reuse. The **Vault login is cached**, keyed by
+/// `instanceRef`: re-authenticating on every reconcile mints a throwaway
+/// Vault token each time, so the built `VaultSecretStore` connection is
+/// reused for the lifetime of its login lease. The per-application fan-out
+/// wrapper and the Kubernetes backend are zero-cost and never cached.
 pub struct AuthentikSecretStoreFactory {
     client: Client,
     instances: InstanceResolver,
@@ -75,16 +86,35 @@ impl AuthentikSecretStoreFactory {
             .ok_or_else(|| SecretStoreFactoryError::InstanceNotFound(instance_ref.to_string()))
     }
 
-    /// Returns the cached Vault store for `instance_ref` if it is still
-    /// within its lease window and its spec is unchanged, otherwise logs in
-    /// afresh and caches the result. The cache lock is held across the
-    /// login so concurrent reconciles of applications sharing an instance
-    /// don't each trigger a redundant login.
-    async fn vault_store_for(
+    /// The Vault `secretStore.vault` connection config of `instance` — a
+    /// Vault destination (the instance default or an application target)
+    /// needs it, so its absence is a misconfiguration surfaced as
+    /// `ResolutionFailed` rather than a silent skip.
+    fn require_vault_spec<'a>(
+        &self,
+        instance: &'a AuthentikInstance,
+    ) -> Result<&'a VaultSecretStoreSpec, SecretStoreFactoryError> {
+        instance.spec.secret_store.vault.as_ref().ok_or_else(|| {
+            SecretStoreFactoryError::ResolutionFailed(format!(
+                "AuthentikInstance {:?} is asked for a Vault secret destination but has no \
+                     secretStore.vault config",
+                instance.metadata.name
+            ))
+        })
+    }
+
+    /// Returns the cached authenticated Vault connection for `instance_ref`
+    /// if it is still within its lease window and its spec is unchanged,
+    /// otherwise logs in afresh and caches the result. The cache lock is
+    /// held across the login so concurrent reconciles of applications
+    /// sharing an instance don't each trigger a redundant login. The
+    /// returned `VaultSecretStore` is a *connection*: several destinations
+    /// (default path, or multiple `secretTargets` paths) share one.
+    async fn vault_connection_for(
         &self,
         instance_ref: &str,
         vault_spec: &VaultSecretStoreSpec,
-    ) -> Result<Arc<dyn SecretStore>, SecretStoreFactoryError> {
+    ) -> Result<Arc<VaultSecretStore>, SecretStoreFactoryError> {
         let mut cache = self.vault_cache.lock().await;
 
         if let Some(entry) = cache.get(instance_ref)
@@ -119,29 +149,94 @@ impl AuthentikSecretStoreFactory {
         );
         Ok(store)
     }
+
+    /// The single instance-default destination used when an application
+    /// declares no `secretTargets` — preserves the historical behavior
+    /// exactly (Kubernetes Secret named after the CR, or the instance's
+    /// derived Vault path).
+    async fn default_store_for(
+        &self,
+        instance_ref: &str,
+        instance: &AuthentikInstance,
+    ) -> Result<Arc<dyn SecretStore>, SecretStoreFactoryError> {
+        match instance.spec.secret_store.backend {
+            SecretStoreBackend::Kubernetes => {
+                Ok(Arc::new(K8sSecretStore::new(self.client.clone())))
+            }
+            SecretStoreBackend::Vault => {
+                let vault_spec = self.require_vault_spec(instance)?;
+                let store = self.vault_connection_for(instance_ref, vault_spec).await?;
+                Ok(store)
+            }
+        }
+    }
+
+    /// A `FanOutSecretStore` covering every `secretTargets` entry, each
+    /// destination fully resolved (path/name) from the target plus the
+    /// application's namespace/name.
+    async fn fanout_store_for(
+        &self,
+        instance_ref: &str,
+        instance: &AuthentikInstance,
+        namespace: &str,
+        name: &str,
+        targets: &[SecretTarget],
+    ) -> Result<Arc<dyn SecretStore>, SecretStoreFactoryError> {
+        let mut fanout = FanOutSecretStore::new();
+        for target in targets {
+            match target.backend {
+                SecretStoreBackend::Kubernetes => {
+                    let secret_name = target.name.clone().unwrap_or_else(|| name.to_string());
+                    fanout.push_kubernetes(
+                        K8sSecretStore::new(self.client.clone()),
+                        namespace.to_string(),
+                        secret_name,
+                    );
+                }
+                SecretStoreBackend::Vault => {
+                    let vault_spec = self.require_vault_spec(instance)?;
+                    let store = self.vault_connection_for(instance_ref, vault_spec).await?;
+                    let path = target
+                        .path
+                        .clone()
+                        .unwrap_or_else(|| store.default_path(namespace, name));
+                    fanout.push_vault(store, path);
+                }
+            }
+        }
+        Ok(Arc::new(fanout))
+    }
 }
 
 #[async_trait::async_trait]
 impl SecretStoreFactory for AuthentikSecretStoreFactory {
     async fn secret_store_for(
         &self,
-        instance_ref: &str,
+        app: &AuthentikApplication,
     ) -> Result<Arc<dyn SecretStore>, SecretStoreFactoryError> {
+        let instance_ref = &app.spec.instance_ref;
         let instance = self.resolve_instance(instance_ref).await?;
-        match instance.spec.secret_store.backend {
-            SecretStoreBackend::Kubernetes => {
-                Ok(Arc::new(K8sSecretStore::new(self.client.clone())))
-            }
-            SecretStoreBackend::Vault => {
-                let vault_spec = instance.spec.secret_store.vault.as_ref().ok_or_else(|| {
-                    SecretStoreFactoryError::ResolutionFailed(format!(
-                        "AuthentikInstance {:?} has secretStore.backend: vault but no \
-                         secretStore.vault config",
-                        instance.metadata.name
-                    ))
-                })?;
-                self.vault_store_for(instance_ref, vault_spec).await
-            }
+
+        if app.spec.secret_targets.is_empty() {
+            return self.default_store_for(instance_ref, &instance).await;
         }
+
+        // Same namespace/name derivation the reconciler uses when writing
+        // (see `reconcile_application`): the CR's namespace, and its name
+        // falling back to the slug.
+        let namespace = app.metadata.namespace.clone().unwrap_or_default();
+        let name = app
+            .metadata
+            .name
+            .clone()
+            .unwrap_or_else(|| app.spec.slug.clone());
+        self.fanout_store_for(
+            instance_ref,
+            &instance,
+            &namespace,
+            &name,
+            &app.spec.secret_targets,
+        )
+        .await
     }
 }

@@ -33,7 +33,7 @@
       "type": "string"
     },
     "flowAuthentication": {
-      "description": "Flow slugs, resolved at reconcile time — no `AuthentikFlow` CRD in\nv1, see `.prompt/plan.md`.",
+      "description": "Flow slugs, resolved at reconcile time. These reference a flow by\nslug whether or not an `AuthentikFlow` CR manages it — the\nreference is always slug-based, never a Kubernetes CR lookup.",
       "nullable": true,
       "type": "string"
     },

@@ -6,7 +6,10 @@
 use std::sync::Arc;
 
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
-use api::{AuthentikApplication, AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikUser};
+use api::{
+    AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
+    AuthentikUser,
+};
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum GatewayError {
@@ -85,6 +88,19 @@ pub trait AuthentikGateway: Send + Sync {
         group: &AuthentikGroup,
     ) -> Result<(), GatewayError>;
     async fn delete_group(&self, authentik_id: &str) -> Result<(), GatewayError>;
+
+    /// Flows are slug-keyed in Authentik's API, so `authentik_id` here is
+    /// the flow's slug (as stored in `AuthentikFlow.status.authentikId`),
+    /// not a numeric/UUID pk — same convention as `create_application`.
+    /// A flow references no other CRD, so there is no name-resolution step
+    /// and thus no `GatewayError::NotFound`-as-unresolved-ref path.
+    async fn create_flow(&self, flow: &AuthentikFlow) -> Result<String, GatewayError>;
+    async fn update_flow(
+        &self,
+        authentik_id: &str,
+        flow: &AuthentikFlow,
+    ) -> Result<(), GatewayError>;
+    async fn delete_flow(&self, authentik_id: &str) -> Result<(), GatewayError>;
 
     /// `user.spec.group_refs` resolved the same way as
     /// `AuthentikGroupSpec.parent_ref` above (by Authentik-side group
@@ -256,18 +272,26 @@ pub enum SecretStoreFactoryError {
     ResolutionFailed(String),
 }
 
-/// Produces a `SecretStore` for a given `AuthentikInstance` CR from its
-/// `spec.secretStore`. Only `AuthentikApplication` ever needs a
-/// `SecretStore` (oauth2 credentials), and it always carries an explicit
-/// `instanceRef`, so unlike `GatewayFactory` there is no `default_store`.
+/// Produces a `SecretStore` for a given `AuthentikApplication` CR. Only
+/// `AuthentikApplication` ever needs a `SecretStore` (oauth2 credentials),
+/// and it always carries an explicit `instanceRef`, so unlike
+/// `GatewayFactory` there is no `default_store`.
+///
+/// The whole `AuthentikApplication` is passed — not just its
+/// `instanceRef` — because the application's optional `secretTargets`
+/// decide the routing: an empty list yields the instance's single default
+/// destination, a non-empty list yields a fan-out store writing to every
+/// listed Vault path / Kubernetes Secret. The instance's `secretStore`
+/// still supplies the Vault *connection* (address, mount, auth) that Vault
+/// targets reuse.
 ///
 /// The concrete adapter (`AuthentikSecretStoreFactory`) caches the Vault
 /// backend's login for its lease lifetime — each `login` mints a throwaway
 /// Vault token, so re-authenticating per reconcile churned tokens
 /// needlessly; a KV op rejected as unauthorized self-heals by re-logging-in
-/// (see `secret_vault.rs`). The Kubernetes backend is a zero-cost wrapper
-/// and is not cached. This is an adapter-side concern the port stays
-/// agnostic to.
+/// (see `secret_vault.rs`). The Kubernetes backend and the per-application
+/// fan-out wrapper are zero-cost and not cached. This is an adapter-side
+/// concern the port stays agnostic to.
 ///
 /// `#[async_trait]` for the same `dyn`-compatibility reason as
 /// `AuthentikGateway`.
@@ -275,7 +299,7 @@ pub enum SecretStoreFactoryError {
 pub trait SecretStoreFactory: Send + Sync {
     async fn secret_store_for(
         &self,
-        instance_ref: &str,
+        app: &AuthentikApplication,
     ) -> Result<Arc<dyn SecretStore>, SecretStoreFactoryError>;
 }
 

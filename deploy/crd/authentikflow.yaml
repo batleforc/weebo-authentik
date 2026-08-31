@@ -1,0 +1,183 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: authentikflows.authentik.weebo.io
+spec:
+  group: authentik.weebo.io
+  names:
+    categories: []
+    kind: AuthentikFlow
+    plural: authentikflows
+    shortNames: []
+    singular: authentikflow
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for AuthentikFlowSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Mirrors `authentik_flow`. Cluster-scoped — flows are org-wide
+              authentication/authorization pipelines referenced by slug from brands
+              and application providers, not owned by a namespace. Only reachable via
+              cluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).
+
+              Flows are **slug-keyed** in Authentik's API (create returns a `pk`
+              UUID, but update/delete operate on the slug), so `status.authentikId`
+              stores the slug — same convention as `AuthentikApplication`, whose
+              applications API is likewise slug-keyed.
+
+              This CRD manages the flow object itself (name/title/designation/…). Its
+              **stage bindings and policies are out of scope** — the Terraform module
+              being replaced defines a single custom flow (device-code) and otherwise
+              references Authentik's built-in flows, so slug-referencing from
+              `AuthentikBrand`/`AuthentikApplication` remains the norm; this CRD just
+              lets that one custom flow (and any future ones) be declared as a CR
+              instead of assumed to pre-exist.
+            properties:
+              authentication:
+                description: |-
+                  Required level of authentication to access the flow. Defaults to
+                  Authentik's own default when unset.
+                enum:
+                - none
+                - require_authenticated
+                - require_unauthenticated
+                - require_superuser
+                - require_redirect
+                - require_outpost
+                - require_token
+                - null
+                nullable: true
+                type: string
+              background:
+                description: |-
+                  Background image shown during flow execution (a URL or a static
+                  path served by Authentik).
+                nullable: true
+                type: string
+              compatibilityMode:
+                description: Increases compatibility with mobile password managers.
+                nullable: true
+                type: boolean
+              deniedAction:
+                description: What happens when the flow denies access to a user.
+                enum:
+                - message_continue
+                - message
+                - continue
+                - null
+                nullable: true
+                type: string
+              designation:
+                description: What the flow is used for (authentication, authorization, …).
+                enum:
+                - authentication
+                - authorization
+                - invalidation
+                - enrollment
+                - unenrollment
+                - recovery
+                - stage_configuration
+                type: string
+              layout:
+                description: Visual layout of the flow's pages.
+                enum:
+                - stacked
+                - content_left
+                - content_right
+                - sidebar_left
+                - sidebar_right
+                - sidebar_left_frame_background
+                - sidebar_right_frame_background
+                - null
+                nullable: true
+                type: string
+              name:
+                description: Internal name of the flow.
+                type: string
+              policyEngineMode:
+                description: |-
+                  How the flow's bound policies are combined. Defaults to Authentik's
+                  own default (`any`) when unset.
+                enum:
+                - all
+                - any
+                - null
+                nullable: true
+                type: string
+              slug:
+                description: |-
+                  Visible in the URL and the identity every other CRD uses to
+                  reference this flow (`AuthentikBrand.flow*`,
+                  `Oauth2ProviderSpec.authorizationFlow`, …). Immutable in practice:
+                  changing it creates a new flow rather than renaming the old one.
+                type: string
+              title:
+                description: Title shown to users on the flow's pages.
+                type: string
+            required:
+            - designation
+            - name
+            - slug
+            - title
+            type: object
+          status:
+            nullable: true
+            properties:
+              authentikId:
+                description: |-
+                  The Authentik-side primary key. Presence means this CR actually
+                  owns/created the corresponding Authentik object — set once on
+                  first successful create (or seeded by the import tool), never
+                  inferred by name-matching. See `.prompt/plan.md`.
+                nullable: true
+                type: string
+              conditions:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: Time is a wrapper around time.Time which supports correct marshaling to YAML and JSON.  Wrappers are provided for many of the factory methods that the time package offers.
+                      format: date-time
+                      nullable: true
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      nullable: true
+                      type: integer
+                    reason:
+                      description: |-
+                        One of `domain::error::ReasonCode`'s `as_str()` values — never a
+                        hand-written string.
+                      type: string
+                    status:
+                      description: '`"True"`, `"False"`, or `"Unknown"`.'
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                format: int64
+                nullable: true
+                type: integer
+            type: object
+        required:
+        - spec
+        title: AuthentikFlow
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

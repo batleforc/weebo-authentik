@@ -51,10 +51,10 @@ pub(super) fn parse_i32(id: &str) -> Result<i32, GatewayError> {
 }
 
 impl AuthentikHttpGateway {
-    /// Flows are referenced by slug (no `AuthentikFlow` CRD in v1, see
-    /// `.prompt/plan.md`) — resolved to a pk directly against the
-    /// Authentik API on every reconcile. Used by both `brands` (via
-    /// `resolve_optional_flow`) and `providers`.
+    /// Flows are referenced by slug (whether or not an `AuthentikFlow` CR
+    /// manages the flow — cross-CRD references stay slug-based) — resolved
+    /// to a pk directly against the Authentik API on every reconcile. Used
+    /// by both `brands` (via `resolve_optional_flow`) and `providers`.
     pub(super) async fn resolve_flow(&self, slug: &str) -> Result<uuid::Uuid, GatewayError> {
         let list = authentik_client::apis::flows_api::flows_instances_list(
             &self.configuration,

@@ -90,7 +90,13 @@ impl VaultSecretStore {
         self.cache_ttl
     }
 
-    fn path(&self, namespace: &str, name: &str) -> String {
+    /// The default KV path for a CR when no explicit `secretTargets.path`
+    /// is given: `<pathPrefix>/<namespace>/<name>`, one secret per
+    /// `AuthentikApplication` CR (same convention as the Kubernetes
+    /// backend's Secret naming). Public so `FanOutSecretStore` can derive
+    /// it for a Vault target that opted for the convention rather than an
+    /// explicit path.
+    pub fn default_path(&self, namespace: &str, name: &str) -> String {
         format!("{}/{namespace}/{name}", self.path_prefix)
     }
 
@@ -137,12 +143,15 @@ fn is_auth_error(err: &ClientError) -> bool {
     matches!(err, ClientError::APIError { code, .. } if *code == 401 || *code == 403)
 }
 
-#[async_trait::async_trait]
-impl SecretStore for VaultSecretStore {
-    async fn write_oauth2_credentials(
+impl VaultSecretStore {
+    /// Writes the canonical oauth2 credential shape to an **explicit** KV
+    /// path under `self.mount` (the caller has already resolved the path —
+    /// either an application's `secretTargets.path` or `default_path`). The
+    /// `SecretStore::write_oauth2_credentials` impl and `FanOutSecretStore`
+    /// both funnel through here so the auth self-heal lives in one place.
+    pub async fn write_path(
         &self,
-        namespace: &str,
-        name: &str,
+        path: &str,
         credentials: &Oauth2Credentials,
     ) -> Result<(), SecretStoreError> {
         let data = serde_json::json!({
@@ -150,7 +159,6 @@ impl SecretStore for VaultSecretStore {
             "AUTHENTIK_CLIENT_SECRET": credentials.client_secret,
             "AUTHENTIK_URL": credentials.authentik_url,
         });
-        let path = self.path(namespace, name);
 
         // The read guard must be released before `relogin` (which takes the
         // write lock), so the KV call is scoped to its own block rather
@@ -158,7 +166,7 @@ impl SecretStore for VaultSecretStore {
         // end of the match and would deadlock the re-login.
         let first = {
             let client = self.client.read().await;
-            kv2::set(&*client, &self.mount, &path, &data).await
+            kv2::set(&*client, &self.mount, path, &data).await
         };
         match first {
             Ok(_) => Ok(()),
@@ -167,7 +175,7 @@ impl SecretStore for VaultSecretStore {
             Err(e) if is_auth_error(&e) => {
                 self.relogin().await?;
                 let client = self.client.read().await;
-                kv2::set(&*client, &self.mount, &path, &data)
+                kv2::set(&*client, &self.mount, path, &data)
                     .await
                     .map(|_| ())
                     .map_err(|e| SecretStoreError::Write(e.to_string()))
@@ -176,21 +184,19 @@ impl SecretStore for VaultSecretStore {
         }
     }
 
-    /// Deletes all versions + metadata (not a soft `delete_latest`) —
-    /// matches `K8sSecretStore::delete`'s intent of actually removing the
-    /// secret, not leaving a recoverable tombstone. Idempotent: Vault
-    /// returns 404 for a path with no metadata, treated as success the
-    /// same way `K8sSecretStore::delete` treats a 404 from the
-    /// Kubernetes API. An auth failure re-logs-in once and retries, same
-    /// as `write_oauth2_credentials`.
-    async fn delete(&self, namespace: &str, name: &str) -> Result<(), SecretStoreError> {
-        let path = self.path(namespace, name);
+    /// Deletes all versions + metadata (not a soft `delete_latest`) at an
+    /// **explicit** KV path — matches `K8sSecretStore::delete`'s intent of
+    /// actually removing the secret, not leaving a recoverable tombstone.
+    /// Idempotent: Vault returns 404 for a path with no metadata, treated
+    /// as success the same way `K8sSecretStore::delete` treats a 404 from
+    /// the Kubernetes API. An auth failure re-logs-in once and retries,
+    /// same as `write_path`.
+    pub async fn delete_path(&self, path: &str) -> Result<(), SecretStoreError> {
         // Guard scoped to its own block so `relogin`'s write lock can't
-        // deadlock against a still-held read guard (see
-        // `write_oauth2_credentials`).
+        // deadlock against a still-held read guard (see `write_path`).
         let first = {
             let client = self.client.read().await;
-            kv2::delete_metadata(&*client, &self.mount, &path).await
+            kv2::delete_metadata(&*client, &self.mount, path).await
         };
         match first {
             Ok(()) => Ok(()),
@@ -198,7 +204,7 @@ impl SecretStore for VaultSecretStore {
             Err(e) if is_auth_error(&e) => {
                 self.relogin().await?;
                 let client = self.client.read().await;
-                match kv2::delete_metadata(&*client, &self.mount, &path).await {
+                match kv2::delete_metadata(&*client, &self.mount, path).await {
                     Ok(()) => Ok(()),
                     Err(ClientError::APIError { code: 404, .. }) => Ok(()),
                     Err(e) => Err(SecretStoreError::Delete(e.to_string())),
@@ -206,5 +212,25 @@ impl SecretStore for VaultSecretStore {
             }
             Err(e) => Err(SecretStoreError::Delete(e.to_string())),
         }
+    }
+}
+
+/// The default single-destination behavior (no `secretTargets`): derive the
+/// path from the CR's namespace/name and funnel through the explicit-path
+/// methods above.
+#[async_trait::async_trait]
+impl SecretStore for VaultSecretStore {
+    async fn write_oauth2_credentials(
+        &self,
+        namespace: &str,
+        name: &str,
+        credentials: &Oauth2Credentials,
+    ) -> Result<(), SecretStoreError> {
+        self.write_path(&self.default_path(namespace, name), credentials)
+            .await
+    }
+
+    async fn delete(&self, namespace: &str, name: &str) -> Result<(), SecretStoreError> {
+        self.delete_path(&self.default_path(namespace, name)).await
     }
 }

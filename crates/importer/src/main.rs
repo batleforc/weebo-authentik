@@ -1,7 +1,8 @@
 //! One-shot import: reads an existing Authentik instance's state and
-//! generates `AuthentikGroup`/`AuthentikUser`/`AuthentikBrand`/
-//! `AuthentikOutpost`/`AuthentikApplication`/`AuthentikAccessPolicy` YAML
-//! for `weebo-authentik-operator` to adopt. See `.prompt/plan.md`,
+//! generates `AuthentikGroup`/`AuthentikUser`/`AuthentikFlow`/
+//! `AuthentikBrand`/`AuthentikOutpost`/`AuthentikApplication`/
+//! `AuthentikAccessPolicy` YAML for `weebo-authentik-operator` to adopt.
+//! See `.prompt/plan.md`,
 //! "Route C — migration à parité" and "Trois routes possibles".
 //!
 //! `status.authentikId` is pre-populated in every generated CR — this is
@@ -80,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
 
     let groups_by_pk = groups::import_groups(&configuration, &args.out).await?;
     users::import_users(&configuration, &args.out, &groups_by_pk).await?;
-    let flows_by_pk = flows::flow_pk_to_slug_map(&configuration).await?;
+    let flows_by_pk = flows::import_flows(&configuration, &args.out).await?;
     brands::import_brands(&configuration, &args.out, &flows_by_pk).await?;
     let outposts = outposts::import_outposts(&configuration, &args.out).await?;
     let lookups = applications::ImportLookups {

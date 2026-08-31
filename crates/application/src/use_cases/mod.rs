@@ -8,6 +8,7 @@ pub mod evaluate_admission;
 pub mod reconcile_access_policy;
 pub mod reconcile_application;
 pub mod reconcile_brand;
+pub mod reconcile_flow;
 pub mod reconcile_group;
 pub mod reconcile_instance;
 pub mod reconcile_namespace_policy;

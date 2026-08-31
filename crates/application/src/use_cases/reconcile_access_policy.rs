@@ -147,6 +147,7 @@ mod tests {
                     }),
                     proxy: None,
                 },
+                secret_targets: Vec::new(),
             },
             status: authentik_id.map(|id| AuthentikStatus {
                 authentik_id: Some(id.to_string()),

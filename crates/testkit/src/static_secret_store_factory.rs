@@ -1,10 +1,11 @@
 //! Test-only `SecretStoreFactory`: always returns the one scripted
-//! secret store it was built with, ignoring the instance-ref argument
+//! secret store it was built with, ignoring the application argument
 //! entirely — same "bypass real `AuthentikInstance` resolution" intent
 //! as `StaticGatewayFactory`.
 
 use std::sync::Arc;
 
+use api::AuthentikApplication;
 use application::ports::{SecretStore, SecretStoreFactory, SecretStoreFactoryError};
 
 pub struct StaticSecretStoreFactory {
@@ -21,7 +22,7 @@ impl StaticSecretStoreFactory {
 impl SecretStoreFactory for StaticSecretStoreFactory {
     async fn secret_store_for(
         &self,
-        _instance_ref: &str,
+        _app: &AuthentikApplication,
     ) -> Result<Arc<dyn SecretStore>, SecretStoreFactoryError> {
         Ok(self.store.clone())
     }

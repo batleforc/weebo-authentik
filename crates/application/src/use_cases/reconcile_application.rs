@@ -350,6 +350,7 @@ mod tests {
                 slug: "harbor".to_string(),
                 meta_icon: None,
                 provider,
+                secret_targets: Vec::new(),
             },
             status: Some(AuthentikStatus {
                 authentik_id: Some("harbor".to_string()),

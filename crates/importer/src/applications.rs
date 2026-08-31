@@ -205,6 +205,10 @@ pub async fn import_applications(
                 slug: app.slug.clone(),
                 meta_icon: app.meta_icon.clone(),
                 provider: provider_spec,
+                // Imported apps use the instance's default single
+                // destination; multi-target fan-out is opt-in, set by hand
+                // after import if desired.
+                secret_targets: Vec::new(),
             },
             status: Some(AuthentikStatus {
                 // The applications API is slug-keyed — see

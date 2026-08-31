@@ -6,7 +6,10 @@
 //! synchronous-fast and dependency-free, not spin up a mock HTTP server.
 
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
-use api::{AuthentikApplication, AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikUser};
+use api::{
+    AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
+    AuthentikUser,
+};
 
 use crate::ports::{
     AuthentikGateway, GatewayError, Oauth2Credentials, Oauth2ProviderUpsertResult,
@@ -117,6 +120,20 @@ impl AuthentikGateway for FakeGateway {
     }
     async fn delete_group(&self, _authentik_id: &str) -> Result<(), GatewayError> {
         unimplemented!("delete_group not scripted on FakeGateway")
+    }
+
+    async fn create_flow(&self, _flow: &AuthentikFlow) -> Result<String, GatewayError> {
+        self.take_create()
+    }
+    async fn update_flow(
+        &self,
+        _authentik_id: &str,
+        _flow: &AuthentikFlow,
+    ) -> Result<(), GatewayError> {
+        self.take_update()
+    }
+    async fn delete_flow(&self, _authentik_id: &str) -> Result<(), GatewayError> {
+        unimplemented!("delete_flow not scripted on FakeGateway")
     }
 
     async fn create_user(&self, _user: &AuthentikUser) -> Result<String, GatewayError> {

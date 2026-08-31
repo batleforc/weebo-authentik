@@ -267,7 +267,7 @@ url = "https://github.com/rtk-ai/rtk/releases/download/v0.43.0/rtk-x86_64-unknow
 url_api = "https://api.github.com/repos/rtk-ai/rtk/releases/assets/460115882"
 
 [[tools.rust]]
-version = "1.97.1"
+version = "1.98.0"
 backend = "core:rust"
 
 [tools.rust.options]
@@ -282,3 +282,7 @@ backend = "aqua:go-task/task"
 checksum = "sha256:02c679ffae53dca791804847d78b31731615894e292948397c971c87ac9e95bd"
 url = "https://github.com/go-task/task/releases/download/v3.52.0/task_linux_amd64.tar.gz"
 url_api = "https://api.github.com/repos/go-task/task/releases/assets/464613330"
+
+[[tools.yarn]]
+version = "4.18.0"
+backend = "vfox:mise-plugins/vfox-yarn"

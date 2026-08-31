@@ -34,8 +34,9 @@ pub struct AuthentikBrandSpec {
     /// does not apply here since this CRD is cluster-scoped.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_application_ref: Option<String>,
-    /// Flow slugs, resolved at reconcile time — no `AuthentikFlow` CRD in
-    /// v1, see `.prompt/plan.md`.
+    /// Flow slugs, resolved at reconcile time. These reference a flow by
+    /// slug whether or not an `AuthentikFlow` CR manages it — the
+    /// reference is always slug-based, never a Kubernetes CR lookup.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flow_authentication: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
