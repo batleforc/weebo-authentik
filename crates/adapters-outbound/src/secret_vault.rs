@@ -50,9 +50,35 @@ impl VaultSecretStore {
     /// token) rather than by this method, so the Vault login flow itself
     /// stays testable against a fake JWT without touching a real
     /// filesystem path.
-    pub async fn new(spec: &VaultSecretStoreSpec, jwt: &str) -> Result<Self, SecretStoreError> {
-        let settings = VaultClientSettingsBuilder::default()
-            .address(&spec.address)
+    /// `ca_pem`, when `Some`, is a PEM bundle (read by the caller from the
+    /// `spec.ca_secret_ref` Secret) used to verify Vault's TLS. `vaultrs`
+    /// only accepts CA certs as *file paths* (it `std::fs::read`s them while
+    /// building the client), so the bytes are materialized to a
+    /// short-lived temp file that exists only across `VaultClient::new` —
+    /// reqwest loads the cert into memory there, after which the file is
+    /// removed. This keeps the private CA out of any mounted volume (the
+    /// operator chart has no `extraVolumes`), reading it via the API
+    /// instead.
+    pub async fn new(
+        spec: &VaultSecretStoreSpec,
+        jwt: &str,
+        ca_pem: Option<&[u8]>,
+    ) -> Result<Self, SecretStoreError> {
+        let mut builder = VaultClientSettingsBuilder::default();
+        builder.address(&spec.address);
+
+        // Kept alive until after `VaultClient::new` reads it; dropped (and
+        // the file removed) at end of scope.
+        let _ca_file = match ca_pem {
+            Some(pem) => {
+                let guard = TempCaFile::write(pem)?;
+                builder.ca_certs(vec![guard.path_string()]);
+                Some(guard)
+            }
+            None => None,
+        };
+
+        let settings = builder
             .build()
             .map_err(|e| SecretStoreError::Write(format!("building Vault client settings: {e}")))?;
         let mut client = VaultClient::new(settings)
@@ -134,6 +160,44 @@ fn cache_ttl_from_lease(lease_duration: u64, renewable: bool) -> Option<Duration
         return None;
     }
     Some(Duration::from_secs(lease_duration * 4 / 5))
+}
+
+/// A CA PEM bundle materialized to a temp file for the lifetime of a
+/// single `VaultClient::new` call (see `VaultSecretStore::new`), removed on
+/// drop. `vaultrs` reads CA certs from paths, not memory, so this bridges a
+/// Secret-sourced PEM to that file-path API without a mounted volume.
+struct TempCaFile {
+    path: std::path::PathBuf,
+}
+
+impl TempCaFile {
+    fn write(pem: &[u8]) -> Result<Self, SecretStoreError> {
+        // A unique name avoids collisions between concurrently-built Vault
+        // connections for different instances.
+        let path = std::env::temp_dir().join(format!(
+            "weebo-authentik-vault-ca-{}.pem",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(&path, pem).map_err(|e| {
+            SecretStoreError::Write(format!(
+                "materializing Vault CA cert to {}: {e}",
+                path.display()
+            ))
+        })?;
+        Ok(Self { path })
+    }
+
+    fn path_string(&self) -> String {
+        self.path.to_string_lossy().into_owned()
+    }
+}
+
+impl Drop for TempCaFile {
+    fn drop(&mut self) {
+        // Best-effort: the cert is already loaded into the reqwest client by
+        // now, so a failed unlink only leaves a temp file, never breaks TLS.
+        let _ = std::fs::remove_file(&self.path);
+    }
 }
 
 /// A Vault response that means "your token is no good" — 403 (permission
@@ -232,5 +296,28 @@ impl SecretStore for VaultSecretStore {
 
     async fn delete(&self, namespace: &str, name: &str) -> Result<(), SecretStoreError> {
         self.delete_path(&self.default_path(namespace, name)).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn temp_ca_file_materializes_the_pem_then_removes_it_on_drop() {
+        let pem = b"-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n";
+        let path = {
+            let guard = TempCaFile::write(pem).expect("temp CA file write must succeed");
+            let path = std::path::PathBuf::from(guard.path_string());
+            // Exists and holds exactly the PEM bytes while the guard lives.
+            assert!(path.exists(), "temp CA file should exist while guarded");
+            assert_eq!(std::fs::read(&path).unwrap(), pem);
+            path
+        };
+        // Dropped at end of scope → file removed.
+        assert!(
+            !path.exists(),
+            "temp CA file should be removed once the guard is dropped"
+        );
     }
 }

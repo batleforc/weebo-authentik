@@ -294,7 +294,11 @@ async fn assert_round_trips_against_real_authentik<K>(
 }
 
 fn new_ctx(client: kube::Client) -> Arc<Ctx> {
-    let gateway = AuthentikHttpGateway::new(format!("{AUTHENTIK_BASE}/api/v3"), BOOTSTRAP_TOKEN);
+    let gateway = AuthentikHttpGateway::new(
+        format!("{AUTHENTIK_BASE}/api/v3"),
+        AUTHENTIK_BASE,
+        BOOTSTRAP_TOKEN,
+    );
     let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
     let secrets = Arc::new(K8sSecretStore::new(client.clone()));
     let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));

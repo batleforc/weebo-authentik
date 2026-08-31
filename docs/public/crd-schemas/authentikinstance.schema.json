@@ -25,6 +25,27 @@
               "description": "Vault server address, e.g. `https://vault.example.com:8200`.",
               "type": "string"
             },
+            "caSecretRef": {
+              "description": "Optional custom CA certificate to verify Vault's TLS with, read from\na Kubernetes `Secret` (the referenced `key` must hold a PEM bundle).\nUse this to trust a private CA (e.g. openbao-tls) without mounting\nit into the operator pod — the operator reads the Secret via the\nAPI and hands the PEM to its Vault client. When unset, the system\ntrust store is used. Only consulted for `https://` Vault addresses.",
+              "nullable": true,
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "namespace": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "namespace"
+              ],
+              "type": "object"
+            },
             "kubernetesAuthMount": {
               "default": "kubernetes",
               "description": "Mount path of Vault's Kubernetes auth backend. Defaults to\n`kubernetes`, Vault's own default mount name.",

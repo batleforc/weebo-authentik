@@ -201,6 +201,7 @@ impl AuthentikGateway for FakeGateway {
         &self,
         _authentik_id: Option<&str>,
         _name: &str,
+        _slug: &str,
         _spec: &Oauth2ProviderSpec,
     ) -> Result<Oauth2ProviderUpsertResult, GatewayError> {
         self.upsert_oauth2_provider_result

@@ -383,6 +383,28 @@ bloc `secretStore.vault` même si son `backend` par défaut est
 par `AuthentikSecretStoreFactory` qui reçoit désormais l'`AuthentikApplication`
 entière (plus seulement l'`instanceRef`).
 
+**Blockers migration (documentés, ordre harbor → s3 → argo → che → vault
+choisi autour d'eux)** :
+
+1. **`AUTHENTIK_URL` = issuer par app — corrigé.** Écrivait auparavant
+   `configuration.base_path` (base API), pas l'issuer OIDC par
+   application. Désormais `<web-base>/application/o/<slug>/`. Le port
+   `upsert_oauth2_provider` reçoit le `slug`, et `AuthentikHttpGateway`
+   porte un `web_base_url` distinct du `base_path` REST. Seuls deux
+   consommateurs lisent la clé (issuer argocd, `OIDC_ISSUER_URL` de
+   pulu-init) → séquencés après harbor/s3 qui n'en ont aucun.
+2. **Rôle Vault Kubernetes-auth — ouvert (module externe).** Le SA de
+   l'opérateur est `authentik-weebo-authentik` ; le rôle ne bind que
+   `["authentik", "default"]`. Hunk exact documenté dans le guide
+   `migrate-from-terraform` (`2.terra/vault/terra-map/auth-base.tf`), non
+   appliqué (autre module, rien n'en dépend avant la phase vault).
+3. **CA cert Vault — corrigé.** `secretStore.vault.caSecretRef` lit le PEM
+   d'un Secret via l'API et le passe au client Vault (matérialisé en
+   fichier temp le temps de `VaultClient::new`, car `vaultrs` ne prend que
+   des chemins). Évite le besoin d'`extraVolumes`/`VAULT_CACERT` ; la
+   piste `podAnnotations` + bank-vaults `inject-certs` n'a jamais été
+   confirmée et n'est plus nécessaire.
+
 ## Architecture hexagonale
 
 - `domain/` : entités, logique d'évaluation de l'allow-list, polymorphisme

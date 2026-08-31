@@ -76,6 +76,32 @@ static Vault token to provision or rotate. Credentials land at
 `AuthentikApplication` CR, same naming convention as the Kubernetes
 backend.
 
+#### Trusting a private Vault CA
+
+If Vault (or OpenBao) presents a TLS certificate signed by a private CA,
+point `secretStore.vault.caSecretRef` at a Kubernetes `Secret` holding
+the CA's PEM bundle. The operator reads it via the API and hands it to
+its Vault client — no volume mount or `VAULT_CACERT` env wiring needed:
+
+```yaml
+  secretStore:
+    backend: vault
+    vault:
+      address: https://openbao.example.com:8200
+      mount: secret
+      kubernetesAuthRole: weebo-authentik-operator
+      caSecretRef:
+        name: openbao-tls
+        namespace: weebo-authentik
+        key: ca.crt # must hold a PEM bundle
+```
+
+When `caSecretRef` is unset, the system trust store is used. A
+configured-but-unreadable `caSecretRef` (missing Secret or key) is a hard
+reconcile error, never a silent fall-back to the system roots. The
+operator's ClusterRole already grants `get` on Secrets cluster-wide, so
+the CA Secret may live in any namespace.
+
 ### Per-application targets and fan-out
 
 The `secretStore` above defines a single default destination for every

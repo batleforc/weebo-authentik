@@ -216,3 +216,58 @@ delete the real Authentik objects the CRs now own. Use
   import is recoverable: fix the CRs (or `kubectl delete` them *before*
   their finalizers matter — while Terraform still owns the objects), and
   re-run. Keep Terraform as the source of truth until step 5 passes.
+
+## Known migration blockers
+
+Three gaps surfaced while planning the rollout. The migration order
+**harbor → s3 → argo → che → vault** is chosen deliberately around them:
+harbor and s3 have no in-repo consumer of `AUTHENTIK_URL`, so they prove
+the Vault plumbing end-to-end with zero consumer changes before any of
+the below matter.
+
+### 1. Per-app `AUTHENTIK_URL` issuer — **fixed**
+
+Previously the operator wrote `AUTHENTIK_URL` as the instance base URL
+(`configuration.base_path`), not the per-application OIDC issuer. Only two
+consumers read that key — argocd's `oidc.config` issuer (`auth-secret.yaml`)
+and `1.pulu-init/Taskfile.yaml`'s `OIDC_ISSUER_URL` — so the order above
+sequences them (argo, che) after the consumer-free apps.
+
+The operator now writes the real per-app issuer
+`<web-base>/application/o/<application-slug>/`. If you adopted apps under
+an earlier build, re-reconcile them (any `spec` touch) so the corrected
+`AUTHENTIK_URL` is rewritten to their secret targets before argo/che cut
+over.
+
+### 2. Vault Kubernetes-auth role must bind the operator's SA — **open (external)**
+
+The operator's ServiceAccount is `authentik-weebo-authentik`, but the
+auth Vault role only binds `["authentik", "default"]`. Until the role
+also lists the operator SA, its Kubernetes-auth login is rejected. This
+lives in a **different module** and nothing needs it until the vault
+phase, so it is documented here, not applied. The exact hunk in
+`2.terra/vault/terra-map/auth-base.tf`:
+
+```hcl
+ resource "vault_kubernetes_auth_backend_role" "authentik" {
+   # ...
+   bound_service_account_names = [
+     "authentik",
+     "default",
++    "authentik-weebo-authentik",
+   ]
+ }
+```
+
+### 3. Selecting a Vault CA cert — **fixed**
+
+The operator's Vault client was built from the address alone (no
+`caProvider`, no skip-verify), and the chart exposes `extraEnv` but no
+`extraVolumes`, so there was no clean way to point `$VAULT_CACERT` at
+`openbao-tls`. Rather than depend on `podAnnotations` +
+bank-vaults `inject-certs` (a route that was
+**never confirmed — verify before relying on it**), the operator now
+reads the CA PEM directly from a Secret via
+`secretStore.vault.caSecretRef` — see
+[Connect an AuthentikInstance → Trusting a private Vault CA](/docs/guides/connect-instance).
+No mounted volume or `VAULT_CACERT` wiring required.

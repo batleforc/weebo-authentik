@@ -170,10 +170,15 @@ pub trait AuthentikGateway: Send + Sync {
     /// provider name, which `ProviderSpec` itself carries no field for
     /// (only the owning `AuthentikApplication` has a name/slug) — the
     /// use-case passes the application's name through.
+    /// `slug` is the application's slug, needed to build the per-application
+    /// OIDC issuer (`<web_base>/application/o/<slug>/`) written into the
+    /// returned `Oauth2Credentials.authentik_url` — the value every
+    /// downstream consumer uses as its `AUTHENTIK_URL`/issuer.
     async fn upsert_oauth2_provider(
         &self,
         authentik_id: Option<&str>,
         name: &str,
+        slug: &str,
         spec: &Oauth2ProviderSpec,
     ) -> Result<Oauth2ProviderUpsertResult, GatewayError>;
     async fn upsert_proxy_provider(

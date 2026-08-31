@@ -72,6 +72,7 @@ fn spec(server: &MockServer) -> VaultSecretStoreSpec {
         path_prefix: PATH_PREFIX.to_string(),
         kubernetes_auth_role: ROLE.to_string(),
         kubernetes_auth_mount: "kubernetes".to_string(),
+        ca_secret_ref: None,
     }
 }
 
@@ -85,7 +86,7 @@ async fn mock_login(server: &MockServer) {
 
 async fn store(server: &MockServer) -> VaultSecretStore {
     mock_login(server).await;
-    VaultSecretStore::new(&spec(server), FAKE_JWT)
+    VaultSecretStore::new(&spec(server), FAKE_JWT, None)
         .await
         .expect("login against the mocked Vault Kubernetes-auth endpoint must succeed")
 }
@@ -229,7 +230,7 @@ async fn cache_ttl_is_none_for_a_non_renewable_login() {
         .mount(&server)
         .await;
 
-    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT)
+    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT, None)
         .await
         .expect("login must succeed");
 
@@ -249,7 +250,7 @@ async fn write_relogins_and_retries_once_on_a_403() {
         .mount(&server)
         .await;
 
-    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT)
+    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT, None)
         .await
         .expect("login must succeed");
 
@@ -303,7 +304,7 @@ async fn delete_relogins_and_retries_once_on_a_403() {
         .mount(&server)
         .await;
 
-    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT)
+    let store = VaultSecretStore::new(&spec(&server), FAKE_JWT, None)
         .await
         .expect("login must succeed");
 

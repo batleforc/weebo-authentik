@@ -30,16 +30,31 @@ use authentik_client::apis::configuration::Configuration;
 /// (`gateway_factory.rs`), not here.
 pub struct AuthentikHttpGateway {
     configuration: Configuration,
+    /// The instance's **web** base URL (e.g. `https://login.example.com`),
+    /// trailing slash trimmed — the root under which per-application OIDC
+    /// issuers live (`<web_base>/application/o/<slug>/`). Kept separate
+    /// from `configuration.base_path` (the `/api/v3` REST endpoint) because
+    /// the OIDC issuer written into an app's credentials must be the
+    /// user-facing issuer, never the API base. See the `AUTHENTIK_URL`
+    /// note in `upsert_oauth2_provider_impl`.
+    web_base_url: String,
 }
 
 impl AuthentikHttpGateway {
-    pub fn new(base_path: impl Into<String>, bearer_token: impl Into<String>) -> Self {
+    pub fn new(
+        base_path: impl Into<String>,
+        web_base_url: impl Into<String>,
+        bearer_token: impl Into<String>,
+    ) -> Self {
         let configuration = Configuration {
             base_path: base_path.into(),
             bearer_access_token: Some(bearer_token.into()),
             ..Configuration::default()
         };
-        Self { configuration }
+        Self {
+            configuration,
+            web_base_url: web_base_url.into().trim_end_matches('/').to_string(),
+        }
     }
 }
 
@@ -184,9 +199,10 @@ impl AuthentikGateway for AuthentikHttpGateway {
         &self,
         authentik_id: Option<&str>,
         name: &str,
+        slug: &str,
         spec: &Oauth2ProviderSpec,
     ) -> Result<Oauth2ProviderUpsertResult, GatewayError> {
-        self.upsert_oauth2_provider_impl(authentik_id, name, spec)
+        self.upsert_oauth2_provider_impl(authentik_id, name, slug, spec)
             .await
     }
 

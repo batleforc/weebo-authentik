@@ -103,6 +103,7 @@ impl AuthentikHttpGateway {
         &self,
         authentik_id: Option<&str>,
         name: &str,
+        slug: &str,
         spec: &Oauth2ProviderSpec,
     ) -> Result<Oauth2ProviderUpsertResult, GatewayError> {
         let authorization_flow = self.resolve_flow(&spec.authorization_flow).await?;
@@ -186,7 +187,15 @@ impl AuthentikHttpGateway {
             credentials: Oauth2Credentials {
                 client_id: provider.client_id.unwrap_or_default(),
                 client_secret: provider.client_secret.unwrap_or_default(),
-                authentik_url: self.configuration.base_path.clone(),
+                // The per-application OIDC issuer, NOT the API base path.
+                // Authentik issues tokens under
+                // `<web_base>/application/o/<application_slug>/` (the
+                // default `per_provider` issuer mode); consumers
+                // (e.g. argocd's `oidc.config` issuer, an app's
+                // `OIDC_ISSUER_URL`) resolve discovery from this exact URL.
+                // Previously this wrote `configuration.base_path`, which is
+                // the `/api/v3` REST endpoint — wrong for every consumer.
+                authentik_url: format!("{}/application/o/{slug}/", self.web_base_url),
             },
         })
     }

@@ -6,7 +6,9 @@ use api::application::SecretTarget;
 use api::instance::{SecretStoreBackend, VaultSecretStoreSpec};
 use api::{AuthentikApplication, AuthentikInstance};
 use application::ports::{SecretStore, SecretStoreFactory, SecretStoreFactoryError};
+use k8s_openapi::api::core::v1::Secret;
 use kube::Client;
+use kube::api::Api;
 use kube::runtime::reflector::Store;
 use tokio::sync::Mutex;
 
@@ -103,6 +105,38 @@ impl AuthentikSecretStoreFactory {
         })
     }
 
+    /// Reads the optional `spec.ca_secret_ref` CA PEM from its Kubernetes
+    /// `Secret`, returning `None` when no CA is configured. A configured-but-
+    /// unreadable CA (missing Secret/key) is a hard error rather than a
+    /// silent fall-back to the system trust store — trusting the wrong roots
+    /// against a private-CA Vault is a security regression, not a warning.
+    async fn read_vault_ca(
+        &self,
+        vault_spec: &VaultSecretStoreSpec,
+    ) -> Result<Option<Vec<u8>>, SecretStoreFactoryError> {
+        let Some(ca_ref) = vault_spec.ca_secret_ref.as_ref() else {
+            return Ok(None);
+        };
+        let secrets: Api<Secret> = Api::namespaced(self.client.clone(), &ca_ref.namespace);
+        let secret = secrets.get(&ca_ref.name).await.map_err(|e| {
+            SecretStoreFactoryError::ResolutionFailed(format!(
+                "fetching Vault CA secret {}/{}: {e}",
+                ca_ref.namespace, ca_ref.name
+            ))
+        })?;
+        let pem = secret
+            .data
+            .as_ref()
+            .and_then(|data| data.get(&ca_ref.key))
+            .ok_or_else(|| {
+                SecretStoreFactoryError::ResolutionFailed(format!(
+                    "Vault CA secret {}/{} has no key {:?}",
+                    ca_ref.namespace, ca_ref.name, ca_ref.key
+                ))
+            })?;
+        Ok(Some(pem.0.clone()))
+    }
+
     /// Returns the cached authenticated Vault connection for `instance_ref`
     /// if it is still within its lease window and its spec is unchanged,
     /// otherwise logs in afresh and caches the result. The cache lock is
@@ -129,8 +163,11 @@ impl AuthentikSecretStoreFactory {
                 "reading this pod's ServiceAccount token at {SERVICE_ACCOUNT_TOKEN_PATH}: {e}"
             ))
         })?;
+        // A custom CA (e.g. openbao-tls) is read from its Secret via the
+        // API and handed to the Vault client — no mounted volume needed.
+        let ca_pem = self.read_vault_ca(vault_spec).await?;
         let store = Arc::new(
-            VaultSecretStore::new(vault_spec, jwt.trim())
+            VaultSecretStore::new(vault_spec, jwt.trim(), ca_pem.as_deref())
                 .await
                 .map_err(|e| SecretStoreFactoryError::ResolutionFailed(e.to_string()))?,
         );

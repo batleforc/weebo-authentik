@@ -21,7 +21,11 @@ use kube::api::ObjectMeta;
 use testkit::authentik_mock::AuthentikMock;
 
 fn gateway(mock: &AuthentikMock) -> AuthentikHttpGateway {
-    AuthentikHttpGateway::new(format!("{}/api/v3", mock.base_path()), "test-token")
+    AuthentikHttpGateway::new(
+        format!("{}/api/v3", mock.base_path()),
+        mock.base_path(),
+        "test-token",
+    )
 }
 
 fn empty_paginated_list() -> serde_json::Value {
@@ -472,8 +476,78 @@ async fn upsert_oauth2_provider_surfaces_an_unresolved_authorization_flow() {
     };
 
     let err = gateway(&mock)
-        .upsert_oauth2_provider(None, "harbor", &spec)
+        .upsert_oauth2_provider(None, "harbor", "harbor", &spec)
         .await
         .unwrap_err();
     assert!(matches!(err, GatewayError::NotFound(_)));
+}
+
+#[tokio::test]
+async fn upsert_oauth2_provider_writes_the_per_app_issuer_not_the_api_base() {
+    let mock = AuthentikMock::start().await;
+    // Resolve both flows (same list endpoint) and the (empty) property
+    // mappings, then accept the create.
+    mock.mock_get(
+        "/flows/instances/",
+        200,
+        serde_json::json!({
+            "pagination": {
+                "next": 0, "previous": 0, "count": 2,
+                "current": 1, "total_pages": 1, "start_index": 1, "end_index": 2
+            },
+            "results": [
+                {"pk": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "policybindingmodel_ptr_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "name": "authz", "slug": "default-authorization-flow", "title": "authz", "designation": "authorization", "background_url": "/x", "background_themed_urls": null, "stages": [], "policies": [], "cache_count": 0, "export_url": "/x"},
+                {"pk": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "policybindingmodel_ptr_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "name": "invld", "slug": "default-invalidation-flow", "title": "invld", "designation": "invalidation", "background_url": "/x", "background_themed_urls": null, "stages": [], "policies": [], "cache_count": 0, "export_url": "/x"}
+            ],
+            "autocomplete": {}
+        }),
+    )
+    .await;
+    mock.mock_post(
+        "/providers/oauth2/",
+        201,
+        serde_json::json!({
+            "pk": 7,
+            "name": "Harbor",
+            "authorization_flow": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "invalidation_flow": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "component": "ak-provider-oauth2-form",
+            "assigned_application_slug": "harbor",
+            "assigned_application_name": "Harbor",
+            "assigned_backchannel_application_slug": null,
+            "assigned_backchannel_application_name": null,
+            "verbose_name": "OAuth2/OpenID Provider",
+            "verbose_name_plural": "OAuth2/OpenID Providers",
+            "meta_model_name": "authentik_providers_oauth2.oauth2provider",
+            "client_type": "confidential",
+            "client_id": "harbor-client-id",
+            "client_secret": "harbor-client-secret",
+            "redirect_uris": [],
+        }),
+    )
+    .await;
+
+    let spec = Oauth2ProviderSpec {
+        client_id: None,
+        authorization_flow: "default-authorization-flow".to_string(),
+        invalidation_flow: "default-invalidation-flow".to_string(),
+        signing_key: None,
+        allowed_redirect_uris: Vec::<RedirectUri>::new(),
+        property_mappings: vec![],
+        grant_types: vec![],
+    };
+
+    let result = gateway(&mock)
+        .upsert_oauth2_provider(None, "Harbor", "harbor", &spec)
+        .await
+        .expect("oauth2 provider upsert succeeds");
+
+    // The credential's AUTHENTIK_URL is the per-application OIDC issuer
+    // built from the web base + slug, NOT `configuration.base_path`
+    // (which here ends in `/api/v3`).
+    assert_eq!(
+        result.credentials.authentik_url,
+        format!("{}/application/o/harbor/", mock.base_path())
+    );
+    assert!(!result.credentials.authentik_url.contains("/api/v3"));
 }

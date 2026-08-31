@@ -221,7 +221,12 @@ async fn try_reconcile_application(
                 "kind=oauth2 implies oauth2 spec present, enforced by the reconciler contract",
             );
             let result = gateway
-                .upsert_oauth2_provider(existing_provider_id.as_deref(), &app.spec.name, spec)
+                .upsert_oauth2_provider(
+                    existing_provider_id.as_deref(),
+                    &app.spec.name,
+                    &app.spec.slug,
+                    spec,
+                )
                 .await
                 .map_err(errored_from_gateway_error)?;
 

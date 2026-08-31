@@ -38,7 +38,11 @@ pub fn init_tracing() {
 /// Vault backend is exercised by its own contract test, not these
 /// per-CRD controller tests).
 pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
-    let gateway = AuthentikHttpGateway::new(format!("{}/api/v3", mock.base_path()), "test-token");
+    let gateway = AuthentikHttpGateway::new(
+        format!("{}/api/v3", mock.base_path()),
+        mock.base_path(),
+        "test-token",
+    );
     let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
     let secrets = Arc::new(K8sSecretStore::new(client.clone()));
     let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));

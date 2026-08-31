@@ -29,7 +29,7 @@ pub struct AuthentikInstanceSpec {
     pub secret_store: SecretStoreSpec,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretKeyRef {
     pub name: String,
@@ -93,6 +93,14 @@ pub struct VaultSecretStoreSpec {
     /// `kubernetes`, Vault's own default mount name.
     #[serde(default = "default_kubernetes_auth_mount")]
     pub kubernetes_auth_mount: String,
+    /// Optional custom CA certificate to verify Vault's TLS with, read from
+    /// a Kubernetes `Secret` (the referenced `key` must hold a PEM bundle).
+    /// Use this to trust a private CA (e.g. openbao-tls) without mounting
+    /// it into the operator pod — the operator reads the Secret via the
+    /// API and hands the PEM to its Vault client. When unset, the system
+    /// trust store is used. Only consulted for `https://` Vault addresses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ca_secret_ref: Option<SecretKeyRef>,
 }
 
 fn default_vault_path_prefix() -> String {
