@@ -30,13 +30,17 @@ webhook:
   # targets (Kubernetes' apiserver default for webhook services is 443).
   servicePort: 443
 
-# -- cert-manager issues the webhook's TLS certificate. Both cert-manager
-# and the referenced Issuer/ClusterIssuer are assumed to already exist —
-# creating an Issuer is a separate cluster-admin concern, out of scope
-# for this chart.
+# -- cert-manager issues the webhook's TLS certificate; cert-manager
+# itself is always assumed to be installed.
 certManager:
+  # -- When true (default), the chart provisions its own self-signed
+  # Issuer for the webhook certificate, so no pre-existing
+  # Issuer/ClusterIssuer is needed. Set to false to reference an existing
+  # issuer via issuerRef instead.
+  createIssuer: true
   issuerRef:
-    # -- Required: name of an existing Issuer or ClusterIssuer.
+    # -- Required only when createIssuer is false: name of an existing
+    # Issuer or ClusterIssuer. Ignored when createIssuer is true.
     name: ""
     kind: ClusterIssuer
 

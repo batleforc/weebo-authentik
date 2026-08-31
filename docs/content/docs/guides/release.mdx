@@ -177,9 +177,8 @@ Safe teardown order, depending on intent:
 
 ## Cutting a release (maintainers)
 
-If you maintain this repo rather than consume it: releases are automated.
-`release.yml` (currently `workflow_dispatch`) runs `cog bump --auto`,
-which derives the next version from conventional commits, bumps
-`Cargo.toml` + `Chart.yaml` together, and pushes a `vX.Y.Z` tag.
-`publish.yml` fires on that tag and builds/pushes the image and chart
-above. You don't build or push artifacts by hand.
+If you maintain this repo rather than consume it, the version bump,
+tagging, and artifact publishing are automated by cocogitto + GitHub
+Actions — you don't build or push anything by hand. See the dedicated
+[Cutting a release (maintainers)](/docs/guides/cutting-a-release) runbook
+for the full flow.

@@ -1,0 +1,17 @@
+{{- if .Values.certManager.createIssuer }}
+# Self-signed Issuer the chart provisions for the webhook certificate, so
+# no pre-existing Issuer/ClusterIssuer is required (cert-manager itself
+# must still be installed). The webhook's `caBundle` is injected from the
+# resulting Certificate's CA via cert-manager's ca-injector (see
+# templates/validatingwebhookconfiguration.yaml), so a self-signed root is
+# sufficient here. Disable with certManager.createIssuer=false to reference
+# an existing issuer via certManager.issuerRef instead.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "weebo-authentik.webhookIssuerName" . }}
+  labels:
+    {{- include "weebo-authentik.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}

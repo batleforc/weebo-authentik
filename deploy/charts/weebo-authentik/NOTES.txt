@@ -1,9 +1,17 @@
 weebo-authentik-operator has been installed.
 
 Prerequisites this chart assumes are already in place:
-  - cert-manager, plus an Issuer/ClusterIssuer named
-    "{{ .Values.certManager.issuerRef.name }}" ({{ .Values.certManager.issuerRef.kind }})
-    — the chart only creates the Certificate, never the issuer itself.
+  - cert-manager (the webhook's TLS certificate is issued by it).
+{{- if .Values.certManager.createIssuer }}
+    This release provisions its own self-signed Issuer
+    ("{{ include "weebo-authentik.webhookIssuerName" . }}"), so no
+    pre-existing Issuer/ClusterIssuer is required.
+{{- else }}
+    An Issuer/ClusterIssuer named
+    "{{ required "certManager.issuerRef.name is required when certManager.createIssuer is false" .Values.certManager.issuerRef.name }}" ({{ .Values.certManager.issuerRef.kind }})
+    must already exist — the chart only creates the Certificate. Set
+    certManager.createIssuer=true to have the chart create one for you.
+{{- end }}
 
 1. Connect an AuthentikInstance
    Create a Secret with your Authentik API token, then:

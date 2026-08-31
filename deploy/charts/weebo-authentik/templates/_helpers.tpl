@@ -50,3 +50,11 @@ Webhook TLS Secret name (produced by the cert-manager Certificate).
 {{- define "weebo-authentik.webhookTlsSecretName" -}}
 {{- printf "%s-webhook-tls" (include "weebo-authentik.fullname" .) -}}
 {{- end -}}
+
+{{/*
+Name of the self-signed Issuer the chart provisions when
+certManager.createIssuer is true.
+*/}}
+{{- define "weebo-authentik.webhookIssuerName" -}}
+{{- printf "%s-webhook" (include "weebo-authentik.fullname" .) -}}
+{{- end -}}

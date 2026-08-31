@@ -1,0 +1,132 @@
+---
+title: Cutting a release (maintainers)
+description: How a new versioned release of weebo-authentik-operator is produced — conventional commits, cocogitto's version bump, and the two GitHub Actions workflows that tag and publish it.
+---
+
+This is the **maintainer** runbook for producing a new version. If instead
+you want to *deploy* an already-published version to a cluster, see
+[Release to your cluster](/docs/guides/release).
+
+Releasing is automated end to end by [cocogitto](https://docs.cocogitto.io/)
+(`cog`) plus two GitHub Actions workflows. You never edit a version number,
+build an image, or push a chart by hand — you land conventional commits and
+trigger one workflow.
+
+## How versions are decided
+
+The next version is derived from the [conventional commit](https://www.conventionalcommits.org/)
+messages accumulated since the last `vX.Y.Z` tag:
+
+| Commit type | Example | Version bump |
+| --- | --- | --- |
+| `fix:` | `fix: retry gateway 5xx` | patch (`0.5.0` → `0.5.1`) |
+| `feat:` | `feat: chart self-signed issuer` | minor (`0.5.0` → `0.6.0`) |
+| `feat!:` / `BREAKING CHANGE:` footer | `feat!: drop v1alpha1` | major (`0.5.0` → `1.0.0`) |
+
+Commit messages are enforced *before* they ever reach `main`: cog's
+`commit-msg` git hook runs `cog verify` + `cog check` locally (see
+`cog.toml`), and `ci.yml` re-runs lint / unit+integration tests /
+CRD+docs regeneration-diff / helm-lint / docker-build on every push and
+PR. A branch that doesn't pass those never merges, so by the time you cut
+a release `main` is already green.
+
+<Callout type="info">
+Commit type → bump mapping and the changelog are configured in `cog.toml`
+(`tag_prefix = "v"`, `[changelog]`, `[commit_types]`). The bump itself is
+`cog bump --auto`, which reads that config — there is no separate version
+list to maintain.
+</Callout>
+
+## What one release produces
+
+A single `cog bump --auto` run does all of this atomically:
+
+1. Computes the next `vX.Y.Z` from the commits above.
+2. Runs the `pre_bump_hooks` — `./.hooks/bump-versions.sh {{version}}` —
+   which rewrites, **in lockstep**, so the operator and chart always share
+   one version:
+   - `Cargo.toml` `[workspace.package]` `version`
+   - `deploy/charts/weebo-authentik/Chart.yaml` `version` **and**
+     `appVersion`
+3. Regenerates `CHANGELOG.md` from the commit history.
+4. Creates the bump commit `chore(version): vX.Y.Z [skip ci]` and the
+   `vX.Y.Z` git tag.
+
+The `[skip ci]` marker (cog.toml's `skip_ci`) is what stops the bump
+commit from re-triggering CI/release on itself.
+
+## Step 1 — trigger the Release workflow
+
+`release.yml` is intentionally **`workflow_dispatch` only** (not automatic
+on push): `main`'s branch ruleset requires PRs + signed commits, and the
+default `GITHUB_TOKEN` (the github-actions bot) can't bypass it, so a bot
+push to `main` is rejected. You therefore start it by hand:
+
+**GitHub → Actions → *Release* → Run workflow → branch `main`.**
+
+The workflow installs mise-managed `cog`, runs `cog bump --auto --skip-ci`,
+and — only if a bumpable commit existed — pushes the bump commit to `main`
+and pushes the new tag. If nothing bumpable landed since the last tag,
+`cog` exits 0 and the workflow reports "nothing to bump" (this is *not* a
+failure).
+
+### Or cut it locally
+
+If you'd rather (or the workflow is blocked), the same result from a clean
+`main` checkout:
+
+```bash
+mise install                         # cog + friends
+cog bump --auto                      # bumps files, writes CHANGELOG, tags
+git push origin main --follow-tags   # push the bump commit + the vX.Y.Z tag
+```
+
+Pushing the tag is the important part — publishing keys off the tag, not
+the commit.
+
+## Step 2 — publishing happens automatically
+
+`publish.yml` triggers on any pushed `v*` tag and builds artifacts from
+that exact, already-version-synced commit:
+
+| Job | Output |
+| --- | --- |
+| `image` | `ghcr.io/batleforc/weebo-authentik-operator:<version>` |
+| `chart` | `oci://ghcr.io/batleforc/charts/weebo-authentik` (`:<version>`) |
+
+The image is additionally tagged `:latest` **only** when the pushed tag is
+the highest strict-semver `vX.Y.Z` tag on the remote — so re-publishing an
+older tag (a backport) never clobbers `:latest` with an older image.
+
+## Step 3 — verify
+
+```bash
+# The tag and bump commit are on main:
+git fetch --tags && git tag | tail -3
+git log --oneline -2 origin/main        # 'chore(version): vX.Y.Z [skip ci]'
+
+# Publish workflow succeeded:
+gh run list --workflow=publish.yml --limit 3
+
+# Artifacts are pullable at the new version:
+helm pull oci://ghcr.io/batleforc/charts/weebo-authentik --version <X.Y.Z>
+docker pull ghcr.io/batleforc/weebo-authentik-operator:<X.Y.Z>
+```
+
+`CHANGELOG.md` should now have a `## [vX.Y.Z]` section, and
+`Cargo.toml` / `Chart.yaml` should both read the new version.
+
+## Troubleshooting
+
+- **"nothing to bump"** — no `fix:`/`feat:`/breaking commit since the last
+  tag. Only `chore:`/`docs:`/`ci:`/etc. landed; there's nothing to
+  release. Land a user-facing change first.
+- **Release workflow push rejected** — the ruleset/bot-bypass issue noted
+  above. Cut the release locally (Step 1) with a maintainer account that
+  can push signed commits + tags to `main`.
+- **`:latest` didn't move** — expected if you pushed a tag that isn't the
+  highest semver (e.g. re-pushed an old tag). The `image` job logs a
+  `::notice::` when it skips `:latest`.
+- **`pre_bump_hooks` failed** — `.hooks/bump-versions.sh` couldn't rewrite
+  `Cargo.toml`/`Chart.yaml`. cog aborts the bump (no tag created), so just
+  fix the hook and re-run; nothing partial was pushed.

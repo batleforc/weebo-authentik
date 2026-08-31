@@ -10,5 +10,10 @@ spec:
     - {{ include "weebo-authentik.fullname" . }}.{{ .Release.Namespace }}.svc
     - {{ include "weebo-authentik.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
   issuerRef:
-    name: {{ required "certManager.issuerRef.name is required (an existing Issuer/ClusterIssuer)" .Values.certManager.issuerRef.name }}
+    {{- if .Values.certManager.createIssuer }}
+    name: {{ include "weebo-authentik.webhookIssuerName" . }}
+    kind: Issuer
+    {{- else }}
+    name: {{ required "certManager.issuerRef.name is required when certManager.createIssuer is false (an existing Issuer/ClusterIssuer)" .Values.certManager.issuerRef.name }}
     kind: {{ .Values.certManager.issuerRef.kind }}
+    {{- end }}
