@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.9.0](https://github.com/batleforc/proxyauthK8s/compare/60c7f87a3853bb9ae37b5c3905a47abe97f72c68..v0.9.0) - 2026-09-01
+#### Features
+- wip - ([c00b49a](https://github.com/batleforc/proxyauthK8s/commit/c00b49ad209245cabb2578042f9c4c85987825a8)) - Max Batleforc
+#### Bug Fixes
+- let importer use Ca certificate - ([c6ea659](https://github.com/batleforc/proxyauthK8s/commit/c6ea659d8caf4c640f7b750d071aee263c011fe7)) - Max Batleforc
+#### Miscellaneous Chores
+- V0.8.0 - ([60c7f87](https://github.com/batleforc/proxyauthK8s/commit/60c7f87a3853bb9ae37b5c3905a47abe97f72c68)) - Max Batleforc
+
+- - -
+
 ## [v0.8.0](https://github.com/batleforc/proxyauthK8s/compare/e03bf609c14e0e5ce1abb999b122bc8f7027952b..v0.8.0) - 2026-08-31
 #### Features
 - work on fixing thing that may block the migration - ([13c988d](https://github.com/batleforc/proxyauthK8s/commit/13c988d37bc4a2016dadc5b5bc9938be0145dd59)) - Max Batleforc
