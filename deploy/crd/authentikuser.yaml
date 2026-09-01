@@ -31,7 +31,12 @@ spec:
                 type: string
               groupRefs:
                 default: []
-                description: Names of `AuthentikGroup` CRs this user belongs to.
+                description: |-
+                  Groups this user belongs to, by their **Authentik** name
+                  (`AuthentikGroup.spec.name`), not the name of the CR describing them
+                  — each is resolved with a `/core/groups/?name=` query, never read
+                  from Kubernetes. An unresolvable entry fails the reconcile with
+                  `GroupRefNotFound`.
                 items:
                   type: string
                 type: array

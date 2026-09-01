@@ -9,7 +9,7 @@
     },
     "groupRefs": {
       "default": [],
-      "description": "Names of `AuthentikGroup` CRs this user belongs to.",
+      "description": "Groups this user belongs to, by their **Authentik** name\n(`AuthentikGroup.spec.name`), not the name of the CR describing them\n— each is resolved with a `/core/groups/?name=` query, never read\nfrom Kubernetes. An unresolvable entry fails the reconcile with\n`GroupRefNotFound`.",
       "items": {
         "type": "string"
       },

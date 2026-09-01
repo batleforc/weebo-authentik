@@ -15,7 +15,7 @@ through `SecretStore` (generated, never stored in this spec). See
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `email` | `string` | yes |  |  |
-| `groupRefs` | `string[]` | no | `[]` | Names of `AuthentikGroup` CRs this user belongs to. |
+| `groupRefs` | `string[]` | no | `[]` | Groups this user belongs to, by their **Authentik** name (`AuthentikGroup.spec.name`), not the name of the CR describing them — each is resolved with a `/core/groups/?name=` query, never read from Kubernetes. An unresolvable entry fails the reconcile with `GroupRefNotFound`. |
 | `isActive` | `boolean` | no | `true` |  |
 | `name` | `string` | yes |  |  |
 | `username` | `string` | yes |  |  |

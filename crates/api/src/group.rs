@@ -21,8 +21,16 @@ pub struct AuthentikGroupSpec {
     pub name: String,
     #[serde(default)]
     pub is_superuser: bool,
-    /// Name of another `AuthentikGroup`, for hierarchy (`weebo_user` ->
-    /// `weebo_moderator` -> `weebo_admin` in the Terraform module).
+    /// Parent group, for hierarchy (`weebo_user` -> `weebo_moderator` ->
+    /// `weebo_admin` in the Terraform module).
+    ///
+    /// This is the parent's **Authentik** name — its `spec.name`, the value
+    /// Authentik itself stores — not the name of the `AuthentikGroup` CR
+    /// describing it. It is resolved with a `/core/groups/?name=` query
+    /// against the instance, and no Kubernetes object is read: a CR named
+    /// `weebo-user` whose `spec.name` is `weebo_user` must be referenced
+    /// here as `weebo_user`. A miss fails the reconcile with
+    /// `GroupRefNotFound`, it never creates the parent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_ref: Option<String>,
     #[serde(default)]

@@ -9,7 +9,7 @@
       "type": "string"
     },
     "groupRef": {
-      "description": "Name of an `AuthentikGroup` CR (cluster-scoped).",
+      "description": "Group this policy binds, by its **Authentik** name\n(`AuthentikGroup.spec.name`), not the name of the CR describing it —\nunlike `applicationRef` above, which *is* a CR name. It is resolved\nwith a `/core/groups/?name=` query against the instance; a miss\nfails the reconcile with `GroupRefNotFound`.",
       "type": "string"
     },
     "negate": {

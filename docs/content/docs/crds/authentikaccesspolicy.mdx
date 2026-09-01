@@ -17,7 +17,7 @@ never a cluster-wide client. See `.prompt/plan.md`,
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `applicationRef` | `string` | yes |  | Name of an `AuthentikApplication` CR in the same namespace. |
-| `groupRef` | `string` | yes |  | Name of an `AuthentikGroup` CR (cluster-scoped). |
+| `groupRef` | `string` | yes |  | Group this policy binds, by its **Authentik** name (`AuthentikGroup.spec.name`), not the name of the CR describing it — unlike `applicationRef` above, which *is* a CR name. It is resolved with a `/core/groups/?name=` query against the instance; a miss fails the reconcile with `GroupRefNotFound`. |
 | `negate` | `boolean` | no | `false` |  |
 | `order` | `integer` | no | `0` |  |
 

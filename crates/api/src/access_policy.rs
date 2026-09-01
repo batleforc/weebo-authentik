@@ -25,7 +25,11 @@ use crate::status::AuthentikStatus;
 pub struct AuthentikAccessPolicySpec {
     /// Name of an `AuthentikApplication` CR in the same namespace.
     pub application_ref: String,
-    /// Name of an `AuthentikGroup` CR (cluster-scoped).
+    /// Group this policy binds, by its **Authentik** name
+    /// (`AuthentikGroup.spec.name`), not the name of the CR describing it —
+    /// unlike `applicationRef` above, which *is* a CR name. It is resolved
+    /// with a `/core/groups/?name=` query against the instance; a miss
+    /// fails the reconcile with `GroupRefNotFound`.
     pub group_ref: String,
     #[serde(default)]
     pub order: i32,

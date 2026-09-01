@@ -19,7 +19,7 @@
       "type": "string"
     },
     "parentRef": {
-      "description": "Name of another `AuthentikGroup`, for hierarchy (`weebo_user` ->\n`weebo_moderator` -> `weebo_admin` in the Terraform module).",
+      "description": "Parent group, for hierarchy (`weebo_user` -> `weebo_moderator` ->\n`weebo_admin` in the Terraform module).\n\nThis is the parent's **Authentik** name — its `spec.name`, the value\nAuthentik itself stores — not the name of the `AuthentikGroup` CR\ndescribing it. It is resolved with a `/core/groups/?name=` query\nagainst the instance, and no Kubernetes object is read: a CR named\n`weebo-user` whose `spec.name` is `weebo_user` must be referenced\nhere as `weebo_user`. A miss fails the reconcile with\n`GroupRefNotFound`, it never creates the parent.",
       "nullable": true,
       "type": "string"
     }
