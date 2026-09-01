@@ -6,15 +6,14 @@ use api::application::SecretTarget;
 use api::instance::{SecretStoreBackend, VaultSecretStoreSpec};
 use api::{AuthentikApplication, AuthentikInstance};
 use application::ports::{SecretStore, SecretStoreFactory, SecretStoreFactoryError};
-use k8s_openapi::api::core::v1::Secret;
 use kube::Client;
-use kube::api::Api;
 use kube::runtime::reflector::Store;
 use tokio::sync::Mutex;
 
 use crate::instance_resolver::InstanceResolver;
 use crate::secret_fanout::FanOutSecretStore;
 use crate::secret_k8s::K8sSecretStore;
+use crate::secret_ref::read_secret_key;
 use crate::secret_vault::VaultSecretStore;
 
 /// Every pod gets a projected ServiceAccount JWT here by default (no extra
@@ -117,24 +116,10 @@ impl AuthentikSecretStoreFactory {
         let Some(ca_ref) = vault_spec.ca_secret_ref.as_ref() else {
             return Ok(None);
         };
-        let secrets: Api<Secret> = Api::namespaced(self.client.clone(), &ca_ref.namespace);
-        let secret = secrets.get(&ca_ref.name).await.map_err(|e| {
-            SecretStoreFactoryError::ResolutionFailed(format!(
-                "fetching Vault CA secret {}/{}: {e}",
-                ca_ref.namespace, ca_ref.name
-            ))
-        })?;
-        let pem = secret
-            .data
-            .as_ref()
-            .and_then(|data| data.get(&ca_ref.key))
-            .ok_or_else(|| {
-                SecretStoreFactoryError::ResolutionFailed(format!(
-                    "Vault CA secret {}/{} has no key {:?}",
-                    ca_ref.namespace, ca_ref.name, ca_ref.key
-                ))
-            })?;
-        Ok(Some(pem.0.clone()))
+        read_secret_key(&self.client, ca_ref, "Vault CA secret")
+            .await
+            .map(Some)
+            .map_err(SecretStoreFactoryError::ResolutionFailed)
     }
 
     /// Returns the cached authenticated Vault connection for `instance_ref`

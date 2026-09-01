@@ -41,14 +41,37 @@ pub struct AuthentikHttpGateway {
 }
 
 impl AuthentikHttpGateway {
+    /// Uses the generated client's default HTTP client, which verifies TLS
+    /// against the platform trust store only. An instance carrying
+    /// `spec.tls` needs [`with_client`](Self::with_client) instead.
     pub fn new(
         base_path: impl Into<String>,
         web_base_url: impl Into<String>,
         bearer_token: impl Into<String>,
     ) -> Self {
+        Self::with_client(
+            base_path,
+            web_base_url,
+            bearer_token,
+            reqwest::Client::new(),
+        )
+    }
+
+    /// Same, with a caller-supplied HTTP client. This is how
+    /// `AuthentikGatewayFactory` applies the instance's `spec.tls` (a private
+    /// CA root from `caSecretRef`, and/or `insecureSkipVerify`): the TLS
+    /// policy lives on the client, so it has to be built where the CR is
+    /// read, not here.
+    pub fn with_client(
+        base_path: impl Into<String>,
+        web_base_url: impl Into<String>,
+        bearer_token: impl Into<String>,
+        client: reqwest::Client,
+    ) -> Self {
         let configuration = Configuration {
             base_path: base_path.into(),
             bearer_access_token: Some(bearer_token.into()),
+            client: reqwest_middleware::ClientBuilder::new(client).build(),
             ..Configuration::default()
         };
         Self {

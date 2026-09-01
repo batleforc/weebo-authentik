@@ -3,6 +3,7 @@ pub mod gateway_factory;
 mod instance_resolver;
 pub mod secret_fanout;
 pub mod secret_k8s;
+mod secret_ref;
 pub mod secret_store_factory;
 pub mod secret_vault;
 

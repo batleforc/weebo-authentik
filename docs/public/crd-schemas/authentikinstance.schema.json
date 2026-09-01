@@ -79,9 +79,32 @@
       "default": {
         "insecureSkipVerify": false
       },
+      "description": "TLS verification for the API connection above — a private CA to trust\n(`tls.caSecretRef`), or the `tls.insecureSkipVerify` escape hatch.\nDefaults to plain platform-trust-store verification.",
       "properties": {
+        "caSecretRef": {
+          "description": "Optional custom CA certificate to verify Authentik's TLS with, read\nfrom a Kubernetes `Secret` (the referenced `key` must hold a PEM\nbundle). Use this to trust a private CA without mounting it into the\noperator pod — the operator reads the Secret via the API and hands the\nPEM to its HTTP client. It is added *on top of* the platform trust\nstore, so publicly-signed endpoints keep working. When unset, only the\nplatform trust store (plus the usual `SSL_CERT_FILE`/`SSL_CERT_DIR`\nenv vars) is used.",
+          "nullable": true,
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "name",
+            "namespace"
+          ],
+          "type": "object"
+        },
         "insecureSkipVerify": {
           "default": false,
+          "description": "Skip certificate verification entirely — insecure, intended only for\nthrowaway/self-signed instances. Prefer `caSecretRef` below, which\ntrusts a private CA without turning verification off.",
           "type": "boolean"
         }
       },

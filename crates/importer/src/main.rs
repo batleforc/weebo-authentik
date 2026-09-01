@@ -104,10 +104,18 @@ async fn main() -> anyhow::Result<()> {
         let pem = std::fs::read(ca_path)
             .with_context(|| format!("reading CA certificate {}", ca_path.display()))?;
         // `from_pem_bundle` handles both a single cert and a concatenated
-        // chain; each becomes an additional trusted root.
-        for cert in reqwest::Certificate::from_pem_bundle(&pem)
-            .with_context(|| format!("parsing CA certificate {}", ca_path.display()))?
-        {
+        // chain; each becomes an additional trusted root. A file carrying no
+        // PEM block at all parses as an *empty* bundle rather than an error,
+        // which would quietly leave the run on the platform roots — same
+        // check as `gateway_factory::build_http_client`.
+        let certs = reqwest::Certificate::from_pem_bundle(&pem)
+            .with_context(|| format!("parsing CA certificate {}", ca_path.display()))?;
+        anyhow::ensure!(
+            !certs.is_empty(),
+            "CA certificate {} contains no PEM certificate",
+            ca_path.display()
+        );
+        for cert in certs {
             client_builder = client_builder.add_root_certificate(cert);
         }
     }

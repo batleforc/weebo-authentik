@@ -11,7 +11,7 @@ shared piece of infrastructure, not owned by a single namespace.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `secretStore` | `object` | no | `{"backend":"kubernetes"}` | Where `SecretStore::write_oauth2_credentials`/`delete` writes this instance's oauth2 application credentials. Defaults to a Kubernetes `Secret` (`crates/adapters-outbound/src/secret_k8s.rs`) when unset. |
-| `tls` | `object` | no | `{"insecureSkipVerify":false}` |  |
+| `tls` | `object` | no | `{"insecureSkipVerify":false}` | TLS verification for the API connection above — a private CA to trust (`tls.caSecretRef`), or the `tls.insecureSkipVerify` escape hatch. Defaults to plain platform-trust-store verification. |
 | `tokenSecretRef` | `object` | yes |  |  |
 | `url` | `string` | yes |  | Base **web** URL of the Authentik instance, e.g. `https://login.example.com` — not the `/api/v3` REST endpoint, which is derived from it (see [`split_urls`]). This is the root the per-application OIDC issuers hang off, `<url>/application/o/<slug>/`, so it is what oauth2 consumers end up trusting. |
 

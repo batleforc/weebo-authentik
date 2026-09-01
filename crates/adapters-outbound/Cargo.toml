@@ -10,6 +10,8 @@ api = { workspace = true }
 application = { workspace = true }
 authentik-client = { workspace = true }
 kube = { workspace = true }
+reqwest = { workspace = true }
+reqwest-middleware = { workspace = true }
 k8s-openapi = { workspace = true }
 vaultrs = { workspace = true }
 serde_json = { workspace = true }

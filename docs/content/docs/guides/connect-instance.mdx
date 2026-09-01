@@ -46,6 +46,56 @@ application's `AUTHENTIK_URL` (`<url>/application/o/<slug>/`). A URL that
 already ends in `/api/v3` is accepted and trimmed back to the web base rather
 than taken literally.
 
+## TLS
+
+The operator verifies Authentik's certificate against the platform trust
+store (plus `SSL_CERT_FILE`/`SSL_CERT_DIR`, if you'd rather inject the CA
+into the pod's own trust store). When Authentik is served by a private CA
+— a cluster-internal PKI, cert-manager's own CA issuer — point
+`spec.tls.caSecretRef` at a Kubernetes `Secret` holding that CA's PEM
+bundle instead:
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikInstance
+metadata:
+  name: main
+spec:
+  url: https://login.example.com
+  tokenSecretRef:
+    name: authentik-api-token
+    namespace: weebo-authentik
+    key: token
+  tls:
+    caSecretRef:
+      name: authentik-ca
+      namespace: weebo-authentik
+      key: ca.crt # must hold a PEM bundle
+```
+
+The operator reads the Secret via the API and hands the PEM to the HTTP
+client it talks to this instance with — no volume mount, which matters
+because the chart exposes `podAnnotations` and `extraEnv` but no
+`extraVolumes`. The CA is added *on top of* the platform trust store
+rather than replacing it, so one operator can serve a private-CA instance
+and a publicly-signed one at once. A single certificate and a concatenated
+chain are both accepted.
+
+The Secret is re-read on every reconcile, so rotating the CA takes effect
+without restarting the operator. A configured-but-unreadable `caSecretRef`
+(missing Secret, missing key, or contents with no PEM certificate in them)
+is a hard error, never a silent fall-back to the platform roots.
+
+<Callout type="warn">
+  `spec.tls.insecureSkipVerify: true` turns certificate verification off
+  entirely. It exists for throwaway/self-signed instances; prefer
+  `caSecretRef`, which keeps verification on.
+</Callout>
+
+This block covers the **Authentik API connection only**. Vault has its own
+CA setting — they are routinely signed by different CAs — see
+[Trusting a private Vault CA](#trusting-a-private-vault-ca) below.
+
 ## Secret storage backend
 
 `AuthentikApplication`'s oauth2 credentials (`AUTHENTIK_CLIENT_ID`/
