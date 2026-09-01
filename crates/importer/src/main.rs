@@ -36,7 +36,10 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(about, long_about = None)]
 struct Args {
-    /// Base URL of the Authentik instance to import from.
+    /// Base web URL of the Authentik instance to import from, e.g.
+    /// `https://login.example.com` — the same value an `AuthentikInstance`
+    /// CR's `spec.url` carries. The `/api/v3` REST path is appended here, so
+    /// passing it explicitly is accepted but unnecessary.
     #[arg(long)]
     authentik_url: String,
     /// API token with read access to the Authentik instance.
@@ -91,6 +94,11 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     std::fs::create_dir_all(&args.out)?;
 
+    // `--authentik-url` is the web base, matching `AuthentikInstance.spec.url`;
+    // the generated client needs the `/api/v3` endpoint. The importer only
+    // reads, so the web half is discarded here.
+    let (api_base_path, _web_base_url) = api::instance::split_urls(&args.authentik_url);
+
     let mut client_builder = reqwest::Client::builder();
     if let Some(ca_path) = &args.ca_cert {
         let pem = std::fs::read(ca_path)
@@ -111,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
         .context("building the Authentik HTTP client")?;
 
     let configuration = Configuration {
-        base_path: args.authentik_url.clone(),
+        base_path: api_base_path,
         bearer_access_token: Some(args.authentik_token.clone()),
         client: reqwest_middleware::ClientBuilder::new(client).build(),
         ..Configuration::default()

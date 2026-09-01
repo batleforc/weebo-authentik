@@ -71,12 +71,13 @@ impl AuthentikGatewayFactory {
             ))
         })?;
 
-        // `spec.url` is the instance's web base URL; it doubles as the
-        // REST `base_path` here (unchanged behavior) and as the web base
-        // for per-application OIDC issuers written into oauth2 credentials.
+        // `spec.url` is the WEB base; the REST base path is derived from it.
+        // Handing the same string to both is what used to put `/api/v3`
+        // inside every oauth2 app's OIDC issuer.
+        let (api_base_path, web_base_url) = api::instance::split_urls(&instance.spec.url);
         Ok(Arc::new(AuthentikHttpGateway::new(
-            instance.spec.url.clone(),
-            instance.spec.url.clone(),
+            api_base_path,
+            web_base_url,
             token,
         )))
     }

@@ -16,7 +16,12 @@ use crate::status::AuthentikStatus;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct AuthentikInstanceSpec {
-    /// Base URL of the Authentik instance, e.g. `https://login.example.com`.
+    /// Base **web** URL of the Authentik instance, e.g.
+    /// `https://login.example.com` — not the `/api/v3` REST endpoint, which
+    /// is derived from it (see [`split_urls`]). This is the root the
+    /// per-application OIDC issuers hang off,
+    /// `<url>/application/o/<slug>/`, so it is what oauth2 consumers end up
+    /// trusting.
     pub url: String,
     pub token_secret_ref: SecretKeyRef,
     #[serde(default)]
@@ -109,4 +114,79 @@ fn default_vault_path_prefix() -> String {
 
 fn default_kubernetes_auth_mount() -> String {
     "kubernetes".to_string()
+}
+
+/// Derives the two base URLs a client needs from the single [`url`] field
+/// this CRD exposes.
+///
+/// `spec.url` is the instance's **web** base — the root the per-application
+/// OIDC issuers hang off, `<web>/application/o/<slug>/`. The generated REST
+/// client is the other half: it appends every path to a base that has to end
+/// in `/api/v3` (its own `Configuration::default()` base_path is literally
+/// `/api/v3`). Passing `spec.url` through for both can only ever satisfy one
+/// of them, so the split happens here, once, for every caller.
+///
+/// A `url` that already carries `/api/v3` is accepted rather than taken
+/// literally: the field is documented as the web base, but pasting the API
+/// URL is the obvious mistake, and honouring it would write
+/// `.../api/v3/application/o/<slug>/` into every oauth2 application's
+/// `AUTHENTIK_URL` — an issuer that 404s for every consumer.
+///
+/// Returns `(api_base_path, web_base_url)`.
+///
+/// [`url`]: AuthentikInstanceSpec::url
+pub fn split_urls(url: &str) -> (String, String) {
+    let web = url
+        .trim_end_matches('/')
+        .trim_end_matches("/api/v3")
+        .trim_end_matches('/')
+        .to_string();
+    let api = format!("{web}/api/v3");
+    (api, web)
+}
+
+#[cfg(test)]
+mod url_tests {
+    use super::split_urls;
+
+    #[test]
+    fn web_base_gets_the_api_suffix_for_rest_calls() {
+        assert_eq!(
+            split_urls("https://auth.weebo.poc"),
+            (
+                "https://auth.weebo.poc/api/v3".to_string(),
+                "https://auth.weebo.poc".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn trailing_slash_does_not_double_up() {
+        assert_eq!(
+            split_urls("https://auth.weebo.poc/"),
+            (
+                "https://auth.weebo.poc/api/v3".to_string(),
+                "https://auth.weebo.poc".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn an_api_url_is_accepted_and_never_reaches_the_issuer() {
+        // The field is documented as the web base, but someone pointing it at
+        // the REST endpoint must not end up with
+        // `.../api/v3/application/o/<slug>/` as an app's AUTHENTIK_URL.
+        for url in [
+            "https://auth.weebo.poc/api/v3",
+            "https://auth.weebo.poc/api/v3/",
+        ] {
+            assert_eq!(
+                split_urls(url),
+                (
+                    "https://auth.weebo.poc/api/v3".to_string(),
+                    "https://auth.weebo.poc".to_string()
+                )
+            );
+        }
+    }
 }

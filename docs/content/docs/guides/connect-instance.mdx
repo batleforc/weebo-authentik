@@ -39,6 +39,13 @@ spec:
 `AuthentikInstance` is cluster-scoped, so its name (`main` above) is
 what every `AuthentikApplication`'s `spec.instanceRef` points back to.
 
+`spec.url` is the **web** base URL, not the `/api/v3` REST endpoint: the
+operator appends `/api/v3` itself for API calls, and uses the bare URL as the
+root of the per-application OIDC issuer it writes into an oauth2
+application's `AUTHENTIK_URL` (`<url>/application/o/<slug>/`). A URL that
+already ends in `/api/v3` is accepted and trimmed back to the web base rather
+than taken literally.
+
 ## Secret storage backend
 
 `AuthentikApplication`'s oauth2 credentials (`AUTHENTIK_CLIENT_ID`/

@@ -68,7 +68,7 @@ AUTHENTIK_TOKEN=<read-token> cargo run -p importer -- \
 
 | Flag | Meaning |
 | --- | --- |
-| `--authentik-url` | Base URL of the Authentik instance to read from. |
+| `--authentik-url` | Base **web** URL of the Authentik instance to read from — same shape as `AuthentikInstance.spec.url`; `/api/v3` is appended for you. |
 | `--authentik-token` | API token (or the `AUTHENTIK_TOKEN` env var, as above). |
 | `--instance-ref` | Name of the `AuthentikInstance` CR generated `AuthentikApplication`s should point at (`spec.instanceRef`). |
 | `--namespace` | Namespace stamped on every generated `AuthentikApplication`/`AuthentikAccessPolicy`. |
