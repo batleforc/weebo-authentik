@@ -29,6 +29,7 @@ mod users;
 
 use std::path::PathBuf;
 
+use anyhow::Context;
 use authentik_client::apis::configuration::Configuration;
 use clap::Parser;
 
@@ -61,6 +62,23 @@ struct Args {
     /// Output directory — one YAML file per generated CR instance.
     #[arg(long, default_value = "import-output")]
     out: PathBuf,
+    /// Path to a PEM CA certificate (or concatenated bundle) to trust when
+    /// connecting to the Authentik instance — use to reach an instance
+    /// served by a private/self-signed CA. This is added *on top of* the
+    /// platform trust store: the rustls backend goes through
+    /// `rustls-platform-verifier` → `rustls-native-certs`, so the standard
+    /// OpenSSL `SSL_CERT_FILE`/`SSL_CERT_DIR` env vars are honored on Linux
+    /// with or without this flag (reqwest composes it via
+    /// `Verifier::new_with_extra_roots`). Prefer those env vars for the
+    /// system-wide case; use this flag (or `AUTHENTIK_CA_CERT`) for a root
+    /// scoped to this one import run.
+    #[arg(long, env = "AUTHENTIK_CA_CERT")]
+    ca_cert: Option<PathBuf>,
+    /// Skip TLS certificate verification entirely. Mirrors the
+    /// `AuthentikInstance` CR's `spec.tls.insecureSkipVerify` — insecure,
+    /// intended only for throwaway/self-signed instances.
+    #[arg(long, env = "AUTHENTIK_INSECURE_SKIP_VERIFY")]
+    insecure_skip_verify: bool,
 }
 
 #[tokio::main]
@@ -73,9 +91,29 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     std::fs::create_dir_all(&args.out)?;
 
+    let mut client_builder = reqwest::Client::builder();
+    if let Some(ca_path) = &args.ca_cert {
+        let pem = std::fs::read(ca_path)
+            .with_context(|| format!("reading CA certificate {}", ca_path.display()))?;
+        // `from_pem_bundle` handles both a single cert and a concatenated
+        // chain; each becomes an additional trusted root.
+        for cert in reqwest::Certificate::from_pem_bundle(&pem)
+            .with_context(|| format!("parsing CA certificate {}", ca_path.display()))?
+        {
+            client_builder = client_builder.add_root_certificate(cert);
+        }
+    }
+    if args.insecure_skip_verify {
+        client_builder = client_builder.danger_accept_invalid_certs(true);
+    }
+    let client = client_builder
+        .build()
+        .context("building the Authentik HTTP client")?;
+
     let configuration = Configuration {
         base_path: args.authentik_url.clone(),
         bearer_access_token: Some(args.authentik_token.clone()),
+        client: reqwest_middleware::ClientBuilder::new(client).build(),
         ..Configuration::default()
     };
 

@@ -1661,6 +1661,8 @@ dependencies = [
  "authentik-client",
  "clap",
  "kube",
+ "reqwest",
+ "reqwest-middleware",
  "rustls",
  "serde",
  "serde_json",

@@ -16,6 +16,8 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 tokio = { workspace = true }
 rustls = { workspace = true }
+reqwest = { workspace = true }
+reqwest-middleware = { workspace = true }
 
 [dev-dependencies]
 testkit = { workspace = true }
