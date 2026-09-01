@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.10.0](https://github.com/batleforc/proxyauthK8s/compare/94ff94d10cc3b096ade9e901733c558f10d677be..v0.10.0) - 2026-09-01
+#### Features
+- handle providing a CA - ([94ff94d](https://github.com/batleforc/proxyauthK8s/commit/94ff94d10cc3b096ade9e901733c558f10d677be)) - Max Batleforc
+
+- - -
+
 ## [v0.9.0](https://github.com/batleforc/proxyauthK8s/compare/60c7f87a3853bb9ae37b5c3905a47abe97f72c68..v0.9.0) - 2026-09-01
 #### Features
 - wip - ([c00b49a](https://github.com/batleforc/proxyauthK8s/commit/c00b49ad209245cabb2578042f9c4c85987825a8)) - Max Batleforc
