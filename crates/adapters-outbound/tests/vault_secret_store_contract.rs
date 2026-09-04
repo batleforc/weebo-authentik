@@ -164,6 +164,167 @@ async fn write_oauth2_credentials_surfaces_a_vault_api_error() {
     );
 }
 
+/// KV v2 `set` always creates a new version, even for a byte-identical
+/// document, and the application reconciler rewrites credentials on every
+/// pass (requeued every 300s). Writing unconditionally therefore churned one
+/// Vault version per application per five minutes forever. `write_path` reads
+/// first and skips the `set` when nothing would change.
+#[tokio::test]
+async fn write_oauth2_credentials_skips_the_set_when_the_stored_document_already_matches() {
+    let server = MockServer::start().await;
+    let store = store(&server).await;
+
+    // Vault answers the read with exactly what we are about to write.
+    Mock::given(method("GET"))
+        .and(path(write_path()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "request_id": "fake-request-id",
+            "lease_id": "",
+            "lease_duration": 0,
+            "renewable": false,
+            "auth": null,
+            "wrap_info": null,
+            "warnings": null,
+            "data": {
+                "data": {
+                    "AUTHENTIK_CLIENT_ID": "client-id-123",
+                    "AUTHENTIK_CLIENT_SECRET": "client-secret-456",
+                    "AUTHENTIK_URL": "https://login.example.com"
+                },
+                "metadata": {
+                    "created_time": "2026-01-01T00:00:00Z",
+                    "deletion_time": "",
+                    "destroyed": false,
+                    "version": 7
+                }
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    // ...and the write endpoint must never be called. Verified on drop.
+    Mock::given(method("POST"))
+        .and(path(write_path()))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&server)
+        .await;
+
+    let result = store
+        .write_oauth2_credentials("default", "weebo-app", &credentials())
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "a no-op write must report success, not an error: {result:?}"
+    );
+}
+
+/// The other half of the contract: skipping is conditional on the document
+/// actually matching. A stored credential that has drifted -- here a rotated
+/// client_secret -- must still be rewritten, or the skip would turn into a
+/// permanent failure to converge.
+#[tokio::test]
+async fn write_oauth2_credentials_still_writes_when_the_stored_document_differs() {
+    let server = MockServer::start().await;
+    let store = store(&server).await;
+
+    Mock::given(method("GET"))
+        .and(path(write_path()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "request_id": "fake-request-id",
+            "lease_id": "",
+            "lease_duration": 0,
+            "renewable": false,
+            "auth": null,
+            "wrap_info": null,
+            "warnings": null,
+            "data": {
+                "data": {
+                    "AUTHENTIK_CLIENT_ID": "client-id-123",
+                    "AUTHENTIK_CLIENT_SECRET": "a-stale-secret",
+                    "AUTHENTIK_URL": "https://login.example.com"
+                },
+                "metadata": {
+                    "created_time": "2026-01-01T00:00:00Z",
+                    "deletion_time": "",
+                    "destroyed": false,
+                    "version": 7
+                }
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path(write_path()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "request_id": "fake-request-id",
+            "lease_id": "",
+            "lease_duration": 0,
+            "renewable": false,
+            "auth": null,
+            "wrap_info": null,
+            "warnings": null,
+            "data": { "version": 8, "created_time": "2026-01-01T00:00:00Z", "deletion_time": "", "destroyed": false }
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let result = store
+        .write_oauth2_credentials("default", "weebo-app", &credentials())
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "drifted credentials must be rewritten: {result:?}"
+    );
+}
+
+/// A read that fails for any reason -- most importantly the 404 of a path
+/// that does not exist yet -- must fall through to the write, never suppress
+/// it. This is the first-write case, and it is the one where a wrong answer
+/// would silently strand a consumer with no credentials at all.
+#[tokio::test]
+async fn write_oauth2_credentials_writes_when_the_path_does_not_exist_yet() {
+    let server = MockServer::start().await;
+    let store = store(&server).await;
+
+    Mock::given(method("GET"))
+        .and(path(write_path()))
+        .respond_with(ResponseTemplate::new(404).set_body_json(serde_json::json!({
+            "errors": []
+        })))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path(write_path()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "request_id": "fake-request-id",
+            "lease_id": "",
+            "lease_duration": 0,
+            "renewable": false,
+            "auth": null,
+            "wrap_info": null,
+            "warnings": null,
+            "data": { "version": 1, "created_time": "2026-01-01T00:00:00Z", "deletion_time": "", "destroyed": false }
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let result = store
+        .write_oauth2_credentials("default", "weebo-app", &credentials())
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "a 404 from the pre-write read must not block the first write: {result:?}"
+    );
+}
+
 #[tokio::test]
 async fn delete_removes_metadata_at_the_expected_kv2_path() {
     let server = MockServer::start().await;

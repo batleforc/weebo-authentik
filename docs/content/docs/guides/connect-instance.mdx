@@ -133,6 +133,17 @@ static Vault token to provision or rotate. Credentials land at
 `AuthentikApplication` CR, same naming convention as the Kubernetes
 backend.
 
+The write is **conditional**: the operator reads the path first and only
+issues a KV v2 `set` when the stored document differs from what it would
+write. This matters because `set` always creates a new version, even for
+an identical document, while the reconciler rewrites credentials on every
+pass (a synced object requeues every 300s) — writing unconditionally would
+churn a new Vault version per application every five minutes and roll the
+KV version history over continuously. Drift is still corrected: a path
+edited by hand no longer matches and is rewritten on the next pass. The
+Kubernetes backend needs no equivalent, since re-applying an identical
+`Secret` is already a no-op at the API server.
+
 #### Trusting a private Vault CA
 
 If Vault (or OpenBao) presents a TLS certificate signed by a private CA,

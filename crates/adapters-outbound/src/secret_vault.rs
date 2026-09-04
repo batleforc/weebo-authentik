@@ -224,6 +224,25 @@ impl VaultSecretStore {
             "AUTHENTIK_URL": credentials.authentik_url,
         });
 
+        // KV v2 `set` is not idempotent: it creates a new version even when
+        // the document is byte-identical. The application reconciler rewrites
+        // credentials on *every* pass, and a `Synced` outcome requeues after
+        // 300s (`controller::requeue_after`), so writing unconditionally
+        // churned one version per application per five minutes — ~288/day per
+        // path, which rolls the default 10-version history over in well under
+        // an hour and puts a permanent write load on Vault for no change.
+        //
+        // `K8sSecretStore` has no such problem — re-applying an identical
+        // Secret is a genuine no-op at the API server — which is why this only
+        // ever bit the Vault backend, and why the fix belongs here rather than
+        // in the reconciler that both backends share.
+        //
+        // Drift is still corrected: a hand-edited path no longer matches and
+        // is rewritten on the next pass.
+        if self.path_matches(path, &data).await {
+            return Ok(());
+        }
+
         // The read guard must be released before `relogin` (which takes the
         // write lock), so the KV call is scoped to its own block rather
         // than left as a `match` scrutinee temporary — those live until the
@@ -246,6 +265,24 @@ impl VaultSecretStore {
             }
             Err(e) => Err(SecretStoreError::Write(e.to_string())),
         }
+    }
+
+    /// Whether the document already stored at `path` equals `desired`.
+    ///
+    /// Any failure to read answers `false` so the caller falls through to the
+    /// write it was going to do anyway: a missing path (404, the first write),
+    /// a lapsed token, an unparseable document. This must never be the reason
+    /// a credential fails to land — and a read that failed because the token
+    /// expired is handled by `write_path`'s own re-login retry, which runs
+    /// immediately after.
+    async fn path_matches(&self, path: &str, desired: &serde_json::Value) -> bool {
+        // Guard scoped like every other KV call here, so a later `relogin`
+        // write lock cannot deadlock against a still-held read guard.
+        let current = {
+            let client = self.client.read().await;
+            kv2::read::<serde_json::Value>(&*client, &self.mount, path).await
+        };
+        matches!(current, Ok(ref stored) if stored == desired)
     }
 
     /// Deletes all versions + metadata (not a soft `delete_latest`) at an
