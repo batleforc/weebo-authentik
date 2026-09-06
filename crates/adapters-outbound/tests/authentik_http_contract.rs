@@ -628,3 +628,125 @@ async fn upsert_oauth2_provider_writes_the_per_app_issuer_not_the_api_base() {
     );
     assert!(!result.credentials.authentik_url.contains("/api/v3"));
 }
+
+/// Scripts the two flow lookups plus an accepted provider create, i.e. the
+/// happy path `upsert_oauth2_provider` walks before it POSTs.
+async fn mock_oauth2_create_path(mock: &AuthentikMock) {
+    mock.mock_get(
+        "/flows/instances/",
+        200,
+        serde_json::json!({
+            "pagination": {
+                "next": 0, "previous": 0, "count": 2,
+                "current": 1, "total_pages": 1, "start_index": 1, "end_index": 2
+            },
+            "results": [
+                {"pk": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "policybindingmodel_ptr_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "name": "authz", "slug": "default-authorization-flow", "title": "authz", "designation": "authorization", "background_url": "/x", "background_themed_urls": null, "stages": [], "policies": [], "cache_count": 0, "export_url": "/x"},
+                {"pk": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "policybindingmodel_ptr_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "name": "invld", "slug": "default-invalidation-flow", "title": "invld", "designation": "invalidation", "background_url": "/x", "background_themed_urls": null, "stages": [], "policies": [], "cache_count": 0, "export_url": "/x"}
+            ],
+            "autocomplete": {}
+        }),
+    )
+    .await;
+    mock.mock_post(
+        "/providers/oauth2/",
+        201,
+        serde_json::json!({
+            "pk": 8,
+            "name": "angos",
+            "authorization_flow": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "invalidation_flow": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "component": "ak-provider-oauth2-form",
+            "assigned_application_slug": "angos",
+            "assigned_application_name": "angos",
+            "assigned_backchannel_application_slug": null,
+            "assigned_backchannel_application_name": null,
+            "verbose_name": "OAuth2/OpenID Provider",
+            "verbose_name_plural": "OAuth2/OpenID Providers",
+            "meta_model_name": "authentik_providers_oauth2.oauth2provider",
+            "client_type": "confidential",
+            "client_id": "angos",
+            "client_secret": "angos-client-secret",
+            "redirect_uris": [],
+        }),
+    )
+    .await;
+}
+
+fn oauth2_spec(grant_types: Vec<String>) -> Oauth2ProviderSpec {
+    Oauth2ProviderSpec {
+        client_id: None,
+        authorization_flow: "default-authorization-flow".to_string(),
+        invalidation_flow: "default-invalidation-flow".to_string(),
+        signing_key: None,
+        allowed_redirect_uris: Vec::<RedirectUri>::new(),
+        property_mappings: vec![],
+        grant_types,
+    }
+}
+
+/// The device code grant reaches Authentik spelled as the URN. It is what a
+/// CLI client needs to obtain a token for a registry that only validates
+/// bearer JWTs, and `grant_types`' match arm used to stop at the six short
+/// literals — so the CR failed with `AuthentikApiError` and never got an
+/// `authentikId`, which in turn blocked every access policy pointing at it.
+#[tokio::test]
+async fn upsert_oauth2_provider_sends_the_device_code_grant_as_its_urn() {
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await;
+
+    let spec = oauth2_spec(vec![
+        "authorization_code".to_string(),
+        "urn:ietf:params:oauth:grant-type:device_code".to_string(),
+    ]);
+
+    gateway(&mock)
+        .upsert_oauth2_provider(None, "angos", "angos", &spec)
+        .await
+        .expect("device code is a grant type Authentik accepts");
+
+    let create = mock
+        .server
+        .received_requests()
+        .await
+        .expect("wiremock records requests")
+        .into_iter()
+        .find(|r| r.method == wiremock::http::Method::POST)
+        .expect("the provider create was sent");
+    let body: serde_json::Value =
+        serde_json::from_slice(&create.body).expect("the create body is json");
+
+    assert_eq!(
+        body["grant_types"],
+        serde_json::json!([
+            "authorization_code",
+            "urn:ietf:params:oauth:grant-type:device_code"
+        ]),
+    );
+}
+
+/// The fallthrough still rejects rather than silently dropping a grant the
+/// client cannot express — `token-exchange` is in Authentik's own enum but
+/// not in `authentik-client` 2026.5, so it has no variant to map to.
+#[tokio::test]
+async fn upsert_oauth2_provider_rejects_a_grant_type_the_client_cannot_express() {
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await;
+
+    let spec = oauth2_spec(vec![
+        "urn:ietf:params:oauth:grant-type:token-exchange".to_string(),
+    ]);
+
+    let err = gateway(&mock)
+        .upsert_oauth2_provider(None, "angos", "angos", &spec)
+        .await
+        .unwrap_err();
+
+    match err {
+        GatewayError::Api(message) => assert!(
+            message.contains("unsupported oauth2 grant type"),
+            "unexpected message: {message}"
+        ),
+        other => panic!("expected GatewayError::Api, got {other:?}"),
+    }
+}

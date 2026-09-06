@@ -91,6 +91,12 @@ impl AuthentikHttpGateway {
                 "refresh_token" => Ok(models::GrantTypesEnum::RefreshToken),
                 "client_credentials" => Ok(models::GrantTypesEnum::ClientCredentials),
                 "password" => Ok(models::GrantTypesEnum::Password),
+                // Spelled as the URN, the way Authentik's own enum serializes
+                // it, so a CR carries the value the API documents rather than a
+                // short alias this operator would have to keep translating.
+                "urn:ietf:params:oauth:grant-type:device_code" => Ok(
+                    models::GrantTypesEnum::UrnColonIetfColonParamsColonOauthColonGrantTypeColonDeviceCode,
+                ),
                 other => Err(GatewayError::Api(format!(
                     "unsupported oauth2 grant type {other:?}"
                 ))),
