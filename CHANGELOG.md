@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.12.0](https://github.com/batleforc/proxyauthK8s/compare/1ac85fb99d00eaceb2e50f1936e9f993db7d9657..v0.12.0) - 2026-09-06
+#### Features
+- Mise en place d'une nouvelle CRD dédié au scope mapping - ([25ad308](https://github.com/batleforc/proxyauthK8s/commit/25ad308c3bae9011bc0bcf10fa7bda0301155a21)) - Max Batleforc
+#### Miscellaneous Chores
+- bump - ([1ac85fb](https://github.com/batleforc/proxyauthK8s/commit/1ac85fb99d00eaceb2e50f1936e9f993db7d9657)) - Max Batleforc
+
+- - -
+
 ## [v0.11.0](https://github.com/batleforc/proxyauthK8s/compare/b1ff4adef79fd9619408eba79436592ee17ee211..v0.11.0) - 2026-09-04
 #### Features
 - wip - ([ab9cc40](https://github.com/batleforc/proxyauthK8s/commit/ab9cc405cb1caa3642e95bd821d023eea9e7fb58)) - Max Batleforc
