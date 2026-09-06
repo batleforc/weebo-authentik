@@ -32,6 +32,7 @@ pub mod group;
 pub mod instance;
 pub mod namespace_policy;
 pub mod outpost;
+pub mod scope_mapping;
 pub mod user;
 
 pub const FIELD_MANAGER: &str = "weebo-authentik-operator";

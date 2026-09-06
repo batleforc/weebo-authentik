@@ -26,6 +26,11 @@ fn main() -> anyhow::Result<()> {
     write_crd(&args.out, "authentikgroup", api::AuthentikGroup::crd())?;
     write_crd(&args.out, "authentikflow", api::AuthentikFlow::crd())?;
     write_crd(&args.out, "authentikoutpost", api::AuthentikOutpost::crd())?;
+    write_crd(
+        &args.out,
+        "authentikscopemapping",
+        api::AuthentikScopeMapping::crd(),
+    )?;
     write_crd(&args.out, "authentikuser", api::AuthentikUser::crd())?;
     write_crd(&args.out, "authentikbrand", api::AuthentikBrand::crd())?;
     write_crd(

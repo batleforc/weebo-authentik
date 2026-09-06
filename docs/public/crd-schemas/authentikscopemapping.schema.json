@@ -1,0 +1,31 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikScopeMapping",
+  "scope": "Cluster",
+  "description": "Mirrors `authentik_property_mapping_provider_scope` — the OAuth2/OIDC\n**scope mapping**, i.e. one entry of the list a provider exposes as\n`propertyMappings`. Cluster-scoped, like `AuthentikFlow`: a mapping is\nan org-wide object referenced by name from any number of providers, in\nany namespace, and is not owned by the namespace of the application\nthat happens to use it first.\n\nScope mappings are **pk-keyed** (a UUID), so `status.authentikId`\nstores that pk, unlike the slug-keyed `AuthentikFlow`/\n`AuthentikApplication`.\n\n# Why this kind exists\n\n`Oauth2ProviderSpec.property_mappings` resolves entries **by name**\nagainst `/propertymappings/all/` and never creates one — so until this\nkind, only Authentik's built-in mappings (`authentik default OAuth\nMapping: OpenID 'profile'`, …) could be referenced from a CR. A\nconsumer that needs a claim Authentik does not ship had to have it\nhand-made in the UI, off the GitOps path.\n\nThe motivating case is RustFS: it reads the `groups` claim as a list of\n**policy names** and refuses the whole login when any entry does not\nname a policy it has (`OIDC policy mapping did not resolve to current\npolicies`). Sending it the raw `weebo_*` group names cannot work, so a\nmapping owned by this kind rewrites them, per-provider, into the policy\nnames that side knows.\n\n# Ordering\n\nNothing here watches `AuthentikApplication`, and an application\nreferencing a mapping by a name that does not exist yet fails its\nreconcile with `AuthentikApiError` (\"property mapping … not found\")\nuntil the mapping's own reconcile lands. That resolves itself on the\napplication's error requeue; when order matters for a first install,\ngive the mapping a lower Argo CD sync-wave than the application.",
+  "properties": {
+    "description": {
+      "description": "Shown to the user on the consent screen. Authentik hides the\nmapping from that screen when empty, which is the default here.",
+      "nullable": true,
+      "type": "string"
+    },
+    "expression": {
+      "description": "The mapping's Python expression, run by Authentik per token issue,\nwith `request`/`user` in scope. It must `return` a dict, which is\nmerged into the claims — returning `{\"groups\": [...]}` under scope\nname `groups` replaces the built-in claim of that name.\n\nPassed through verbatim: this operator does not parse, lint or\nsandbox it, and a syntax error surfaces only when Authentik runs\nthe mapping during a login, not at reconcile time.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Authentik-side name of the mapping, and the identity every\nprovider uses to reference it (`Oauth2ProviderSpec\n.propertyMappings`, matched exactly). Not the CR's own name.",
+      "type": "string"
+    },
+    "scopeName": {
+      "description": "OAuth scope the client must request for this mapping to run, e.g.\n`groups`. It does **not** have to be unique: a mapping that\noverrides a built-in one (say Authentik's own `groups`) simply\nreuses that scope name, and the provider decides which of the two\nit carries by listing one and not the other in its\n`propertyMappings`.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expression",
+    "name",
+    "scopeName"
+  ],
+  "type": "object"
+}

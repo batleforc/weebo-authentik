@@ -15,7 +15,8 @@ use api::flow::{
 };
 use api::group::AuthentikGroupSpec;
 use api::outpost::{AuthentikOutpostSpec, OutpostType};
-use api::{AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost};
+use api::scope_mapping::AuthentikScopeMappingSpec;
+use api::{AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost, AuthentikScopeMapping};
 use application::ports::{AuthentikGateway, GatewayError};
 use kube::api::ObjectMeta;
 use testkit::authentik_mock::AuthentikMock;
@@ -201,6 +202,82 @@ async fn create_flow_conflict_maps_to_already_exists() {
 
     let result = gateway(&mock).create_flow(&flow("device-code")).await;
     assert!(matches!(result, Err(GatewayError::AlreadyExists(_))));
+}
+
+fn scope_mapping(name: &str) -> AuthentikScopeMapping {
+    AuthentikScopeMapping {
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            ..Default::default()
+        },
+        spec: AuthentikScopeMappingSpec {
+            name: name.to_string(),
+            scope_name: "groups".to_string(),
+            expression: "return {\"groups\": []}".to_string(),
+            description: None,
+        },
+        status: None,
+    }
+}
+
+fn scope_mapping_response(name: &str) -> serde_json::Value {
+    serde_json::json!({
+        "pk": "55555555-5555-5555-5555-555555555555",
+        "managed": null,
+        "name": name,
+        "expression": "return {\"groups\": []}",
+        "component": "ak-property-mapping-provider-scope-form",
+        "verbose_name": "Scope Mapping",
+        "verbose_name_plural": "Scope Mappings",
+        "meta_model_name": "authentik_providers_oauth2.scopemapping",
+        "scope_name": "groups",
+        "description": null,
+    })
+}
+
+/// Unlike flows, scope mappings are pk-keyed everywhere, so the stored
+/// identity is the response `pk` and not a name — which is what lets a
+/// mapping be renamed without stranding the CR that owns it.
+#[tokio::test]
+async fn create_scope_mapping_success_returns_the_authentik_pk() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_post(
+        "/propertymappings/provider/scope/",
+        201,
+        scope_mapping_response("rustfs policies"),
+    )
+    .await;
+
+    let result = gateway(&mock)
+        .create_scope_mapping(&scope_mapping("rustfs policies"))
+        .await;
+    assert_eq!(result.unwrap(), "55555555-5555-5555-5555-555555555555");
+}
+
+#[tokio::test]
+async fn create_scope_mapping_conflict_maps_to_already_exists() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_post(
+        "/propertymappings/provider/scope/",
+        400,
+        serde_json::json!({"name": ["Scope Mapping with this name already exists."]}),
+    )
+    .await;
+
+    let result = gateway(&mock)
+        .create_scope_mapping(&scope_mapping("rustfs policies"))
+        .await;
+    assert!(matches!(result, Err(GatewayError::AlreadyExists(_))));
+}
+
+#[tokio::test]
+async fn delete_scope_mapping_on_404_is_idempotent() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/propertymappings/provider/scope/missing/", 404)
+        .await;
+
+    let result = gateway(&mock).delete_scope_mapping("missing").await;
+    assert!(result.is_ok());
 }
 
 #[tokio::test]

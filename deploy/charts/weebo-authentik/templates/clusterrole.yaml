@@ -15,6 +15,7 @@ rules:
       - authentikgroups
       - authentikflows
       - authentikoutposts
+      - authentikscopemappings
       - authentikusers
       - authentikbrands
       - authentikapplications
@@ -27,6 +28,7 @@ rules:
       - authentikgroups/status
       - authentikflows/status
       - authentikoutposts/status
+      - authentikscopemappings/status
       - authentikusers/status
       - authentikbrands/status
       - authentikapplications/status
@@ -39,6 +41,7 @@ rules:
       - authentikgroups/finalizers
       - authentikflows/finalizers
       - authentikoutposts/finalizers
+      - authentikscopemappings/finalizers
       - authentikusers/finalizers
       - authentikbrands/finalizers
       - authentikapplications/finalizers

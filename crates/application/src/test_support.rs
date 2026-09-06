@@ -8,7 +8,7 @@
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{
     AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
-    AuthentikUser,
+    AuthentikScopeMapping, AuthentikUser,
 };
 
 use crate::ports::{
@@ -21,8 +21,8 @@ use crate::ports::{
 /// that exercises an unscripted call path should fail loudly at the exact
 /// call site, not silently return a default. `create_result`/
 /// `update_result` are reused across every CRD's create/update method
-/// (group, user, outpost, brand): only one CRD's reconciler is under test
-/// at a time, so a single pair of fields is enough.
+/// (group, user, outpost, brand, scope mapping): only one CRD's reconciler
+/// is under test at a time, so a single pair of fields is enough.
 #[derive(Default)]
 pub struct FakeGateway {
     pub create_result: Option<Result<String, GatewayError>>,
@@ -134,6 +134,23 @@ impl AuthentikGateway for FakeGateway {
     }
     async fn delete_flow(&self, _authentik_id: &str) -> Result<(), GatewayError> {
         unimplemented!("delete_flow not scripted on FakeGateway")
+    }
+
+    async fn create_scope_mapping(
+        &self,
+        _mapping: &AuthentikScopeMapping,
+    ) -> Result<String, GatewayError> {
+        self.take_create()
+    }
+    async fn update_scope_mapping(
+        &self,
+        _authentik_id: &str,
+        _mapping: &AuthentikScopeMapping,
+    ) -> Result<(), GatewayError> {
+        self.take_update()
+    }
+    async fn delete_scope_mapping(&self, _authentik_id: &str) -> Result<(), GatewayError> {
+        unimplemented!("delete_scope_mapping not scripted on FakeGateway")
     }
 
     async fn create_user(&self, _user: &AuthentikUser) -> Result<String, GatewayError> {

@@ -19,6 +19,8 @@ GitOps-friendly Kubernetes objects.
 | `AuthentikAccessPolicy` | Namespace | Binds a group to an application |
 | `AuthentikBrand` | Cluster | Domain + branding, with default-brand election |
 | `AuthentikOutpost` | Cluster | Outpost config for proxy providers |
+| `AuthentikFlow` | Cluster | A flow object, referenced by slug from brands and providers |
+| `AuthentikScopeMapping` | Cluster | An OIDC scope mapping, referenced by name from a provider's `propertyMappings` |
 | `AuthentikNamespacePolicy` | Namespace | Opts a namespace into the admission-webhook allow-list |
 
 An admission webhook enforces a namespace-scoped allow-list: an

@@ -12,13 +12,14 @@ mod groups;
 mod outposts;
 mod policy_bindings;
 mod providers;
+mod scope_mappings;
 mod shared;
 mod users;
 
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{
     AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
-    AuthentikUser,
+    AuthentikScopeMapping, AuthentikUser,
 };
 use application::ports::{
     AuthentikGateway, GatewayError, Oauth2ProviderUpsertResult, RemoteApplication,
@@ -147,6 +148,25 @@ impl AuthentikGateway for AuthentikHttpGateway {
 
     async fn delete_flow(&self, authentik_id: &str) -> Result<(), GatewayError> {
         self.delete_flow_impl(authentik_id).await
+    }
+
+    async fn create_scope_mapping(
+        &self,
+        mapping: &AuthentikScopeMapping,
+    ) -> Result<String, GatewayError> {
+        self.create_scope_mapping_impl(mapping).await
+    }
+
+    async fn update_scope_mapping(
+        &self,
+        authentik_id: &str,
+        mapping: &AuthentikScopeMapping,
+    ) -> Result<(), GatewayError> {
+        self.update_scope_mapping_impl(authentik_id, mapping).await
+    }
+
+    async fn delete_scope_mapping(&self, authentik_id: &str) -> Result<(), GatewayError> {
+        self.delete_scope_mapping_impl(authentik_id).await
     }
 
     async fn create_user(&self, user: &AuthentikUser) -> Result<String, GatewayError> {

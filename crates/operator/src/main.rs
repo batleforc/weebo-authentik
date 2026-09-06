@@ -202,6 +202,7 @@ async fn main() -> anyhow::Result<()> {
         controller::flow::run(client.clone(), ctx.clone()),
         controller::user::run(client.clone(), ctx.clone()),
         controller::outpost::run(client.clone(), ctx.clone()),
+        controller::scope_mapping::run(client.clone(), ctx.clone()),
         controller::brand::run(client.clone(), ctx.clone()),
         controller::app::run(client.clone(), ctx.clone()),
         controller::access_policy::run(client.clone(), ctx.clone()),

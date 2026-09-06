@@ -13,6 +13,7 @@ pub mod reconcile_group;
 pub mod reconcile_instance;
 pub mod reconcile_namespace_policy;
 pub mod reconcile_outpost;
+pub mod reconcile_scope_mapping;
 pub mod reconcile_user;
 
 use domain::error::ReasonCode;

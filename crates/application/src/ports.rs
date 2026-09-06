@@ -8,7 +8,7 @@ use std::sync::Arc;
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{
     AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
-    AuthentikUser,
+    AuthentikScopeMapping, AuthentikUser,
 };
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -101,6 +101,29 @@ pub trait AuthentikGateway: Send + Sync {
         flow: &AuthentikFlow,
     ) -> Result<(), GatewayError>;
     async fn delete_flow(&self, authentik_id: &str) -> Result<(), GatewayError>;
+
+    /// Scope mappings are pk-keyed (a UUID), so `authentik_id` here is
+    /// that pk — not a name, even though a *provider* references the same
+    /// object by name through `resolve_property_mappings`. The two never
+    /// meet: this operator creates the mapping and remembers its pk, while
+    /// `Oauth2ProviderSpec.property_mappings` looks the same object up by
+    /// name at provider-upsert time, exactly as it does for the built-in
+    /// mappings it cannot create.
+    ///
+    /// The expression is sent verbatim; Authentik accepts any syntactically
+    /// valid Python here and only fails when it runs the mapping, so a
+    /// `Synced` status on this kind says the object exists, not that it
+    /// produces the claim its author intended.
+    async fn create_scope_mapping(
+        &self,
+        mapping: &AuthentikScopeMapping,
+    ) -> Result<String, GatewayError>;
+    async fn update_scope_mapping(
+        &self,
+        authentik_id: &str,
+        mapping: &AuthentikScopeMapping,
+    ) -> Result<(), GatewayError>;
+    async fn delete_scope_mapping(&self, authentik_id: &str) -> Result<(), GatewayError>;
 
     /// `user.spec.group_refs` resolved the same way as
     /// `AuthentikGroupSpec.parent_ref` above (by Authentik-side group
