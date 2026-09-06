@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.13.0](https://github.com/batleforc/proxyauthK8s/compare/a1687a2abb0e8c3114768eae3c6ad1e448f8dc88..v0.13.0) - 2026-09-06
+#### Features
+- add device - ([7a5cf71](https://github.com/batleforc/proxyauthK8s/commit/7a5cf71a1c6d08d4573c45b019be878af9c5ccc7)) - Max Batleforc
+#### Miscellaneous Chores
+- bump version - ([a1687a2](https://github.com/batleforc/proxyauthK8s/commit/a1687a2abb0e8c3114768eae3c6ad1e448f8dc88)) - Max Batleforc
+
+- - -
+
 ## [v0.12.0](https://github.com/batleforc/proxyauthK8s/compare/1ac85fb99d00eaceb2e50f1936e9f993db7d9657..v0.12.0) - 2026-09-06
 #### Features
 - Mise en place d'une nouvelle CRD dédié au scope mapping - ([25ad308](https://github.com/batleforc/proxyauthK8s/commit/25ad308c3bae9011bc0bcf10fa7bda0301155a21)) - Max Batleforc
