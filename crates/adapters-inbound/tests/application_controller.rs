@@ -115,6 +115,7 @@ async fn oauth2_application_syncs_id_and_writes_the_credentials_secret() {
                         allowed_redirect_uris: vec![],
                         property_mappings: vec![],
                         grant_types: vec![],
+                        access_token_validity: None,
                     }),
                     proxy: None,
                 },

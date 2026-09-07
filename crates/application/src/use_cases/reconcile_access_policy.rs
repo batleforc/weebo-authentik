@@ -144,6 +144,7 @@ mod tests {
                         allowed_redirect_uris: vec![],
                         property_mappings: vec![],
                         grant_types: vec![],
+                        access_token_validity: None,
                     }),
                     proxy: None,
                 },

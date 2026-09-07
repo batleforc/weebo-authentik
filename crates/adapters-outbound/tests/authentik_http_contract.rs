@@ -550,6 +550,7 @@ async fn upsert_oauth2_provider_surfaces_an_unresolved_authorization_flow() {
         allowed_redirect_uris: Vec::<RedirectUri>::new(),
         property_mappings: vec![],
         grant_types: vec![],
+        access_token_validity: None,
     };
 
     let err = gateway(&mock)
@@ -612,6 +613,7 @@ async fn upsert_oauth2_provider_writes_the_per_app_issuer_not_the_api_base() {
         allowed_redirect_uris: Vec::<RedirectUri>::new(),
         property_mappings: vec![],
         grant_types: vec![],
+        access_token_validity: None,
     };
 
     let result = gateway(&mock)
@@ -682,6 +684,7 @@ fn oauth2_spec(grant_types: Vec<String>) -> Oauth2ProviderSpec {
         allowed_redirect_uris: Vec::<RedirectUri>::new(),
         property_mappings: vec![],
         grant_types,
+        access_token_validity: None,
     }
 }
 
@@ -705,16 +708,7 @@ async fn upsert_oauth2_provider_sends_the_device_code_grant_as_its_urn() {
         .await
         .expect("device code is a grant type Authentik accepts");
 
-    let create = mock
-        .server
-        .received_requests()
-        .await
-        .expect("wiremock records requests")
-        .into_iter()
-        .find(|r| r.method == wiremock::http::Method::POST)
-        .expect("the provider create was sent");
-    let body: serde_json::Value =
-        serde_json::from_slice(&create.body).expect("the create body is json");
+    let body = create_body(&mock).await;
 
     assert_eq!(
         body["grant_types"],
@@ -723,6 +717,63 @@ async fn upsert_oauth2_provider_sends_the_device_code_grant_as_its_urn() {
             "urn:ietf:params:oauth:grant-type:device_code"
         ]),
     );
+}
+
+/// The validity reaches Authentik verbatim, in its own duration spelling.
+/// It governs the ID token too, which is what a client replaying that token as
+/// a credential lives on: raising it here is the only lever over how long such
+/// a login lasts.
+#[tokio::test]
+async fn upsert_oauth2_provider_sends_the_access_token_validity_it_is_given() {
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await;
+
+    let mut spec = oauth2_spec(vec!["authorization_code".to_string()]);
+    spec.access_token_validity = Some("hours=12".to_string());
+
+    gateway(&mock)
+        .upsert_oauth2_provider(None, "angos", "angos", &spec)
+        .await
+        .expect("a validity Authentik understands is accepted");
+
+    let body = create_body(&mock).await;
+    assert_eq!(body["access_token_validity"], serde_json::json!("hours=12"));
+}
+
+/// Omitted means "leave it alone", not "reset it": the key is absent from the
+/// body entirely, so a provider whose validity someone tuned by hand keeps it
+/// through every reconcile. Adopting an existing provider must not quietly
+/// shorten the credentials it issues.
+#[tokio::test]
+async fn upsert_oauth2_provider_omits_access_token_validity_when_unset() {
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await;
+
+    let spec = oauth2_spec(vec!["authorization_code".to_string()]);
+
+    gateway(&mock)
+        .upsert_oauth2_provider(None, "angos", "angos", &spec)
+        .await
+        .expect("a spec without a validity still upserts");
+
+    let body = create_body(&mock).await;
+    assert!(
+        body.get("access_token_validity").is_none(),
+        "an unset validity must not be sent: {body}"
+    );
+}
+
+/// The JSON body of the single POST the mock recorded.
+async fn create_body(mock: &AuthentikMock) -> serde_json::Value {
+    let create = mock
+        .server
+        .received_requests()
+        .await
+        .expect("wiremock records requests")
+        .into_iter()
+        .find(|r| r.method == wiremock::http::Method::POST)
+        .expect("the provider create was sent");
+    serde_json::from_slice(&create.body).expect("the create body is json")
 }
 
 /// The fallthrough still rejects rather than silently dropping a grant the

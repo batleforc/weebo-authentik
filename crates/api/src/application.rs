@@ -130,6 +130,20 @@ pub struct Oauth2ProviderSpec {
     pub property_mappings: Vec<String>,
     #[serde(default)]
     pub grant_types: Vec<String>,
+    /// How long an access token stays valid, in Authentik's duration
+    /// spelling: `"minutes=30"`, `"hours=1"`, `"days=1"`, or several joined
+    /// by `;`. It governs the ID token minted alongside it too, which is what
+    /// makes it worth setting: a consumer that replays an ID token as a
+    /// credential -- `docker login` against a registry that validates OIDC
+    /// bearers, for one -- lives exactly this long before it has to get
+    /// another.
+    ///
+    /// Omitted leaves the value alone: the field is not sent, so a provider
+    /// tuned by hand keeps its setting and a new one takes Authentik's
+    /// default. That is deliberate, and it is what keeps adopting an existing
+    /// provider free of surprises.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_token_validity: Option<String>,
 }
 
 /// Authentik's built-in self-signed certificate key pair, present on every

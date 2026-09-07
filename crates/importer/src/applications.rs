@@ -146,6 +146,12 @@ pub async fn import_applications(
                             .as_ref()
                             .map(|gs| gs.iter().map(|g| g.to_string()).collect())
                             .unwrap_or_default(),
+                        // Read back so an imported CR describes the provider as
+                        // it stands, including a validity somebody tuned in the
+                        // UI. Emitting nothing would leave that value live but
+                        // invisible in git, which is what an import is meant to
+                        // end.
+                        access_token_validity: full.access_token_validity.clone(),
                     }),
                     proxy: None,
                 }
