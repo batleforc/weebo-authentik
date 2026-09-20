@@ -152,16 +152,13 @@ pub struct Oauth2ProviderSpec {
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum Oauth2ClientType {
     Public,
+    #[default]
     Confidential,
 }
 
-impl Default for Oauth2ClientType {
-    fn default() -> Self {
-        Self::Confidential
-    }
-}
 
 /// Authentik's built-in self-signed certificate key pair, present on every
 /// instance — the sensible default signing key when a provider doesn't
