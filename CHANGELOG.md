@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.15.0](https://github.com/batleforc/proxyauthK8s/compare/5c6a1a8b38dd565612a1a9e038f1575562b3f1a0..v0.15.0) - 2026-09-20
+#### Features
+- Mise en place clientType public/confidential has confidential the default - ([5c6a1a8](https://github.com/batleforc/proxyauthK8s/commit/5c6a1a8b38dd565612a1a9e038f1575562b3f1a0)) - Max Batleforc
+
+- - -
+
 ## [v0.14.0](https://github.com/batleforc/proxyauthK8s/compare/556f75aeec6bad0a70b124643edd9e8421655c0e..v0.14.0) - 2026-09-07
 #### Features
 - new policy - ([9333aae](https://github.com/batleforc/proxyauthK8s/commit/9333aaebb908429da7bf03e1c52316a0a707dc0c)) - Max Batleforc
