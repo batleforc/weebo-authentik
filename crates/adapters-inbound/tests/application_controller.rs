@@ -8,7 +8,8 @@
 use adapters_inbound::controller;
 use api::AuthentikApplication;
 use api::application::{
-    AuthentikApplicationSpec, Oauth2ProviderSpec, ProviderKind, ProviderSpec, ProxyProviderSpec,
+    AuthentikApplicationSpec, Oauth2ClientType, Oauth2ProviderSpec, ProviderKind, ProviderSpec,
+    ProxyProviderSpec,
 };
 use k8s_openapi::api::core::v1::Secret;
 use kube::api::{Api, ObjectMeta, PostParams};
@@ -108,6 +109,7 @@ async fn oauth2_application_syncs_id_and_writes_the_credentials_secret() {
                 provider: ProviderSpec {
                     kind: ProviderKind::Oauth2,
                     oauth2: Some(Oauth2ProviderSpec {
+                        client_type: Oauth2ClientType::Confidential,
                         client_id: None,
                         authorization_flow: "default-authorization-flow".to_string(),
                         invalidation_flow: "default-invalidation-flow".to_string(),

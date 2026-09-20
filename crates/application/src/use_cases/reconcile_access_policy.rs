@@ -137,6 +137,7 @@ mod tests {
                 provider: ProviderSpec {
                     kind: ProviderKind::Oauth2,
                     oauth2: Some(Oauth2ProviderSpec {
+                        client_type: Default::default(),
                         client_id: None,
                         authorization_flow: "default-authorization-flow".to_string(),
                         invalidation_flow: "default-invalidation-flow".to_string(),

@@ -65,6 +65,15 @@
               "nullable": true,
               "type": "string"
             },
+            "clientType": {
+              "default": "confidential",
+              "description": "Public clients cannot safely keep a client secret. Existing CRs that\nomit this field retain the historical confidential-client behavior.",
+              "enum": [
+                "public",
+                "confidential"
+              ],
+              "type": "string"
+            },
             "grantTypes": {
               "default": [],
               "items": {

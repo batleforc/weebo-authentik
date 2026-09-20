@@ -1,4 +1,6 @@
-use api::application::{MatchingMode, Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
+use api::application::{
+    MatchingMode, Oauth2ClientType, Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec,
+};
 use application::ports::{GatewayError, Oauth2Credentials, Oauth2ProviderUpsertResult};
 use authentik_client::apis::{crypto_api, propertymappings_api, providers_api};
 use authentik_client::models;
@@ -132,7 +134,10 @@ impl AuthentikHttpGateway {
                     authorization_flow,
                     invalidation_flow,
                     property_mappings: Some(property_mappings),
-                    client_type: Some(models::ClientTypeEnum::Confidential),
+                    client_type: Some(match spec.client_type {
+                        Oauth2ClientType::Public => models::ClientTypeEnum::Public,
+                        Oauth2ClientType::Confidential => models::ClientTypeEnum::Confidential,
+                    }),
                     grant_types,
                     client_id: spec.client_id.clone(),
                     client_secret: None,
@@ -163,7 +168,10 @@ impl AuthentikHttpGateway {
                     authorization_flow: Some(authorization_flow),
                     invalidation_flow: Some(invalidation_flow),
                     property_mappings: Some(property_mappings),
-                    client_type: Some(models::ClientTypeEnum::Confidential),
+                    client_type: Some(match spec.client_type {
+                        Oauth2ClientType::Public => models::ClientTypeEnum::Public,
+                        Oauth2ClientType::Confidential => models::ClientTypeEnum::Confidential,
+                    }),
                     grant_types,
                     client_id: spec.client_id.clone(),
                     client_secret: None,

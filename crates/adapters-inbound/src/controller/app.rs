@@ -89,6 +89,28 @@ async fn cleanup(
             .gateway_for(&app.spec.instance_ref)
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
+        // Read the provider relationship before deleting the application.
+        // The status stores only the application's slug.
+        let remote = gateway
+            .get_application(id)
+            .await
+            .map_err(|e| Error::Gateway(e.to_string()))?;
+        if let (Some(provider_id), Some(provider_kind)) = (
+            remote.provider_id,
+            remote
+                .provider_meta_model_name
+                .as_deref()
+                .and_then(|name| match name {
+                    "authentik_providers_oauth2.oauth2provider" => Some(ProviderKind::Oauth2),
+                    "authentik_providers_proxy.proxyprovider" => Some(ProviderKind::Proxy),
+                    _ => None,
+                }),
+        ) {
+            gateway
+                .delete_provider(provider_id, provider_kind)
+                .await
+                .map_err(|e| Error::Gateway(e.to_string()))?;
+        }
         gateway
             .delete_application(id)
             .await

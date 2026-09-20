@@ -110,6 +110,10 @@ pub enum ProviderKind {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Oauth2ProviderSpec {
+    /// Public clients cannot safely keep a client secret. Existing CRs that
+    /// omit this field retain the historical confidential-client behavior.
+    #[serde(default)]
+    pub client_type: Oauth2ClientType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub client_id: Option<String>,
     pub authorization_flow: String,
@@ -144,6 +148,19 @@ pub struct Oauth2ProviderSpec {
     /// provider free of surprises.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_token_validity: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Oauth2ClientType {
+    Public,
+    Confidential,
+}
+
+impl Default for Oauth2ClientType {
+    fn default() -> Self {
+        Self::Confidential
+    }
 }
 
 /// Authentik's built-in self-signed certificate key pair, present on every

@@ -7,8 +7,8 @@ use std::path::Path;
 
 use api::access_policy::AuthentikAccessPolicySpec;
 use api::application::{
-    AuthentikApplicationSpec, MatchingMode, Oauth2ProviderSpec, ProviderKind, ProviderSpec,
-    ProxyProviderSpec, RedirectUri,
+    AuthentikApplicationSpec, MatchingMode, Oauth2ClientType, Oauth2ProviderSpec, ProviderKind,
+    ProviderSpec, ProxyProviderSpec, RedirectUri,
 };
 use api::status::AuthentikStatus;
 use api::{AuthentikAccessPolicy, AuthentikApplication};
@@ -106,6 +106,12 @@ pub async fn import_applications(
                 ProviderSpec {
                     kind: ProviderKind::Oauth2,
                     oauth2: Some(Oauth2ProviderSpec {
+                        client_type: match full.client_type {
+                            Some(models::ClientTypeEnum::Public) => Oauth2ClientType::Public,
+                            Some(models::ClientTypeEnum::Confidential) | None => {
+                                Oauth2ClientType::Confidential
+                            }
+                        },
                         client_id: full.client_id.clone(),
                         authorization_flow: flows_by_pk
                             .get(&full.authorization_flow)

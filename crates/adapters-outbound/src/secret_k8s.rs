@@ -42,10 +42,12 @@ impl SecretStore for K8sSecretStore {
             "AUTHENTIK_CLIENT_ID".to_string(),
             ByteString(credentials.client_id.as_bytes().to_vec()),
         );
-        data.insert(
-            "AUTHENTIK_CLIENT_SECRET".to_string(),
-            ByteString(credentials.client_secret.as_bytes().to_vec()),
-        );
+        if !credentials.client_secret.is_empty() {
+            data.insert(
+                "AUTHENTIK_CLIENT_SECRET".to_string(),
+                ByteString(credentials.client_secret.as_bytes().to_vec()),
+            );
+        }
         data.insert(
             "AUTHENTIK_URL".to_string(),
             ByteString(credentials.authentik_url.as_bytes().to_vec()),

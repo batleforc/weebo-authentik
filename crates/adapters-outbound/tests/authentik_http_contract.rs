@@ -543,6 +543,7 @@ async fn upsert_oauth2_provider_surfaces_an_unresolved_authorization_flow() {
         .await;
 
     let spec = Oauth2ProviderSpec {
+        client_type: api::application::Oauth2ClientType::Confidential,
         client_id: None,
         authorization_flow: "default-authorization-flow".to_string(),
         invalidation_flow: "default-invalidation-flow".to_string(),
@@ -606,6 +607,7 @@ async fn upsert_oauth2_provider_writes_the_per_app_issuer_not_the_api_base() {
     .await;
 
     let spec = Oauth2ProviderSpec {
+        client_type: api::application::Oauth2ClientType::Confidential,
         client_id: None,
         authorization_flow: "default-authorization-flow".to_string(),
         invalidation_flow: "default-invalidation-flow".to_string(),
@@ -677,6 +679,7 @@ async fn mock_oauth2_create_path(mock: &AuthentikMock) {
 
 fn oauth2_spec(grant_types: Vec<String>) -> Oauth2ProviderSpec {
     Oauth2ProviderSpec {
+        client_type: api::application::Oauth2ClientType::Confidential,
         client_id: None,
         authorization_flow: "default-authorization-flow".to_string(),
         invalidation_flow: "default-invalidation-flow".to_string(),

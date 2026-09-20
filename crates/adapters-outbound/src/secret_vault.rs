@@ -218,11 +218,23 @@ impl VaultSecretStore {
         path: &str,
         credentials: &Oauth2Credentials,
     ) -> Result<(), SecretStoreError> {
-        let data = serde_json::json!({
-            "AUTHENTIK_CLIENT_ID": credentials.client_id,
-            "AUTHENTIK_CLIENT_SECRET": credentials.client_secret,
-            "AUTHENTIK_URL": credentials.authentik_url,
-        });
+        let mut data = serde_json::Map::from_iter([
+            (
+                "AUTHENTIK_CLIENT_ID".to_string(),
+                serde_json::json!(credentials.client_id),
+            ),
+            (
+                "AUTHENTIK_URL".to_string(),
+                serde_json::json!(credentials.authentik_url),
+            ),
+        ]);
+        if !credentials.client_secret.is_empty() {
+            data.insert(
+                "AUTHENTIK_CLIENT_SECRET".to_string(),
+                serde_json::json!(credentials.client_secret),
+            );
+        }
+        let data = serde_json::Value::Object(data);
 
         // KV v2 `set` is not idempotent: it creates a new version even when
         // the document is byte-identical. The application reconciler rewrites
