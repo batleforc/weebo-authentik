@@ -1,6 +1,17 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
+@import './tokens.css';
+@import './fd-bridge.css';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BatleHub design system — "The Proof Sheet" — applied to Fumadocs.
+
+   Layering mirrors batlehub's docs site: tokens.css decides every value,
+   fd-bridge.css maps Fumadocs' variables onto them, and this file holds the
+   component rules. No colour literal appears below this line; ask for a
+   token, never for a rendition.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 html {
   scrollbar-gutter: stable;
@@ -11,206 +22,434 @@ html > body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   BatleHub design system — ported onto Fumadocs. The single place a colour,
-   step, size or duration is decided. Derived from batlehub/batlehub DESIGN.md
-   and its `ui/src/design/tokens.css`; adapted for a docs site per RFC 0005
-   ("One documentation tree, wearing the design system").
-
-   ONE PALETTE, TWO GROUNDS. Paper is this world's home ground — the Emigre
-   specimen board is ink on paper — and near-black is the adaptation the use
-   scene earned (dark room, one tab among twenty, opened in anger). Light is
-   not a filter over dark, and dark is not a filter over light: both are
-   authored. Light lives on `:root`, dark on `.dark` (Fumadocs/next-themes
-   uses the class strategy; functionally the Stored-Preference Rule holds —
-   system|light|dark is stored, the resolved value renders, resolved before
-   first paint).
-
-   DIRECTION, NOT LIGHTNESS, is what the neutral names mean. `--ground-raised`
-   moves toward the ink pole and `--ground-sunk` away from it, so on near-black
-   raised is *lighter* (L .155 over L .07) and on paper raised is *darker*
-   (L .935 under L .97). A token is named for the job it does.
-
-   EVERY COLOUR IS AUTHORED IN-GAMUT FOR sRGB. Monofolio's source values are
-   kept as provenance comments, never as the computed value: a token outside
-   the gamut cannot carry a contrast guarantee, because engines disagree on
-   what they paint. Ratios quoted below are computed, asserted in batlehub's
-   tokens.test.ts for both renditions.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-:root {
-  /* ── Light rendition (paper — the home ground) ─────────────────────────── */
-  --ground: oklch(0.97 0.008 18);
-  --ground-raised: oklch(0.935 0.01 18); /* 1.11:1 — confirmation, not elevation */
-  --ground-sunk: oklch(0.99 0.004 18);
-
-  --ink: oklch(0.2 0.022 20); /* 16.64:1 */
-  --ink-dim: oklch(0.44 0.04 25); /* 7.24:1 (6.52:1 on raised) */
-  --rule-soft: oklch(0.8 0.02 25); /* separators only; not contrast-carrying */
-  --rule-strong: oklch(0.62 0.05 25); /* 3.41:1 — every interactive boundary */
-
-  /* Provenance: Monofolio light --primary oklch(0.52 0.24 25), OUTSIDE sRGB
-     (max chroma 0.2108 at this L/H). The In-Gamut Rule's second case. */
-  --accent: oklch(0.52 0.21 25); /* 5.63:1 */
-  --accent-ink: oklch(0.99 0.004 18); /* 5.97:1 on --accent */
-  --copper: oklch(0.5 0.12 52); /* 5.74:1 */
-  --focus: oklch(0.55 0.11 85); /* 4.48:1 */
-
-  /* ── Rendition-independent ─────────────────────────────────────────────── */
-
-  /* Spacing. Every padding, gap and margin is one of these: 4/8/12/16/24/40. */
-  --s1: 4px;
-  --s2: 8px;
-  --s3: 12px;
-  --s4: 16px;
-  --s5: 24px;
-  --s6: 40px;
-
-  /* The two faces. Loaded via next/font in layout.tsx, which self-hosts them
-     at build time — no third-party request at paint (DESIGN.md Typography). */
-  --face-display: var(--font-silkscreen), monospace;
-  --face-text: var(--font-jetbrains-mono), ui-monospace, monospace;
-
-  /* Two ramps, because the display face has a constraint the text face does
-     not: Silkscreen is drawn on an 8px em, so its square pixel only stays
-     square at integer multiples. --t-display is therefore discrete, never
-     clamp() — 10vw lands on the grid at only a handful of viewport widths. */
-  --t-px-sm: 16px; /* 2× */
-  --t-px-md: 24px; /* 3× */
-  --t-display: 40px; /* 5× below 640px; the hero's "weebo-authentik" overflows higher steps */
-
-  --t-head: 20px;
-  --t-sub: 16px;
-  --t-row: 15px;
-  --t-body: 13px;
-  --t-meta: 12px; /* floor; nothing smaller is painted */
-
-  /* Zero radius everywhere. The world has no rounded corner. */
-  --radius: 0;
-
-  /* One authored motion: a row resolving coarse → crisp. */
-  --resolve: 520ms cubic-bezier(0.16, 1, 0.3, 1);
-
-  /* ── Fumadocs contract, bridged onto the design tokens (light) ─────────── */
-  --color-fd-background: var(--ground);
-  --color-fd-foreground: var(--ink);
-  --color-fd-muted: var(--ground-raised);
-  --color-fd-muted-foreground: var(--ink-dim);
-  --color-fd-popover: var(--ground-sunk);
-  --color-fd-popover-foreground: var(--ink);
-  --color-fd-card: var(--ground-sunk);
-  --color-fd-card-foreground: var(--ink);
-  --color-fd-border: var(--rule-strong);
-  --color-fd-primary: var(--accent);
-  --color-fd-primary-foreground: var(--accent-ink);
-  --color-fd-secondary: var(--ground-raised);
-  --color-fd-secondary-foreground: var(--ink);
-  --color-fd-accent: var(--ground-raised);
-  --color-fd-accent-foreground: var(--ink);
-  --color-fd-ring: var(--focus);
-  --color-fd-overlay: oklch(0.2 0.022 20 / 25%);
-
-  /* Square corners law — override Fumadocs' radius scale in place. */
-  --radius-xs: 0;
-  --radius-sm: 0;
-  --radius-md: 0;
-  --radius-lg: 0;
-  --radius-xl: 0;
-  --radius-2xl: 0;
-}
-
-.dark {
-  /* ── Dark rendition (near-black — the adaptation the use scene earned) ─── */
-  --ground: oklch(0.07 0.018 18);
-  --ground-raised: oklch(0.155 0.022 18); /* 1.06:1 — confirmation, not elevation */
-  --ground-sunk: oklch(0.045 0.014 18); /* 1.005:1 — likewise */
-
-  --ink: oklch(0.93 0.018 25); /* 16.88:1 */
-  --ink-dim: oklch(0.62 0.045 30); /* 5.62:1 (5.28:1 on raised) */
-  --rule-soft: oklch(0.34 0.03 25); /* separators only; not contrast-carrying */
-  --rule-strong: oklch(0.52 0.06 25); /* 3.68:1 — every interactive boundary */
-
-  /* Provenance: Monofolio --primary oklch(0.65 0.26 25), which is OUTSIDE sRGB
-     (max chroma 0.2359 at this L/H). Clamped, and it measures better clamped. */
-  --accent: oklch(0.65 0.235 25); /* 5.76:1 */
-  --accent-ink: oklch(0.1 0.02 18); /* 5.69:1 on --accent */
-  --copper: oklch(0.72 0.14 52); /* 8.06:1 */
-  --focus: oklch(0.85 0.16 85); /* 13.07:1 */
-
-  --color-fd-overlay: oklch(0.05 0.01 18 / 60%);
-}
-
-@media (min-width: 640px) {
-  :root {
-    --t-display: 72px; /* 9× */
-  }
-}
-
 body {
   -webkit-font-smoothing: antialiased;
+  font-family: var(--face-text);
+  background: var(--ground);
+  color: var(--ink);
 }
 
-/* Zero radius everywhere — the law. Setting the --radius-* scale to 0 squares
-   every component that reads the token, but ported Fumadocs/Tailwind pieces
-   arrive with *literal* radii (inline `code` at 5px, `rounded-full` pills, the
-   <Steps> bullet, the scrollbar thumb) that bypass it. DESIGN.md: "Zero radius
-   everywhere … including ported components that arrive with 2px." This is the
-   one !important the theme needs — the same law RFC 0005 states once over every
-   box, because the default theme's rules outrank a utility-class override. */
+/* ── Flat at rest ─────────────────────────────────────────────────────────────
+   Zero radius everywhere, including `rounded-full` (which the theme scale
+   cannot reach): the square corner is the bitmap face's own geometry. */
 *,
 *::before,
 *::after {
-  border-radius: 0 !important;
+  border-radius: var(--radius) !important;
 }
 
-/* ── Amber focus ring on everything focusable ────────────────────────────────
-   2px solid, 2px offset, in both renditions. Focus is never suppressed, never
-   replaced by a colour change, never inherited from the browser default. */
-:focus-visible {
+/* ── Focus ───────────────────────────────────────────────────────────────── */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
-/* ── Typography roles ────────────────────────────────────────────────────────
-   Silkscreen (the display face) carries headings at the pixel ramp; JetBrains
-   Mono carries every fact. Prose takes the Reading role — 16px / line-height
-   1.7 / 68ch — the one role authored for reading for minutes, not scanning. */
-#nd-page :is(h1, h2, h3, h4, h5, h6) {
-  font-family: var(--face-display);
-  letter-spacing: 0.02em;
-  line-height: 1.1;
+/* ── Reading ─────────────────────────────────────────────────────────────────
+   The Reading Role Rule: prose read for minutes is 16px / 1.7 / 68ch.
+   Lowercase text is never tracked; weight stays 400. */
+.prose {
+  --tw-prose-body: var(--ink);
+  --tw-prose-headings: var(--ink);
+  --tw-prose-links: var(--accent);
+  --tw-prose-bold: var(--ink);
+  --tw-prose-counters: var(--ink-dim);
+  --tw-prose-bullets: var(--ink-dim);
+  --tw-prose-hr: var(--rule-soft);
+  --tw-prose-quotes: var(--ink);
+  --tw-prose-quote-borders: var(--rule-strong);
+  --tw-prose-code: var(--copper);
+  --tw-prose-th-borders: var(--rule-strong);
+  --tw-prose-td-borders: var(--rule-soft);
 }
 
-#nd-page p,
-#nd-page li {
-  font-family: var(--face-text);
+.prose :where(p, li, blockquote p, dd, summary):not(:where(.not-prose, .not-prose *)) {
   font-size: var(--t-sub);
   line-height: 1.7;
-}
-
-#nd-page .prose {
   max-width: 68ch;
 }
 
-/* Links in body text carry an underline at rest — crimson on dim ink is
-   1.28:1 against surrounding text, so hue alone cannot mark them. */
-#nd-page .prose a {
+/* ── Headings ────────────────────────────────────────────────────────────────
+   Silkscreen only at multiples of 8px (The Integer Em Rule). The h2 sits in
+   the bitmap face at 16px above a 20px mono h3: face, case and tracking carry
+   the rank, not size alone. */
+#nd-page h1 {
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-md);
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+#nd-page .prose h2 {
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-sm);
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  border-top: 1px solid var(--rule-soft);
+  padding-top: var(--s5);
+  margin-top: var(--s6);
+}
+
+#nd-page .prose h3 {
+  font-family: var(--face-text);
+  font-weight: 600;
+  font-size: var(--t-head);
+  line-height: 1.4;
+  color: var(--ink);
+  margin-top: var(--s5);
+}
+
+#nd-page .prose :is(h4, h5, h6) {
+  font-family: var(--face-text);
+  font-weight: 600;
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+  margin-top: var(--s5);
+}
+
+/* ── Links ───────────────────────────────────────────────────────────────── */
+.prose a:not(.not-prose, .not-prose *, [data-card]) {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  font-weight: 400;
+}
+
+.prose a:not(.not-prose, .not-prose *, [data-card]):hover {
+  text-decoration-thickness: 2px;
+}
+
+/* ── Inline code and code blocks ─────────────────────────────────────────── */
+.prose :not(pre) > code {
+  color: var(--copper);
+  background: transparent;
+  border: 1px solid var(--rule-soft);
+  padding: 1px var(--s1);
+  font-size: 0.9em;
+}
+
+.prose figure.shiki {
+  border: 1px solid var(--rule-soft);
+  background: var(--ground-sunk);
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────────
+   The Own-Container Overflow Rule: a wide table scrolls inside itself, the
+   body never scrolls horizontally. No zebra — fill is not a state channel. */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--rule-soft);
+  border-collapse: collapse;
+  font-size: var(--t-row);
+}
+
+.prose th {
+  font-size: var(--t-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-dim);
+  text-align: left;
+  border-bottom: 1px solid var(--rule-strong);
+  background: transparent;
+}
+
+.prose :is(th, td) {
+  padding: var(--s2) var(--s3);
+}
+
+.prose td {
+  border-top: 1px dashed var(--rule-soft);
+  /* break-word, not anywhere: a cell may break an over-long identifier, but
+     its minimum width stays its longest word, so `object[]` never splits. */
+  overflow-wrap: break-word;
+}
+
+/* The first column names the row (a field, a kind, a flag): keep it whole. */
+.prose td:first-child {
+  white-space: nowrap;
+}
+
+.prose tr:hover td {
+  background: var(--ground-raised);
+}
+
+/* ── Callouts ────────────────────────────────────────────────────────────────
+   Three tiers, carried by the 1px edge and the icon rather than by fill:
+   neutral (info/tip/success), copper (warn), crimson (error). */
+#nd-page [style*='--callout-color'] {
+  background: var(--ground-sunk);
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--callout-color);
+  padding-inline-start: var(--s3);
+}
+
+#nd-page [style*='--callout-color'] > [role='none'] {
+  display: none;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────────
+   The world has no card; a Fumadocs Card becomes a hairline-framed row that
+   firms its rule on hover. Heading anchors carry `data-card=""` too, so
+   match the Card's own `true` value only. */
+[data-card='true'] {
+  background: transparent !important;
+  border: 1px solid var(--rule-soft);
+  transition: border-color var(--resolve);
+}
+
+[data-card='true']:hover {
+  border-color: var(--rule-strong);
+}
+
+#nd-page [data-card='true'] p {
+  font-size: var(--t-body);
+  line-height: 1.6;
+}
+
+#nd-page [data-card='true'] h3 {
+  margin-top: 0;
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-sm);
+  letter-spacing: 0.02em;
+}
+
+/* ── Steps ───────────────────────────────────────────────────────────────── */
+.fd-steps {
+  border-color: var(--rule-strong);
+}
+
+.fd-step::before {
+  font-family: var(--face-display);
+  font-weight: 700;
+  background: var(--ground);
+  border: 1px solid var(--rule-strong);
+  color: var(--ink);
+}
+
+/* ── Sidebar and TOC ─────────────────────────────────────────────────────────
+   Section labels are standalone Meta (0.16em). The active page is carried by
+   crimson ink, weight and the 1px lit edge — never by fill alone. */
+#nd-sidebar,
+#nd-sidebar-mobile {
+  font-size: var(--t-row);
+}
+
+#nd-sidebar p,
+#nd-sidebar-mobile p {
+  font-size: var(--t-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+
+#nd-sidebar a[data-active='true'],
+#nd-sidebar-mobile a[data-active='true'] {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--ground-raised);
+}
+
+#nd-toc-title,
+#nd-toc h3 {
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+
+#nd-nav {
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────
+   `.action` is the one filled action per view; `.ctl` is every other
+   control. The only two box-shadows in the system live here: the cut-out
+   ring on hover and the pixel step on press — zero blur, both. */
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--accent);
+}
+
+.action:hover {
+  box-shadow:
+    0 0 0 2px var(--ground),
+    0 0 0 3px var(--accent);
+}
+
+.action:active {
+  box-shadow:
+    3px 0 0 var(--accent-ink),
+    6px 0 0 var(--accent);
+  transform: translateX(-2px);
+}
+
+.ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid var(--rule-strong);
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.ctl:hover {
+  color: var(--ink);
+  border-color: var(--ink-dim);
+}
+
+/* ── Home: the proof sheet ───────────────────────────────────────────────────
+   One form at poster scale, captioned by its facts, then ruled regions. The
+   display face steps discretely (40 → 72), never fluid. */
+.sheet-display {
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 640px) {
+  .sheet-display {
+    font-size: 72px;
+  }
+}
+
+.sheet-label {
+  font-size: var(--t-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+
+.sheet-region {
+  border-top: 1px solid var(--rule-soft);
+  padding-block: var(--s6);
+}
+
+.sheet-caption {
+  font-size: var(--t-sub);
+  line-height: 1.7;
+  max-width: 68ch;
+  color: var(--ink-dim);
+}
+
+.sheet-pre {
+  font-size: var(--t-body);
+  line-height: 1.6;
+  background: var(--ground-sunk);
+  border: 1px solid var(--rule-soft);
+  padding: var(--s4);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  color: var(--ink);
+}
+
+.sheet-pre .k {
+  color: var(--ink-dim);
+}
+
+.sheet-pre .v {
+  color: var(--copper);
+}
+
+.sheet-feature h2 {
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-sm);
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.sheet-feature + .sheet-feature {
+  border-top: 1px dashed var(--rule-soft);
+}
+
+@media (min-width: 900px) {
+  .sheet-feature + .sheet-feature {
+    border-top: 0;
+    border-left: 1px dashed var(--rule-soft);
+  }
+}
+
+.sheet-feature a {
+  color: var(--accent);
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-/* ── Shiki css-variables theme (CrdForm live preview) mapped onto the tokens ──
-   The generated manifest is highlighted client-side from live form state, so
-   it can't go through the static MDX build-time pipeline the rest of the
-   site's code fences use; it carries its own theme object (yaml-theme.ts). */
+/* ── Live YAML preview ───────────────────────────────────────────────────────
+   Shiki's `css-variables` theme (see CrdForm.tsx) mapped onto the tokens —
+   the only highlighted code generated at runtime rather than at MDX build
+   time, so it carries its own theme object instead of a bundled one. */
 .yaml-preview {
   --shiki-foreground: var(--ink);
   --shiki-background: transparent;
-  --shiki-token-keyword: var(--accent);
+  --shiki-token-keyword: var(--ink-dim);
   --shiki-token-string: var(--copper);
   --shiki-token-string-expression: var(--copper);
   --shiki-token-constant: var(--copper);
   --shiki-token-comment: var(--ink-dim);
   --shiki-token-punctuation: var(--ink-dim);
   --shiki-token-link: var(--accent);
+}
+
+/* ── Scrollbars (Chromium/WebKit) ────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────
+   Removed outright, with no crossfade substitute (The One Motion Rule). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -55,6 +55,11 @@ export function defaultForSchema(schema: FieldSchema): unknown {
 
 function isEmptyValue(value: unknown, schema: FieldSchema): boolean {
   if (value === undefined || value === null) return true;
+  // Leaving a field at its schema default says nothing the apiserver won't
+  // fill in itself (`deletionPolicy: Orphan`, `visibility: public`…).
+  if (schema.default !== undefined && JSON.stringify(value) === JSON.stringify(schema.default)) {
+    return true;
+  }
   switch (schema.type) {
     case "string":
       return value === "";
@@ -73,10 +78,12 @@ function isEmptyValue(value: unknown, schema: FieldSchema): boolean {
 }
 
 // Strips fields the user left at their empty/default value so the
-// generated YAML only shows what was actually filled in, while always
-// keeping required fields (even empty) so a missing one is visible in
-// the preview rather than silently dropped.
-export function pruneValue(schema: FieldSchema, value: unknown): unknown {
+// generated YAML only shows what was actually filled in. Required fields are
+// kept (even empty) so a missing one is visible in the preview — but only
+// inside an object that is itself in use: an optional section nobody touched
+// (`migrate`, `fromTemplate`…) disappears whole, required children included.
+// `keep` is false for such optional sections; the root `spec` is always kept.
+export function pruneValue(schema: FieldSchema, value: unknown, keep = true): unknown {
   if (isDiscriminatedUnion(schema)) {
     const kind = (value as Record<string, unknown> | undefined)?.kind as string | undefined;
     if (!kind) return undefined;
@@ -103,25 +110,36 @@ export function pruneValue(schema: FieldSchema, value: unknown): unknown {
   if (schema.type === "object" && schema.properties) {
     const required = new Set(schema.required ?? []);
     const source = (value as Record<string, unknown>) ?? {};
+    const filled: Record<string, unknown> = {};
+    for (const [key, childSchema] of Object.entries(schema.properties)) {
+      const pruned = pruneValue(childSchema, source[key], false);
+      if (pruned !== undefined && !isEmptyValue(pruned, childSchema)) filled[key] = pruned;
+    }
+    // An untouched optional section: drop it, required children and all.
+    if (!keep && Object.keys(filled).length === 0) return {};
     const out: Record<string, unknown> = {};
     for (const [key, childSchema] of Object.entries(schema.properties)) {
-      const pruned = pruneValue(childSchema, source[key]);
-      const empty = pruned === undefined || isEmptyValue(pruned, childSchema);
-      if (required.has(key)) {
-        out[key] = pruned ?? defaultForSchema(childSchema);
-      } else if (!empty) {
-        out[key] = pruned;
+      if (key in filled) {
+        out[key] = filled[key];
+      } else if (required.has(key)) {
+        out[key] = pruneValue(childSchema, source[key], true) ?? defaultForSchema(childSchema);
       }
     }
     return out;
   }
 
   if (schema.type === "array") {
-    const items = ((value as unknown[]) ?? []).map((item) => pruneValue(schema.items ?? {}, item));
-    return items;
+    // A list item the user added is in use, so its required fields show.
+    return ((value as unknown[]) ?? []).map((item) => pruneValue(schema.items ?? {}, item, true));
   }
 
   return value;
+}
+
+/** Whether an optional field holds anything the manifest would carry. */
+export function isInUse(schema: FieldSchema, value: unknown): boolean {
+  const pruned = pruneValue(schema, value, false);
+  return pruned !== undefined && !isEmptyValue(pruned, schema);
 }
 
 // Dotted paths (relative to `spec`) of required fields still at their
@@ -154,6 +172,9 @@ export function findMissingRequired(schema: FieldSchema, value: unknown, path: s
         missing.push([...path, key].join("."));
         continue;
       }
+      // An optional section nobody filled in can't be missing anything:
+      // `migrate.cloneAddr` is only required once you choose to migrate.
+      if (!required.has(key) && !isInUse(childSchema, childValue)) continue;
       missing.push(...findMissingRequired(childSchema, childValue, [...path, key]));
     }
     return missing;

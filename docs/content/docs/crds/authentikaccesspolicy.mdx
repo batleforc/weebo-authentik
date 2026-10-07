@@ -1,7 +1,13 @@
 ---
 title: AuthentikAccessPolicy
-description: Mirrors `authentik_policy_binding`.
+description: Mirrors authentik_policy_binding.
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Namespaced
+- **Short names:** none
+- **Guide:** [First application walkthrough](/docs/guides/first-application#3-bind-the-group-to-the-application)
 
 Mirrors `authentik_policy_binding`. Namespaced.
 
@@ -11,6 +17,19 @@ this schema. The reconciler must resolve it via
 `Api::<AuthentikApplication>::namespaced(policy.metadata.namespace)`,
 never a cluster-wide client. See `.prompt/plan.md`,
 "Confinement au namespace, deux couches".
+
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikAccessPolicy
+metadata:
+  name: my-accesspolicy
+  namespace: team-a
+spec:
+  applicationRef: harbor
+  groupRef: weebo-user
+```
 
 ## Spec fields
 
@@ -23,6 +42,6 @@ never a cluster-wide client. See `.prompt/plan.md`,
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikAccessPolicy` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikAccessPolicy" />

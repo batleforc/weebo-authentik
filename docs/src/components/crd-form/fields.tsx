@@ -11,12 +11,11 @@ import {
 import type { FieldSchema } from "@/lib/crd-form/types";
 
 const inputClass =
-  "w-full border border-fd-border bg-fd-card px-2.5 py-1.5 text-sm text-fd-foreground outline-none transition-colors placeholder:text-fd-muted-foreground/60 focus:border-fd-primary";
+  "w-full border border-(--rule-strong) bg-(--ground-sunk) px-3 py-2 text-[15px] text-fd-foreground outline-none placeholder:text-fd-muted-foreground focus:border-(--accent)";
 
-const labelClass = "font-mono text-[0.7rem] font-semibold uppercase tracking-wide text-fd-muted-foreground";
+const labelClass = "text-[12px] font-semibold uppercase tracking-[0.14em] text-fd-muted-foreground";
 
-const ghostButtonClass =
-  "border border-fd-border px-2.5 py-1 font-mono text-xs text-fd-muted-foreground transition-colors hover:border-fd-primary hover:text-fd-primary";
+const ghostButtonClass = "ctl";
 
 function firstParagraph(description?: string): string {
   if (!description) return "";
@@ -43,7 +42,7 @@ function FieldHeader({
         {required ? <span className="text-fd-primary"> *</span> : null}
       </span>
       {summary ? (
-        <p className="line-clamp-2 text-xs text-fd-muted-foreground/80" title={description}>
+        <p className="line-clamp-2 text-[12px] text-fd-muted-foreground" title={description}>
           {summary}
         </p>
       ) : null}
@@ -63,7 +62,7 @@ function FieldGroup({
   children: ReactNode;
 }) {
   return (
-    <fieldset className="flex flex-col gap-3 border border-fd-border bg-fd-card/40 p-3">
+    <fieldset className="flex flex-col gap-3 border border-(--rule-soft) p-3">
       <legend className="px-1">
         <FieldHeader name={name} required={required} description={description} />
       </legend>
@@ -177,6 +176,8 @@ export function ObjectFields({
   value,
   onChange,
   omitKeys,
+  collapseOptional,
+  priorityKeys,
 }: {
   schema: FieldSchema;
   value: unknown;
@@ -186,25 +187,49 @@ export function ObjectFields({
   // input) — only meant for the root call, nested ObjectFields calls never
   // pass this.
   omitKeys?: string[];
+  // Root call only: optional fields fold under "More settings", so what must
+  // be filled in is what the reader sees first.
+  collapseOptional?: boolean;
+  // Optional fields to keep upfront anyway (the ones a guided choice is about).
+  priorityKeys?: string[];
 }) {
   const properties = schema.properties ?? {};
   const required = new Set(schema.required ?? []);
   const obj = (value as Record<string, unknown>) ?? {};
   const omit = new Set(omitKeys ?? []);
+  const entries = Object.entries(properties).filter(([key]) => !omit.has(key));
+  // Required fields, then priority ones, then the rest; each keeps schema order.
+  const priority = new Set(priorityKeys ?? []);
+  const mandatory = [
+    ...entries.filter(([key]) => required.has(key)),
+    ...entries.filter(([key]) => !required.has(key) && priority.has(key)),
+  ];
+  const optional = entries.filter(([key]) => !required.has(key) && !priority.has(key));
+  const render = ([key, childSchema]: [string, FieldSchema]) => (
+    <Field
+      key={key}
+      name={key}
+      schema={childSchema}
+      required={required.has(key)}
+      value={obj[key]}
+      onChange={(v) => onChange({ ...obj, [key]: v })}
+    />
+  );
   return (
     <div className="flex flex-col gap-4">
-      {Object.entries(properties)
-        .filter(([key]) => !omit.has(key))
-        .map(([key, childSchema]) => (
-        <Field
-          key={key}
-          name={key}
-          schema={childSchema}
-          required={required.has(key)}
-          value={obj[key]}
-          onChange={(v) => onChange({ ...obj, [key]: v })}
-        />
-      ))}
+      {mandatory.map(render)}
+      {collapseOptional && optional.length > 0 ? (
+        <details className="group border border-(--rule-soft)">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.1em] text-fd-muted-foreground hover:text-fd-foreground">
+            <span className="group-open:hidden">+ </span>
+            <span className="hidden group-open:inline">− </span>
+            More settings ({optional.length})
+          </summary>
+          <div className="flex flex-col gap-4 border-t border-(--rule-soft) p-3">{optional.map(render)}</div>
+        </details>
+      ) : (
+        optional.map(render)
+      )}
     </div>
   );
 }
@@ -279,7 +304,7 @@ function BooleanField({
         type="checkbox"
         checked={value}
         onChange={(e) => onChange(e.target.checked)}
-        className="size-4 border border-fd-border bg-fd-card accent-fd-primary"
+        className="size-4 border border-(--rule-strong) bg-(--ground-sunk) accent-(--accent)"
       />
       <FieldHeader name={name} description={schema.description} />
     </label>
@@ -371,7 +396,7 @@ function ArrayField({
     <FieldGroup name={name} required={required} description={schema.description}>
       <div className="flex flex-col gap-3">
         {value.map((item, index) => (
-          <div key={index} className="flex items-start gap-2 border border-fd-border/60 p-2">
+          <div key={index} className="flex items-start gap-2 border border-dashed border-(--rule-soft) p-2">
             <div className="flex-1">
               <Field
                 name={`[${index}]`}

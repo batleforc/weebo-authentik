@@ -1,0 +1,21 @@
+---
+title: CRD reference
+description: Every kind the operator adds, its fields, and an interactive manifest builder.
+---
+
+Each page lists a kind's `spec` fields, shows a minimal example, and has a
+form that builds a ready-to-apply manifest. These pages are generated from
+the CRDs themselves, so they always match the installed version.
+
+| Kind | Scope | Description |
+| --- | --- | --- |
+| [`AuthentikInstance`](/docs/crds/authentikinstance) | Cluster | Connection to a real Authentik server. |
+| [`AuthentikNamespacePolicy`](/docs/crds/authentiknamespacepolicy) | Cluster | Namespace allow-list enforced by the admission webhook (and double-checked by reconcilers). |
+| [`AuthentikGroup`](/docs/crds/authentikgroup) | Cluster | Mirrors `authentik_group`. |
+| [`AuthentikUser`](/docs/crds/authentikuser) | Cluster | Mirrors `authentik_user`. |
+| [`AuthentikApplication`](/docs/crds/authentikapplication) | Namespaced | Mirrors `authentik_application` + its `protocol_provider`. |
+| [`AuthentikAccessPolicy`](/docs/crds/authentikaccesspolicy) | Namespaced | Mirrors `authentik_policy_binding`. |
+| [`AuthentikScopeMapping`](/docs/crds/authentikscopemapping) | Cluster | Mirrors `authentik_property_mapping_provider_scope` — the OAuth2/OIDC **scope mapping**, i.e. one entry of the list a provider exposes as `propertyMappings`. |
+| [`AuthentikBrand`](/docs/crds/authentikbrand) | Cluster | Mirrors `authentik_brand`. |
+| [`AuthentikFlow`](/docs/crds/authentikflow) | Cluster | Mirrors `authentik_flow`. |
+| [`AuthentikOutpost`](/docs/crds/authentikoutpost) | Cluster | Deliberately minimal — nothing in the Terraform module being replaced creates a custom outpost, everything attaches to Authentik's embedded outpost by default. |

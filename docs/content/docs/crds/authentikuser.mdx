@@ -1,7 +1,12 @@
 ---
 title: AuthentikUser
-description: Mirrors `authentik_user`.
+description: Mirrors authentik_user.
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Cluster
+- **Short names:** none
 
 Mirrors `authentik_user`. Cluster-scoped, like `AuthentikGroup`.
 
@@ -9,6 +14,21 @@ Deliberately has **no credential/password field** — Authentik owns its
 own invite/reset flows. If a bootstrap password is ever needed it goes
 through `SecretStore` (generated, never stored in this spec). See
 `.prompt/plan.md`.
+
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikUser
+metadata:
+  name: my-user
+spec:
+  username: alice
+  name: Alice Example
+  email: alice@example.com
+  groupRefs:
+    - weebo_user
+```
 
 ## Spec fields
 
@@ -22,6 +42,6 @@ through `SecretStore` (generated, never stored in this spec). See
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikUser` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikUser" />

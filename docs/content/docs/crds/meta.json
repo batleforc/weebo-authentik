@@ -1,6 +1,7 @@
 {
   "title": "CRD reference",
   "pages": [
+    "index",
     "authentikinstance",
     "authentiknamespacepolicy",
     "authentikgroup",

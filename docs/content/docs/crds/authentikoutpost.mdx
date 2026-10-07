@@ -4,12 +4,29 @@ description: >-
   Deliberately minimal — nothing in the Terraform module being replaced creates
   a custom outpost, everything attaches to Authentik's embedded outpost by
   default.
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Cluster
+- **Short names:** none
 
 Deliberately minimal — nothing in the Terraform module being replaced
 creates a custom outpost, everything attaches to Authentik's embedded
 outpost by default. This CRD exists only to cover the case where a
 proxy provider's `outpostRef` explicitly names one. Cluster-scoped.
+
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikOutpost
+metadata:
+  name: my-outpost
+spec:
+  name: proxy-outpost
+  type: proxy
+```
 
 ## Spec fields
 
@@ -21,6 +38,6 @@ proxy provider's `outpostRef` explicitly names one. Cluster-scoped.
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikOutpost` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikOutpost" />

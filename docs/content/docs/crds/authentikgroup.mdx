@@ -1,11 +1,29 @@
 ---
 title: AuthentikGroup
-description: Mirrors `authentik_group`.
+description: Mirrors authentik_group.
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Cluster
+- **Short names:** none
+- **Guide:** [First application walkthrough](/docs/guides/first-application#1-create-a-group)
 
 Mirrors `authentik_group`. Cluster-scoped — group hierarchy is an
 org-wide identity concept, not owned by a namespace. Only reachable via
 cluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).
+
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikGroup
+metadata:
+  name: my-group
+spec:
+  name: weebo_user
+  parentRef: weebo_base
+```
 
 ## Spec fields
 
@@ -18,6 +36,6 @@ cluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikGroup` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikGroup" />

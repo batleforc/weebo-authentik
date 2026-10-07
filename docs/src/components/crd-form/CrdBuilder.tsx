@@ -41,7 +41,7 @@ export function CrdBuilder() {
 
   if (error) {
     return (
-      <p className="border border-fd-border bg-fd-card p-4 text-sm text-fd-muted-foreground">
+      <p className="border border-(--rule-strong) px-6 py-10 text-[13px] text-fd-muted-foreground">
         Could not load the CRD list: {error}
       </p>
     );
@@ -49,7 +49,7 @@ export function CrdBuilder() {
 
   if (!kinds) {
     return (
-      <p className="border border-fd-border bg-fd-card p-4 text-sm text-fd-muted-foreground">
+      <p className="border border-(--rule-strong) px-6 py-10 text-[13px] text-fd-muted-foreground">
         Loading CRDs...
       </p>
     );
@@ -60,13 +60,13 @@ export function CrdBuilder() {
       <div className="flex flex-col gap-1">
         <label
           htmlFor="crd-kind"
-          className="font-mono text-[0.7rem] font-semibold uppercase tracking-wide text-fd-muted-foreground"
+          className="text-[12px] font-semibold uppercase tracking-[0.14em] text-fd-muted-foreground"
         >
           Resource kind
         </label>
         <select
           id="crd-kind"
-          className="w-full max-w-xs border border-fd-border bg-fd-card px-2.5 py-1.5 text-sm text-fd-foreground outline-none transition-colors focus:border-fd-primary sm:max-w-sm"
+          className="w-full max-w-xs border border-(--rule-strong) bg-(--ground-sunk) px-3 py-2 text-[15px] text-fd-foreground outline-none focus:border-(--accent) sm:max-w-sm"
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
         >

@@ -12,33 +12,29 @@ checksum = "sha256:659c367ef49df7741749a2ad240b007d7df51b4f210505a78543deafb001e
 url = "https://conda.anaconda.org/conda-forge/linux-64/binutils_impl_linux-64-2.46.1-default_hfdba357_102.conda"
 checksum = "sha256:fb7bf36984a37ce7e4714d1d1da0bd0e3bfc679520f5cdc184afc676fd4b5da2"
 
-[conda-packages.linux-x64."clang-22-22.1.8-default_h9692865_3"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/clang-22-22.1.8-default_h9692865_3.conda"
-checksum = "sha256:09c8ad191c20d536b992b8281a6f21a65dd0e3f25413950e69d1adc50940581c"
+[conda-packages.linux-x64."clang-23-23.1.2-default_hfab3205_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/clang-23-23.1.2-default_hfab3205_0.conda"
+checksum = "sha256:86a6c2e8d77a1c07905623c4decaa2304a27a55ea7fa39a2ce338f911104f799"
 
-[conda-packages.linux-x64."clang_impl_linux-64-22.1.8-default_h6d37801_3"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/clang_impl_linux-64-22.1.8-default_h6d37801_3.conda"
-checksum = "sha256:eb1c68356c7366343fed23d897e54678da7d3b25836de8f280ae1cd0aa5aa8b5"
+[conda-packages.linux-x64."clang_impl_linux-64-23.1.2-default_he0f7a93_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/clang_impl_linux-64-23.1.2-default_he0f7a93_0.conda"
+checksum = "sha256:c88b4669209d93a93738ba7a1c59518a2cbefd9498dbfc873e9f5ce2fbc7991a"
 
-[conda-packages.linux-x64."compiler-rt-22.1.8-ha770c72_1"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/compiler-rt-22.1.8-ha770c72_1.conda"
-checksum = "sha256:7ea97a24a9847f7ec91b959c405a9bc5b9c28d4078175dce2d2f8a2014f74969"
+[conda-packages.linux-x64."compiler-rt-23.1.2-ha770c72_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/compiler-rt-23.1.2-ha770c72_0.conda"
+checksum = "sha256:11b5fcbfdc088c370c5120ac758593905aca71ac2b511912fc60d9e6595bb709"
 
-[conda-packages.linux-x64."compiler-rt22-22.1.8-hb700be7_1"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/compiler-rt22-22.1.8-hb700be7_1.conda"
-checksum = "sha256:34c62d3aa085945afa94930621793bccc18c47ce9657a5ef9423f76cf8e9373e"
+[conda-packages.linux-x64."compiler-rt23-23.1.2-h7148c6a_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/compiler-rt23-23.1.2-h7148c6a_0.conda"
+checksum = "sha256:3b59755649409e7d61a92233ba1be11880c1d7071796ef8713f4f8be2f3aa645"
 
-[conda-packages.linux-x64."compiler-rt22_linux-64-22.1.8-hffcefe0_1"]
-url = "https://conda.anaconda.org/conda-forge/noarch/compiler-rt22_linux-64-22.1.8-hffcefe0_1.conda"
-checksum = "sha256:c6cd0a10b9b161b0b075a8a78083b23a49d87f0e383d2c199ce11a586fc7d779"
+[conda-packages.linux-x64."compiler-rt23_linux-64-23.1.2-h0e38de2_0"]
+url = "https://conda.anaconda.org/conda-forge/noarch/compiler-rt23_linux-64-23.1.2-h0e38de2_0.conda"
+checksum = "sha256:8ab3d19a6d833a9d98a559d40a2e9f07eea353d5501c2610417f53102391bf8c"
 
-[conda-packages.linux-x64."compiler-rt_linux-64-22.1.8-ha770c72_1"]
-url = "https://conda.anaconda.org/conda-forge/noarch/compiler-rt_linux-64-22.1.8-ha770c72_1.conda"
-checksum = "sha256:81bb0835e05ef4c60022aa594e16a870bbf39ed4d4180ef87191f56b795cd86c"
-
-[conda-packages.linux-x64."icu-78.3-h33c6efd_1"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/icu-78.3-h33c6efd_1.conda"
-checksum = "sha256:c054e32ac4c14426006edf9d01981dc564559b4065af7c13c26be904e1babf04"
+[conda-packages.linux-x64."compiler-rt_linux-64-23.1.2-ha770c72_0"]
+url = "https://conda.anaconda.org/conda-forge/noarch/compiler-rt_linux-64-23.1.2-ha770c72_0.conda"
+checksum = "sha256:1365a5fff5c9463b09586ed4cd0b03864083fde070bbbe5320d4ddf70d648ebe"
 
 [conda-packages.linux-x64."kernel-headers_linux-64-6.12.0-he073ed8_6"]
 url = "https://conda.anaconda.org/conda-forge/noarch/kernel-headers_linux-64-6.12.0-he073ed8_6.conda"
@@ -48,57 +44,57 @@ checksum = "sha256:73b11f31db6c9ebe63d900334fa4f46859aa1ddd8f37cfa5f25a043e0a592
 url = "https://conda.anaconda.org/conda-forge/linux-64/ld_impl_linux-64-2.46.1-default_hbd61a6d_102.conda"
 checksum = "sha256:27d83f1188cd19bcb7754a078b3fa7f4cfb8527f8eb2fde54dd01fc529d1adec"
 
-[conda-packages.linux-x64."libclang-cpp22.1-22.1.8-default_h6c227bf_3"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libclang-cpp22.1-22.1.8-default_h6c227bf_3.conda"
-checksum = "sha256:ccb8bd0a8f2d57675b6a60dabb0cc8becb35c2748ac4ec920d7f7625b93c16d8"
+[conda-packages.linux-x64."libclang-cpp23.1-23.1.2-default_h0acdd01_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libclang-cpp23.1-23.1.2-default_h0acdd01_0.conda"
+checksum = "sha256:49156155d4f0ab4f479bc96d24db2c48c0b6bdb5659135c194f03c289ae2c523"
 
-[conda-packages.linux-x64."libcompiler-rt-22.1.8-hb700be7_1"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libcompiler-rt-22.1.8-hb700be7_1.conda"
-checksum = "sha256:da7b61922007ff1cfe015ec5156084f2b12f68f554ea8d737689c1dc898f24c0"
+[conda-packages.linux-x64."libcompiler-rt-23.1.2-h7148c6a_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libcompiler-rt-23.1.2-h7148c6a_0.conda"
+checksum = "sha256:2b0e6b377b1a429db6a86cad50a07e856a2c6ef748d740a3d59722677376eefd"
 
-[conda-packages.linux-x64."libgcc-15.2.0-he0feb66_19"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libgcc-15.2.0-he0feb66_19.conda"
-checksum = "sha256:8e0a3b5e41272e5678499b5dfc4cddb673f9e935de01eb0767ce857001229f46"
+[conda-packages.linux-x64."libgcc-16.2.0-ha9f2e26_7"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libgcc-16.2.0-ha9f2e26_7.conda"
+checksum = "sha256:e031634c3a928f9594eba868bc46ef5230d6571a364a0c63215b06c4563bfcea"
 
-[conda-packages.linux-x64."libgcc-devel_linux-64-15.2.0-hcc6f6b0_119"]
-url = "https://conda.anaconda.org/conda-forge/noarch/libgcc-devel_linux-64-15.2.0-hcc6f6b0_119.conda"
-checksum = "sha256:38a557eba305468ac1f90ac85e50d8defd76141cb0b8a43b2fc1aca71dd5d5f2"
+[conda-packages.linux-x64."libgcc-devel_linux-64-16.2.0-he3ce08f_107"]
+url = "https://conda.anaconda.org/conda-forge/noarch/libgcc-devel_linux-64-16.2.0-he3ce08f_107.conda"
+checksum = "sha256:f1e7465f6b53f89b325e441c30ad7b19407b051eca556b6d0386ec05513b8e76"
 
-[conda-packages.linux-x64."libgomp-15.2.0-he0feb66_19"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libgomp-15.2.0-he0feb66_19.conda"
-checksum = "sha256:5abe4ab9d93f6c9757d654f1969ae2267d4505315c1f2f8fe705fd60af084f1b"
+[conda-packages.linux-x64."libgomp-16.2.0-he0feb66_7"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libgomp-16.2.0-he0feb66_7.conda"
+checksum = "sha256:92a0bb350c7be6a4eedcb4e111c60aefd176018e6b1c009a6e025dbe9bbcd758"
 
-[conda-packages.linux-x64."libiconv-1.18-h3b78370_2"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libiconv-1.18-h3b78370_2.conda"
-checksum = "sha256:c467851a7312765447155e071752d7bf9bf44d610a5687e32706f480aad2833f"
+[conda-packages.linux-x64."libiconv-1.18-h0cb94f2_3"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libiconv-1.18-h0cb94f2_3.conda"
+checksum = "sha256:f943117edb9cd4d9c61cc972eee5a34291dc55ea7a6e9e38da104995841cbcb6"
 
-[conda-packages.linux-x64."libllvm22-22.1.8-hf7376ad_1"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libllvm22-22.1.8-hf7376ad_1.conda"
-checksum = "sha256:e9b5f301d6b001a9b8ce782157f56b75c92c4fbc9eba95dc6345c1139251d13b"
+[conda-packages.linux-x64."libllvm23-23.1.3-h474f4eb_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libllvm23-23.1.3-h474f4eb_0.conda"
+checksum = "sha256:7ce347e2da1502442d4df406101cfaf429927b7a9410badadd3f147d3cbf2d00"
 
-[conda-packages.linux-x64."liblzma-5.8.3-hb03c661_0"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/liblzma-5.8.3-hb03c661_0.conda"
-checksum = "sha256:ec30e52a3c1bf7d0425380a189d209a52baa03f22fb66dd3eb587acaa765bd6d"
+[conda-packages.linux-x64."liblzma-5.8.3-hb03c661_1"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/liblzma-5.8.3-hb03c661_1.conda"
+checksum = "sha256:9787df8c22a59c9a70d3e5a10db9ad663485e75e9ccc3f09bd092cb7b95e0dab"
 
-[conda-packages.linux-x64."libstdcxx-15.2.0-h934c35e_19"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-15.2.0-h934c35e_19.conda"
-checksum = "sha256:dff1058c76ec6b8759e41cefa2508162d00e4a5e6721aa68ec3fd10094e702dc"
+[conda-packages.linux-x64."libstdcxx-16.2.0-h934c35e_7"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-16.2.0-h934c35e_7.conda"
+checksum = "sha256:fa7018298629fc429971fffd6ecba3d27a7b02e4e890d6a93ea01ffebe8cb745"
 
-[conda-packages.linux-x64."libxml2-16-2.15.3-hca6bf5a_0"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libxml2-16-2.15.3-hca6bf5a_0.conda"
-checksum = "sha256:3d44f737c5ae52d5af32682cc1530df433f401f8e58a7533926536244127572a"
+[conda-packages.linux-x64."libxml2-16-2.15.4-hbdfff7e_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libxml2-16-2.15.4-hbdfff7e_0.conda"
+checksum = "sha256:b6f96287c408269f5067bb4f7a61693ff5c856152902362964d9807152b9c146"
 
-[conda-packages.linux-x64."libxml2-2.15.3-h49c6c72_0"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libxml2-2.15.3-h49c6c72_0.conda"
-checksum = "sha256:3bc5551720c58591f6ea1146f7d1539c734ed1c40e7b9f5cb8cb7e900c509aba"
+[conda-packages.linux-x64."libxml2-2.15.4-ha7a5771_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libxml2-2.15.4-ha7a5771_0.conda"
+checksum = "sha256:db52c038430a508656530fc7b5650ae3e2629875693a6a256cc48dec203f8bfe"
 
-[conda-packages.linux-x64."libzlib-1.3.2-h25fd6f3_2"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_2.conda"
-checksum = "sha256:55044c403570f0dc26e6364de4dc5368e5f3fc7ff103e867c487e2b5ab2bcda9"
+[conda-packages.linux-x64."libzlib-1.3.2-h25fd6f3_3"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/libzlib-1.3.2-h25fd6f3_3.conda"
+checksum = "sha256:eb8a0db0aa570124f7d2a93d7c7f596e3390df5e047818d873baad32985fc736"
 
-[conda-packages.linux-x64."llvm-openmp-22.1.8-h4922eb0_0"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/llvm-openmp-22.1.8-h4922eb0_0.conda"
-checksum = "sha256:a37aba21b85800af1e7c5b04ba76abab96b6e591eedf99dc6e4df83b0fefd7a5"
+[conda-packages.linux-x64."llvm-openmp-23.1.3-h7148c6a_0"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/llvm-openmp-23.1.3-h7148c6a_0.conda"
+checksum = "sha256:684b08c8a127ed0c45e6ab137df7ee5c8fc76643099b62d97fc1575de6f4e29e"
 
 [conda-packages.linux-x64."sysroot_linux-64-2.39-hc4b9eeb_6"]
 url = "https://conda.anaconda.org/conda-forge/noarch/sysroot_linux-64-2.39-hc4b9eeb_6.conda"
@@ -108,9 +104,9 @@ checksum = "sha256:7d235e4337f122f3439d0196e1c1c6e715a5b88fcbf24f944510186c84168
 url = "https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda"
 checksum = "sha256:b928c30ddcb0e3f544c6eade8352737e6e610e263276b90232db6a578ef899d8"
 
-[conda-packages.linux-x64."zstd-1.5.7-hb78ec9c_6"]
-url = "https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda"
-checksum = "sha256:68f0206ca6e98fea941e5717cec780ed2873ffabc0e1ed34428c061e2c6268c7"
+[conda-packages.linux-x64."zstd-1.5.7-hb78ec9c_7"]
+url = "https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_7.conda"
+checksum = "sha256:47d682b9f6d6ec9eb1a6e6c3e75ea6273e899e78fb7fc59f81d39745009fbc60"
 
 [[tools.actionlint]]
 version = "1.7.12"
@@ -131,54 +127,53 @@ checksum = "sha256:6770be17296ef36b656ad84e52b043007fb9a47ba0445c224097323291b1b
 url = "https://dl.k8s.io/v1.36.2/bin/linux/amd64/kube-apiserver"
 
 [[tools.clang]]
-version = "22.1.8"
+version = "23.1.2"
 backend = "conda:clang"
 
 [tools.clang.options]
 channel = "conda-forge"
 
 [tools.clang."platforms.linux-x64"]
-checksum = "sha256:e7bb173247bf3c4a7cab03797607433ef2dfb47553b1471056b81491f7e8e50a"
-url = "https://conda.anaconda.org/conda-forge/linux-64/clang-22.1.8-default_cfg_h361ecea_3.conda"
+checksum = "sha256:ebf8acd24c828fffb3cd66580e534abdd62894a596c60c9f4cbcfb8f899f8627"
+url = "https://conda.anaconda.org/conda-forge/linux-64/clang-23.1.2-default_cfg_hc1abcf6_0.conda"
 conda_deps = [
-    "clang_impl_linux-64-22.1.8-default_h6d37801_3",
-    "llvm-openmp-22.1.8-h4922eb0_0",
-    "clang-22-22.1.8-default_h9692865_3",
-    "libzlib-1.3.2-h25fd6f3_2",
-    "libclang-cpp22.1-22.1.8-default_h6c227bf_3",
+    "clang_impl_linux-64-23.1.2-default_he0f7a93_0",
+    "clang-23-23.1.2-default_hfab3205_0",
+    "compiler-rt-23.1.2-ha770c72_0",
+    "compiler-rt_linux-64-23.1.2-ha770c72_0",
+    "libclang-cpp23.1-23.1.2-default_h0acdd01_0",
+    "compiler-rt23-23.1.2-h7148c6a_0",
+    "libcompiler-rt-23.1.2-h7148c6a_0",
+    "compiler-rt23_linux-64-23.1.2-h0e38de2_0",
+    "llvm-openmp-23.1.3-h7148c6a_0",
     "binutils-2.46.1-default_h4852527_102",
-    "libgcc-devel_linux-64-15.2.0-hcc6f6b0_119",
+    "libgcc-devel_linux-64-16.2.0-he3ce08f_107",
     "sysroot_linux-64-2.39-hc4b9eeb_6",
     "kernel-headers_linux-64-6.12.0-he073ed8_6",
-    "libstdcxx-15.2.0-h934c35e_19",
-    "libgcc-15.2.0-he0feb66_19",
-    "compiler-rt22-22.1.8-hb700be7_1",
-    "compiler-rt-22.1.8-ha770c72_1",
-    "libcompiler-rt-22.1.8-hb700be7_1",
-    "libllvm22-22.1.8-hf7376ad_1",
-    "compiler-rt_linux-64-22.1.8-ha770c72_1",
-    "compiler-rt22_linux-64-22.1.8-hffcefe0_1",
+    "libstdcxx-16.2.0-h934c35e_7",
+    "libgcc-16.2.0-ha9f2e26_7",
+    "libzlib-1.3.2-h25fd6f3_3",
+    "libxml2-16-2.15.4-hbdfff7e_0",
+    "libxml2-2.15.4-ha7a5771_0",
+    "libllvm23-23.1.3-h474f4eb_0",
+    "zstd-1.5.7-hb78ec9c_7",
     "binutils_impl_linux-64-2.46.1-default_hfdba357_102",
     "ld_impl_linux-64-2.46.1-default_hbd61a6d_102",
-    "libxml2-2.15.3-h49c6c72_0",
-    "libxml2-16-2.15.3-hca6bf5a_0",
-    "liblzma-5.8.3-hb03c661_0",
-    "zstd-1.5.7-hb78ec9c_6",
     "tzdata-2026c-h151e31d_0",
     "_openmp_mutex-4.5-20_gnu",
-    "libgomp-15.2.0-he0feb66_19",
-    "icu-78.3-h33c6efd_1",
-    "libiconv-1.18-h3b78370_2",
+    "libgomp-16.2.0-he0feb66_7",
+    "liblzma-5.8.3-hb03c661_1",
+    "libiconv-1.18-h0cb94f2_3",
 ]
 
 [[tools.claude]]
-version = "2.1.217"
+version = "2.1.292"
 backend = "aqua:anthropics/claude-code"
 
 [tools.claude."platforms.linux-x64"]
-checksum = "sha256:31af12d3b7cc8f2d3854bbf11e4283068b5a946d143160c0f9fa8b7e9c907d40"
-url = "https://github.com/anthropics/claude-code/releases/download/v2.1.217/claude-linux-x64.tar.gz"
-url_api = "https://api.github.com/repos/anthropics/claude-code/releases/assets/485093155"
+checksum = "sha256:7045cd790b2c7b8cc6169d061aec7274d37a6a0d8ed318a6ff8868262433b1f9"
+url = "https://github.com/anthropics/claude-code/releases/download/v2.1.292/claude-linux-x64.tar.gz"
+url_api = "https://api.github.com/repos/anthropics/claude-code/releases/assets/616117246"
 
 [[tools.cocogitto]]
 version = "7.0.0"
@@ -208,66 +203,67 @@ url = "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8
 url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332058"
 
 [[tools.go]]
-version = "1.26.5"
+version = "1.27.1"
 backend = "core:go"
 
 [tools.go."platforms.linux-x64"]
-checksum = "sha256:5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053"
-url = "https://dl.google.com/go/go1.26.5.linux-amd64.tar.gz"
+checksum = "sha256:63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445"
+url = "https://dl.google.com/go/go1.27.1.linux-amd64.tar.gz"
 
 [[tools.hadolint]]
-version = "2.14.0"
+version = "2.15.1"
 backend = "aqua:hadolint/hadolint"
 
 [tools.hadolint."platforms.linux-x64"]
-checksum = "sha256:6bf226944684f56c84dd014e8b979d27425c0148f61b3bd99bcc6f39e9dc5a47"
-url = "https://github.com/hadolint/hadolint/releases/download/v2.14.0/hadolint-linux-x86_64"
-url_api = "https://api.github.com/repos/hadolint/hadolint/releases/assets/295944080"
+checksum = "sha256:c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507"
+url = "https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-linux-x86_64"
+url_api = "https://api.github.com/repos/hadolint/hadolint/releases/assets/496546506"
+provenance = "github-attestations"
 
 [[tools.helm]]
-version = "4.2.3"
+version = "4.3.0"
 backend = "aqua:helm/helm"
 
 [tools.helm."platforms.linux-x64"]
-checksum = "sha256:e9b88b4ee95b18c706839c28d3a0220e5bc470e9cd9262410c90793c45ff8b7c"
-url = "https://get.helm.sh/helm-v4.2.3-linux-amd64.tar.gz"
+checksum = "sha256:86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb"
+url = "https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz"
 
 [[tools.kind]]
-version = "0.32.0"
+version = "0.33.0"
 backend = "aqua:kubernetes-sigs/kind"
 
 [tools.kind."platforms.linux-x64"]
-checksum = "sha256:50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54"
-url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-amd64"
-url_api = "https://api.github.com/repos/kubernetes-sigs/kind/releases/assets/436442498"
+checksum = "sha256:aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64"
+url_api = "https://api.github.com/repos/kubernetes-sigs/kind/releases/assets/531396433"
 
 [[tools.kubectl]]
-version = "1.36.2"
+version = "1.37.1"
 backend = "aqua:kubernetes/kubernetes/kubectl"
 
 [tools.kubectl."platforms.linux-x64"]
-checksum = "sha256:1e9045ec32bea85da43de85f0065358529ea7c7a152eca78154fba5b58c27d82"
-url = "https://dl.k8s.io/v1.36.2/bin/linux/amd64/kubectl"
+checksum = "sha256:65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8"
+url = "https://dl.k8s.io/v1.37.1/bin/linux/amd64/kubectl"
 
 [[tools.node]]
-version = "24.18.0"
+version = "24.21.0"
 backend = "core:node"
 
 [tools.node."platforms.linux-x64"]
-checksum = "sha256:783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8"
-url = "https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-x64.tar.gz"
+checksum = "sha256:6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff"
+url = "https://nodejs.org/dist/v24.21.0/node-v24.21.0-linux-x64.tar.gz"
 
 [[tools.rtk]]
-version = "0.43.0"
+version = "0.51.0"
 backend = "aqua:rtk-ai/rtk"
 
 [tools.rtk."platforms.linux-x64"]
-checksum = "sha256:ff8a1e7766496e175291a85aeca1dc97c9ff6df33e51e5893d1fbc78fea2a609"
-url = "https://github.com/rtk-ai/rtk/releases/download/v0.43.0/rtk-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/rtk-ai/rtk/releases/assets/460115882"
+checksum = "sha256:5028d3b19a8f0990d30fec9fbb07e32782bc5698e618fb1861aad8a9ccba4eb5"
+url = "https://github.com/rtk-ai/rtk/releases/download/v0.51.0/rtk-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/rtk-ai/rtk/releases/assets/605695141"
 
 [[tools.rust]]
-version = "1.98.0"
+version = "1.99.0"
 backend = "core:rust"
 
 [tools.rust.options]
@@ -275,14 +271,14 @@ components = "clippy,llvm-tools,rust-src,rustfmt"
 profile = "default"
 
 [[tools.task]]
-version = "3.52.0"
+version = "3.54.0"
 backend = "aqua:go-task/task"
 
 [tools.task."platforms.linux-x64"]
-checksum = "sha256:02c679ffae53dca791804847d78b31731615894e292948397c971c87ac9e95bd"
-url = "https://github.com/go-task/task/releases/download/v3.52.0/task_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/go-task/task/releases/assets/464613330"
+checksum = "sha256:680859dbb4d881a9c72d4d9a8f510825450849af8567deacd7302c01124416fb"
+url = "https://github.com/go-task/task/releases/download/v3.54.0/task_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090073"
 
 [[tools.yarn]]
-version = "4.18.0"
+version = "4.18.1"
 backend = "vfox:mise-plugins/vfox-yarn"
