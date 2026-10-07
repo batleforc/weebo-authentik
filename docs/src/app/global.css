@@ -11,149 +11,206 @@ html > body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
-/* ============================================================================
-   MONOFOLIO THEME — Maxime Leriche (Batleforc), Cyberpunk x Steampunk
-   Dark-only palette: near-black base, crimson primary, copper accent,
-   sharp 2px corners. Overrides fumadocs' default token values in place so
-   every component (nav, sidebar, cards, search, TOC) inherits it for free.
-   ============================================================================ */
-:root,
+/* ═══════════════════════════════════════════════════════════════════════════
+   BatleHub design system — ported onto Fumadocs. The single place a colour,
+   step, size or duration is decided. Derived from batlehub/batlehub DESIGN.md
+   and its `ui/src/design/tokens.css`; adapted for a docs site per RFC 0005
+   ("One documentation tree, wearing the design system").
+
+   ONE PALETTE, TWO GROUNDS. Paper is this world's home ground — the Emigre
+   specimen board is ink on paper — and near-black is the adaptation the use
+   scene earned (dark room, one tab among twenty, opened in anger). Light is
+   not a filter over dark, and dark is not a filter over light: both are
+   authored. Light lives on `:root`, dark on `.dark` (Fumadocs/next-themes
+   uses the class strategy; functionally the Stored-Preference Rule holds —
+   system|light|dark is stored, the resolved value renders, resolved before
+   first paint).
+
+   DIRECTION, NOT LIGHTNESS, is what the neutral names mean. `--ground-raised`
+   moves toward the ink pole and `--ground-sunk` away from it, so on near-black
+   raised is *lighter* (L .155 over L .07) and on paper raised is *darker*
+   (L .935 under L .97). A token is named for the job it does.
+
+   EVERY COLOUR IS AUTHORED IN-GAMUT FOR sRGB. Monofolio's source values are
+   kept as provenance comments, never as the computed value: a token outside
+   the gamut cannot carry a contrast guarantee, because engines disagree on
+   what they paint. Ratios quoted below are computed, asserted in batlehub's
+   tokens.test.ts for both renditions.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Light rendition (paper — the home ground) ─────────────────────────── */
+  --ground: oklch(0.97 0.008 18);
+  --ground-raised: oklch(0.935 0.01 18); /* 1.11:1 — confirmation, not elevation */
+  --ground-sunk: oklch(0.99 0.004 18);
+
+  --ink: oklch(0.2 0.022 20); /* 16.64:1 */
+  --ink-dim: oklch(0.44 0.04 25); /* 7.24:1 (6.52:1 on raised) */
+  --rule-soft: oklch(0.8 0.02 25); /* separators only; not contrast-carrying */
+  --rule-strong: oklch(0.62 0.05 25); /* 3.41:1 — every interactive boundary */
+
+  /* Provenance: Monofolio light --primary oklch(0.52 0.24 25), OUTSIDE sRGB
+     (max chroma 0.2108 at this L/H). The In-Gamut Rule's second case. */
+  --accent: oklch(0.52 0.21 25); /* 5.63:1 */
+  --accent-ink: oklch(0.99 0.004 18); /* 5.97:1 on --accent */
+  --copper: oklch(0.5 0.12 52); /* 5.74:1 */
+  --focus: oklch(0.55 0.11 85); /* 4.48:1 */
+
+  /* ── Rendition-independent ─────────────────────────────────────────────── */
+
+  /* Spacing. Every padding, gap and margin is one of these: 4/8/12/16/24/40. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 40px;
+
+  /* The two faces. Loaded via next/font in layout.tsx, which self-hosts them
+     at build time — no third-party request at paint (DESIGN.md Typography). */
+  --face-display: var(--font-silkscreen), monospace;
+  --face-text: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* Two ramps, because the display face has a constraint the text face does
+     not: Silkscreen is drawn on an 8px em, so its square pixel only stays
+     square at integer multiples. --t-display is therefore discrete, never
+     clamp() — 10vw lands on the grid at only a handful of viewport widths. */
+  --t-px-sm: 16px; /* 2× */
+  --t-px-md: 24px; /* 3× */
+  --t-display: 40px; /* 5× below 640px; the hero's "weebo-authentik" overflows higher steps */
+
+  --t-head: 20px;
+  --t-sub: 16px;
+  --t-row: 15px;
+  --t-body: 13px;
+  --t-meta: 12px; /* floor; nothing smaller is painted */
+
+  /* Zero radius everywhere. The world has no rounded corner. */
+  --radius: 0;
+
+  /* One authored motion: a row resolving coarse → crisp. */
+  --resolve: 520ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Fumadocs contract, bridged onto the design tokens (light) ─────────── */
+  --color-fd-background: var(--ground);
+  --color-fd-foreground: var(--ink);
+  --color-fd-muted: var(--ground-raised);
+  --color-fd-muted-foreground: var(--ink-dim);
+  --color-fd-popover: var(--ground-sunk);
+  --color-fd-popover-foreground: var(--ink);
+  --color-fd-card: var(--ground-sunk);
+  --color-fd-card-foreground: var(--ink);
+  --color-fd-border: var(--rule-strong);
+  --color-fd-primary: var(--accent);
+  --color-fd-primary-foreground: var(--accent-ink);
+  --color-fd-secondary: var(--ground-raised);
+  --color-fd-secondary-foreground: var(--ink);
+  --color-fd-accent: var(--ground-raised);
+  --color-fd-accent-foreground: var(--ink);
+  --color-fd-ring: var(--focus);
+  --color-fd-overlay: oklch(0.2 0.022 20 / 25%);
+
+  /* Square corners law — override Fumadocs' radius scale in place. */
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+}
+
 .dark {
-  color-scheme: dark;
+  /* ── Dark rendition (near-black — the adaptation the use scene earned) ─── */
+  --ground: oklch(0.07 0.018 18);
+  --ground-raised: oklch(0.155 0.022 18); /* 1.06:1 — confirmation, not elevation */
+  --ground-sunk: oklch(0.045 0.014 18); /* 1.005:1 — likewise */
 
-  --font-sans: var(--font-ibm-plex-sans);
-  --font-mono: var(--font-jetbrains-mono);
+  --ink: oklch(0.93 0.018 25); /* 16.88:1 */
+  --ink-dim: oklch(0.62 0.045 30); /* 5.62:1 (5.28:1 on raised) */
+  --rule-soft: oklch(0.34 0.03 25); /* separators only; not contrast-carrying */
+  --rule-strong: oklch(0.52 0.06 25); /* 3.68:1 — every interactive boundary */
 
-  --radius-xs: 1px;
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 4px;
-  --radius-2xl: 8px;
+  /* Provenance: Monofolio --primary oklch(0.65 0.26 25), which is OUTSIDE sRGB
+     (max chroma 0.2359 at this L/H). Clamped, and it measures better clamped. */
+  --accent: oklch(0.65 0.235 25); /* 5.76:1 */
+  --accent-ink: oklch(0.1 0.02 18); /* 5.69:1 on --accent */
+  --copper: oklch(0.72 0.14 52); /* 8.06:1 */
+  --focus: oklch(0.85 0.16 85); /* 13.07:1 */
 
-  --color-fd-background: oklch(0.07 0.018 18);
-  --color-fd-foreground: oklch(0.93 0.018 25);
-  --color-fd-muted: oklch(0.13 0.016 18);
-  --color-fd-muted-foreground: oklch(0.58 0.04 30);
-  --color-fd-popover: oklch(0.1 0.018 18);
-  --color-fd-popover-foreground: oklch(0.93 0.018 25);
-  --color-fd-card: oklch(0.1 0.018 18);
-  --color-fd-card-foreground: oklch(0.93 0.018 25);
-  --color-fd-border: oklch(0.65 0.26 25 / 22%);
-  --color-fd-primary: oklch(0.65 0.26 25);
-  --color-fd-primary-foreground: oklch(0.97 0.01 0);
-  --color-fd-secondary: oklch(0.14 0.022 18);
-  --color-fd-secondary-foreground: oklch(0.93 0.018 25);
-  --color-fd-accent: oklch(0.72 0.14 52 / 16%);
-  --color-fd-accent-foreground: oklch(0.93 0.018 25);
-  --color-fd-ring: oklch(0.65 0.26 25 / 45%);
   --color-fd-overlay: oklch(0.05 0.01 18 / 60%);
 }
 
-.dark #nd-sidebar {
-  --color-fd-muted: oklch(0.13 0.016 18);
-  --color-fd-secondary: oklch(0.14 0.022 18);
-  --color-fd-muted-foreground: oklch(0.58 0.04 30);
+@media (min-width: 640px) {
+  :root {
+    --t-display: 72px; /* 9× */
+  }
 }
 
 body {
   -webkit-font-smoothing: antialiased;
-  background-image:
-    linear-gradient(oklch(0.65 0.26 25 / 6%) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.65 0.26 25 / 6%) 1px, transparent 1px);
-  background-size: 48px 48px;
 }
 
-/* ---- Signature effect utilities, reusable in page content ---------------- */
-
-.cyber-grid-bg {
-  background-image:
-    linear-gradient(oklch(0.65 0.26 25 / 6%) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.65 0.26 25 / 6%) 1px, transparent 1px);
-  background-size: 48px 48px;
+/* Zero radius everywhere — the law. Setting the --radius-* scale to 0 squares
+   every component that reads the token, but ported Fumadocs/Tailwind pieces
+   arrive with *literal* radii (inline `code` at 5px, `rounded-full` pills, the
+   <Steps> bullet, the scrollbar thumb) that bypass it. DESIGN.md: "Zero radius
+   everywhere … including ported components that arrive with 2px." This is the
+   one !important the theme needs — the same law RFC 0005 states once over every
+   box, because the default theme's rules outrank a utility-class override. */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
 }
 
-.cyber-text-glow {
-  text-shadow:
-    0 0 6px oklch(0.65 0.26 25 / 65%),
-    0 0 22px oklch(0.65 0.26 25 / 30%);
+/* ── Amber focus ring on everything focusable ────────────────────────────────
+   2px solid, 2px offset, in both renditions. Focus is never suppressed, never
+   replaced by a colour change, never inherited from the browser default. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
-.cyber-glow {
-  box-shadow:
-    0 0 6px oklch(0.65 0.26 25 / 65%),
-    0 0 22px oklch(0.65 0.26 25 / 30%);
+/* ── Typography roles ────────────────────────────────────────────────────────
+   Silkscreen (the display face) carries headings at the pixel ramp; JetBrains
+   Mono carries every fact. Prose takes the Reading role — 16px / line-height
+   1.7 / 68ch — the one role authored for reading for minutes, not scanning. */
+#nd-page :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--face-display);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
 }
 
-.steam-glow {
-  box-shadow:
-    0 0 6px oklch(0.72 0.14 52 / 60%),
-    0 0 22px oklch(0.72 0.14 52 / 25%);
+#nd-page p,
+#nd-page li {
+  font-family: var(--face-text);
+  font-size: var(--t-sub);
+  line-height: 1.7;
 }
 
-.glitch {
-  animation: glitch-flicker 6s infinite;
+#nd-page .prose {
+  max-width: 68ch;
 }
 
-@keyframes glitch-flicker {
-  0%,
-  90%,
-  100% {
-    text-shadow:
-      0 0 6px oklch(0.65 0.26 25 / 65%),
-      0 0 22px oklch(0.65 0.26 25 / 30%);
-    opacity: 1;
-  }
-  92% {
-    text-shadow: none;
-    opacity: 0.85;
-    clip-path: inset(20% 0 30% 0);
-  }
-  93% {
-    text-shadow:
-      0 0 6px oklch(0.65 0.26 25 / 65%),
-      0 0 22px oklch(0.65 0.26 25 / 30%);
-    opacity: 1;
-    clip-path: none;
-  }
-  95% {
-    text-shadow: none;
-    opacity: 0.9;
-    clip-path: inset(60% 0 10% 0);
-  }
-  96% {
-    text-shadow:
-      0 0 6px oklch(0.65 0.26 25 / 65%),
-      0 0 22px oklch(0.65 0.26 25 / 30%);
-    opacity: 1;
-    clip-path: none;
-  }
+/* Links in body text carry an underline at rest — crimson on dim ink is
+   1.28:1 against surrounding text, so hue alone cannot mark them. */
+#nd-page .prose a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-/* Shiki's `css-variables` theme (see CrdForm.tsx) mapped onto the
-   Monofolio palette — the live YAML preview is the only highlighted code
-   on this site that's generated at runtime rather than at MDX build
-   time, so it carries its own theme object instead of a bundled one. */
+/* ── Shiki css-variables theme (CrdForm live preview) mapped onto the tokens ──
+   The generated manifest is highlighted client-side from live form state, so
+   it can't go through the static MDX build-time pipeline the rest of the
+   site's code fences use; it carries its own theme object (yaml-theme.ts). */
 .yaml-preview {
-  --shiki-foreground: var(--color-fd-foreground);
+  --shiki-foreground: var(--ink);
   --shiki-background: transparent;
-  --shiki-token-keyword: var(--color-fd-primary);
-  --shiki-token-string: oklch(0.72 0.14 52);
-  --shiki-token-string-expression: oklch(0.72 0.14 52);
-  --shiki-token-constant: oklch(0.72 0.14 52);
-  --shiki-token-comment: var(--color-fd-muted-foreground);
-  --shiki-token-punctuation: var(--color-fd-muted-foreground);
-  --shiki-token-link: var(--color-fd-primary);
-}
-
-/* Docs prose section headings: mono + neon glow, matching the SectionTitle role */
-#nd-page h2 {
-  font-family: var(--font-mono);
-  text-shadow:
-    0 0 6px oklch(0.65 0.26 25 / 65%),
-    0 0 22px oklch(0.65 0.26 25 / 30%);
-}
-
-#nd-page :is(h1, h3, h4, h5, h6) {
-  font-family: var(--font-mono);
+  --shiki-token-keyword: var(--accent);
+  --shiki-token-string: var(--copper);
+  --shiki-token-string-expression: var(--copper);
+  --shiki-token-constant: var(--copper);
+  --shiki-token-comment: var(--ink-dim);
+  --shiki-token-punctuation: var(--ink-dim);
+  --shiki-token-link: var(--accent);
 }

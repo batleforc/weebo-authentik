@@ -1,0 +1,15 @@
+{
+  "title": "CRD reference",
+  "pages": [
+    "authentikinstance",
+    "authentiknamespacepolicy",
+    "authentikgroup",
+    "authentikuser",
+    "authentikapplication",
+    "authentikaccesspolicy",
+    "authentikscopemapping",
+    "authentikbrand",
+    "authentikflow",
+    "authentikoutpost"
+  ]
+}

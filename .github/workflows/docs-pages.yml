@@ -1,0 +1,63 @@
+name: Docs — GitHub Pages
+
+# Static-exports the Fumadocs site in docs/ and deploys it to GitHub Pages.
+# One-time manual prerequisite: repo Settings → Pages → Build and deployment →
+# Source must be set to "GitHub Actions" (it cannot be enabled from here).
+#
+# The published URL is https://batleforc.github.io/weebo-authentik/, so the
+# build bakes in NEXT_PUBLIC_BASE_PATH=/weebo-authentik — the same value
+# next.config.mjs and src/lib/shared.ts read (basePath/assetPrefix for the
+# export, and the runtime prefix for client fetches of public/ assets).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs-pages.yml"
+  workflow_dispatch:
+
+# Let a queued Pages deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_BASE_PATH: /weebo-authentik
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: ./.github/actions/setup-mise
+
+      # Only node is needed for the docs build — not the full rust/go/kind
+      # toolchain the operator's CI jobs pull in.
+      - name: Install Node (mise)
+        run: mise install node
+
+      - name: Install docs dependencies
+        run: mise exec -- npm ci --prefix docs
+
+      - name: Build static export
+        run: mise exec -- npm run build --prefix docs
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

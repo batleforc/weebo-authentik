@@ -7,9 +7,13 @@ import { defaultForSchema } from "@/lib/crd-form/schema-utils";
 import { buildManifest } from "@/lib/crd-form/manifest";
 import { yamlPreviewTheme } from "@/lib/crd-form/yaml-theme";
 import type { CrdSchema } from "@/lib/crd-form/types";
+import { basePath } from "@/lib/shared";
 
+// Square corners, a strong-rule border and a sunk-ground well — the design
+// system's input vocabulary. The crimson focus border is the aesthetic signal;
+// the amber ring (global :focus-visible in global.css) is the accessible one.
 const inputClass =
-  "w-full rounded-sm border border-fd-border bg-fd-background px-2.5 py-1.5 text-sm text-fd-foreground outline-none transition-colors focus:border-fd-primary focus:ring-1 focus:ring-fd-ring";
+  "w-full border border-fd-border bg-fd-card px-2.5 py-1.5 text-sm text-fd-foreground outline-none transition-colors focus:border-fd-primary";
 
 const labelClass = "font-mono text-[0.7rem] font-semibold uppercase tracking-wide text-fd-muted-foreground";
 
@@ -25,7 +29,7 @@ export function CrdForm({ kind }: { kind: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/crd-schemas/${kind.toLowerCase()}.schema.json`)
+    fetch(`${basePath}/crd-schemas/${kind.toLowerCase()}.schema.json`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<CrdSchema>;
@@ -62,7 +66,7 @@ export function CrdForm({ kind }: { kind: string }) {
 
   if (error) {
     return (
-      <p className="rounded-sm border border-fd-border bg-fd-card p-4 text-sm text-fd-muted-foreground">
+      <p className="border border-fd-border bg-fd-card p-4 text-sm text-fd-muted-foreground">
         Could not load the schema for <code>{kind}</code>: {error}
       </p>
     );
@@ -70,7 +74,7 @@ export function CrdForm({ kind }: { kind: string }) {
 
   if (!schema || specValue === null) {
     return (
-      <p className="rounded-sm border border-fd-border bg-fd-card p-4 text-sm text-fd-muted-foreground">
+      <p className="border border-fd-border bg-fd-card p-4 text-sm text-fd-muted-foreground">
         Loading form...
       </p>
     );
@@ -97,7 +101,7 @@ export function CrdForm({ kind }: { kind: string }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="flex flex-col gap-4">
-        <div className="rounded-sm border border-fd-border bg-fd-card/40 p-3">
+        <div className="border border-fd-border bg-fd-card/40 p-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label className={labelClass}>
@@ -146,21 +150,21 @@ export function CrdForm({ kind }: { kind: string }) {
             <button
               type="button"
               onClick={copyYaml}
-              className="cyber-glow rounded-sm border border-fd-primary/50 bg-fd-primary px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wide text-fd-primary-foreground transition-transform hover:-translate-y-px active:translate-y-0"
+              className="border border-fd-primary bg-fd-primary px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wide text-fd-primary-foreground transition-colors hover:bg-fd-primary/90"
             >
               {copied ? "copied" : "copy"}
             </button>
             <button
               type="button"
               onClick={downloadYaml}
-              className="rounded-sm border border-fd-border px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wide text-fd-muted-foreground transition-colors hover:border-fd-primary hover:text-fd-primary"
+              className="border border-fd-border px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wide text-fd-muted-foreground transition-colors hover:border-fd-primary hover:text-fd-primary"
             >
               download
             </button>
           </div>
         </div>
         {built && built.missing.length > 0 ? (
-          <div className="rounded-sm border border-fd-primary/40 bg-fd-primary/10 p-3 text-xs text-fd-foreground">
+          <div className="border border-fd-primary/40 bg-fd-primary/10 p-3 text-xs text-fd-foreground">
             <p className="mb-1 font-mono font-semibold uppercase tracking-wide text-fd-primary">
               Missing required fields
             </p>
@@ -173,7 +177,7 @@ export function CrdForm({ kind }: { kind: string }) {
             </ul>
           </div>
         ) : null}
-        <div className="yaml-preview max-h-[70vh] overflow-auto rounded-sm border border-fd-border text-xs [&_pre]:my-0">
+        <div className="yaml-preview max-h-[70vh] overflow-auto border border-fd-border text-xs [&_pre]:my-0">
           <DynamicCodeBlock
             lang="yaml"
             code={built?.yaml ?? ""}

@@ -8,10 +8,19 @@ applications, and access policies as native Kubernetes custom
 resources, with a namespace-scoped allow-list enforced via an admission
 webhook.
 
+## Get started
+
 <Cards>
-  <Card title="Install via Helm" href="/docs/guides/install" />
-  <Card title="Connect an AuthentikInstance" href="/docs/guides/connect-instance" />
-  <Card title="First application walkthrough" href="/docs/guides/first-application" />
-  <Card title="The allow-list" href="/docs/guides/allow-list" />
-  <Card title="CRD reference" href="/docs/crds/authentikapplication" />
+  <Card title="Install via Helm" description="Bring up the operator and its admission webhook." href="/docs/guides/install" />
+  <Card title="Connect an AuthentikInstance" description="Point the operator at your Authentik." href="/docs/guides/connect-instance" />
+  <Card title="First application walkthrough" description="Apply a CRD and watch it reconcile." href="/docs/guides/first-application" />
+</Cards>
+
+## Go further
+
+<Cards>
+  <Card title="The allow-list" description="How the namespace-scoped policy is enforced." href="/docs/guides/allow-list" />
+  <Card title="Build a manifest" description="Fill in a form to generate any CRD's YAML." href="/docs/guides/build-a-manifest" />
+  <Card title="Migrate from Terraform" description="Move off the Terraform module." href="/docs/guides/migrate-from-terraform" />
+  <Card title="CRD reference" description="Every field of every resource." href="/docs/crds/authentikinstance" />
 </Cards>

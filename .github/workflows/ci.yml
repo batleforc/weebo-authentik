@@ -178,3 +178,25 @@ jobs:
         with:
           context: .
           push: false
+
+  docs-build:
+    runs-on: ubuntu-latest
+    env:
+      # Build the way Pages publishes it, so a basePath-sensitive break (a
+      # missing asset prefix, a client fetch that ignores it) fails the PR
+      # rather than the deploy. No cargo/libclang needed — this is just Next.
+      NEXT_PUBLIC_BASE_PATH: /weebo-authentik
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: ./.github/actions/setup-mise
+
+      - name: Install Node (mise)
+        run: mise install node
+
+      - name: Install docs dependencies
+        run: mise exec -- npm ci --prefix docs
+
+      - name: Build static export
+        run: mise exec -- npm run build --prefix docs

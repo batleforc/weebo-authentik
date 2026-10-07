@@ -11,12 +11,12 @@ import {
 import type { FieldSchema } from "@/lib/crd-form/types";
 
 const inputClass =
-  "w-full rounded-sm border border-fd-border bg-fd-background px-2.5 py-1.5 text-sm text-fd-foreground outline-none transition-colors placeholder:text-fd-muted-foreground/60 focus:border-fd-primary focus:ring-1 focus:ring-fd-ring";
+  "w-full border border-fd-border bg-fd-card px-2.5 py-1.5 text-sm text-fd-foreground outline-none transition-colors placeholder:text-fd-muted-foreground/60 focus:border-fd-primary";
 
 const labelClass = "font-mono text-[0.7rem] font-semibold uppercase tracking-wide text-fd-muted-foreground";
 
 const ghostButtonClass =
-  "rounded-sm border border-fd-border px-2.5 py-1 font-mono text-xs text-fd-muted-foreground transition-colors hover:border-fd-primary hover:text-fd-primary";
+  "border border-fd-border px-2.5 py-1 font-mono text-xs text-fd-muted-foreground transition-colors hover:border-fd-primary hover:text-fd-primary";
 
 function firstParagraph(description?: string): string {
   if (!description) return "";
@@ -63,7 +63,7 @@ function FieldGroup({
   children: ReactNode;
 }) {
   return (
-    <fieldset className="flex flex-col gap-3 rounded-sm border border-fd-border bg-fd-card/40 p-3">
+    <fieldset className="flex flex-col gap-3 border border-fd-border bg-fd-card/40 p-3">
       <legend className="px-1">
         <FieldHeader name={name} required={required} description={description} />
       </legend>
@@ -279,7 +279,7 @@ function BooleanField({
         type="checkbox"
         checked={value}
         onChange={(e) => onChange(e.target.checked)}
-        className="size-4 rounded-sm border border-fd-border bg-fd-background accent-fd-primary"
+        className="size-4 border border-fd-border bg-fd-card accent-fd-primary"
       />
       <FieldHeader name={name} description={schema.description} />
     </label>
@@ -371,7 +371,7 @@ function ArrayField({
     <FieldGroup name={name} required={required} description={schema.description}>
       <div className="flex flex-col gap-3">
         {value.map((item, index) => (
-          <div key={index} className="flex items-start gap-2 rounded-sm border border-fd-border/60 p-2">
+          <div key={index} className="flex items-start gap-2 border border-fd-border/60 p-2">
             <div className="flex-1">
               <Field
                 name={`[${index}]`}

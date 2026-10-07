@@ -85,6 +85,11 @@ function renderFieldsTable(properties, required) {
 
 const files = fs.readdirSync(crdDir).filter((f) => f.endsWith(".yaml"));
 
+// Collected while emitting each CRD, then written as crd-schemas/index.json —
+// the kind picker on the standalone "Build a manifest" page reads this to list
+// every CRD without a second data source to keep in sync.
+const index = [];
+
 for (const file of files) {
   const crd = yaml.load(fs.readFileSync(path.join(crdDir, file), "utf8"));
   const kind = crd.spec.names.kind;
@@ -119,6 +124,15 @@ for (const file of files) {
     path.join(schemaOutDir, `${kindLower}.schema.json`),
     `${JSON.stringify(cleanSchema, null, 2)}\n`,
   );
+
+  index.push({ kind, singular: kindLower, scope });
 }
+
+// Stable order so the generated index doesn't churn the git diff run to run.
+index.sort((a, b) => a.kind.localeCompare(b.kind));
+fs.writeFileSync(
+  path.join(schemaOutDir, "index.json"),
+  `${JSON.stringify(index, null, 2)}\n`,
+);
 
 console.log(`Generated CRD docs + schemas for ${files.length} CRDs.`);

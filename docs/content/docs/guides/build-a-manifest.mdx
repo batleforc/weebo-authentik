@@ -1,0 +1,15 @@
+---
+title: Build a manifest
+description: Fill in a form to generate a ready-to-apply CRD manifest for any weebo-authentik resource.
+---
+
+Pick a resource kind, fill in the fields, and copy or download a
+ready-to-apply YAML manifest. Required fields are marked, and the live
+preview updates as you type. This is the same form embedded on each
+[CRD reference](/docs/crds/authentikinstance) page, with a picker in front of it.
+
+<CrdBuilder />
+
+The generated manifest is a starting point — the admission webhook and the
+reconciler still enforce the [allow-list](/docs/guides/allow-list) and every
+field constraint when you `kubectl apply` it.
