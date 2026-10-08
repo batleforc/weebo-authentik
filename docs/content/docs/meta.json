@@ -1,0 +1,19 @@
+{
+  "title": "weebo-authentik",
+  "pages": [
+    "index",
+    "---Getting started---",
+    "guides/install",
+    "guides/connect-instance",
+    "guides/first-application",
+    "---Guides---",
+    "guides/allow-list",
+    "guides/build-a-manifest",
+    "guides/migrate-from-terraform",
+    "guides/release",
+    "---Reference---",
+    "...crds",
+    "---Contributing---",
+    "guides/cutting-a-release"
+  ]
+}

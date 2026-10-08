@@ -1,0 +1,52 @@
+[
+  {
+    "kind": "AuthentikInstance",
+    "singular": "authentikinstance",
+    "scope": "Cluster"
+  },
+  {
+    "kind": "AuthentikNamespacePolicy",
+    "singular": "authentiknamespacepolicy",
+    "scope": "Cluster"
+  },
+  {
+    "kind": "AuthentikGroup",
+    "singular": "authentikgroup",
+    "scope": "Cluster"
+  },
+  {
+    "kind": "AuthentikUser",
+    "singular": "authentikuser",
+    "scope": "Cluster"
+  },
+  {
+    "kind": "AuthentikApplication",
+    "singular": "authentikapplication",
+    "scope": "Namespaced"
+  },
+  {
+    "kind": "AuthentikAccessPolicy",
+    "singular": "authentikaccesspolicy",
+    "scope": "Namespaced"
+  },
+  {
+    "kind": "AuthentikScopeMapping",
+    "singular": "authentikscopemapping",
+    "scope": "Cluster"
+  },
+  {
+    "kind": "AuthentikBrand",
+    "singular": "authentikbrand",
+    "scope": "Cluster"
+  },
+  {
+    "kind": "AuthentikFlow",
+    "singular": "authentikflow",
+    "scope": "Cluster"
+  },
+  {
+    "kind": "AuthentikOutpost",
+    "singular": "authentikoutpost",
+    "scope": "Cluster"
+  }
+]

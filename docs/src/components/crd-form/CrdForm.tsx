@@ -2,16 +2,30 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DynamicCodeBlock } from "fumadocs-ui/components/dynamic-codeblock";
+import { ChoicePicker } from "./ChoicePicker";
 import { ObjectFields } from "./fields";
 import { defaultForSchema } from "@/lib/crd-form/schema-utils";
 import { buildManifest } from "@/lib/crd-form/manifest";
 import { yamlPreviewTheme } from "@/lib/crd-form/yaml-theme";
+import {
+  applySelection,
+  CHOICES,
+  chosenFields,
+  defaultSelection,
+  hiddenKeys,
+  withChoiceRequirements,
+  withPreset,
+  type ChoiceGroup,
+} from "@/lib/crd-form/choices";
 import type { CrdSchema } from "@/lib/crd-form/types";
+import { basePath } from "@/lib/shared";
+
+const NO_CHOICES: ChoiceGroup[] = [];
 
 const inputClass =
-  "w-full rounded-sm border border-fd-border bg-fd-background px-2.5 py-1.5 text-sm text-fd-foreground outline-none transition-colors focus:border-fd-primary focus:ring-1 focus:ring-fd-ring";
+  "w-full border border-(--rule-strong) bg-(--ground-sunk) px-3 py-2 text-[15px] text-fd-foreground outline-none placeholder:text-fd-muted-foreground focus:border-(--accent)";
 
-const labelClass = "font-mono text-[0.7rem] font-semibold uppercase tracking-wide text-fd-muted-foreground";
+const labelClass = "text-[12px] font-semibold uppercase tracking-[0.14em] text-fd-muted-foreground";
 
 // Fetched client-side from the static file the same `docs/scripts/gen-crd-docs.mjs`
 // run already writes to `docs/public/crd-schemas/` — no separate data source to keep in sync.
@@ -22,10 +36,12 @@ export function CrdForm({ kind }: { kind: string }) {
   const [namespace, setNamespace] = useState("default");
   const [specValue, setSpecValue] = useState<unknown>(null);
   const [copied, setCopied] = useState(false);
+  const groups = CHOICES[kind] ?? NO_CHOICES;
+  const [selection, setSelection] = useState(() => defaultSelection(groups));
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/crd-schemas/${kind.toLowerCase()}.schema.json`)
+    fetch(`${basePath}/crd-schemas/${kind.toLowerCase()}.schema.json`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<CrdSchema>;
@@ -50,19 +66,35 @@ export function CrdForm({ kind }: { kind: string }) {
   // twice.
   const hasSpecName = schema?.properties?.name?.type === "string" && !schema.properties.name.enum;
 
+  // What the manifest carries: the choices applied (other options' fields
+  // dropped, implied values set) and the shared name folded in.
   const effectiveSpecValue = useMemo(() => {
-    if (!hasSpecName || specValue === null) return specValue;
-    return { ...(specValue as Record<string, unknown>), name };
-  }, [specValue, hasSpecName, name]);
+    if (specValue === null) return specValue;
+    const spec = applySelection(groups, selection, specValue as Record<string, unknown>);
+    return hasSpecName ? { ...spec, name } : spec;
+  }, [specValue, hasSpecName, name, groups, selection]);
+
+  // The chosen options' must-have fields count as required, for the
+  // asterisks and for the "still to fill in" list alike.
+  const formSchema = useMemo(
+    () => (schema ? withChoiceRequirements(groups, selection, schema) : null),
+    [schema, groups, selection],
+  );
 
   const built = useMemo(() => {
-    if (!schema || effectiveSpecValue === null) return null;
-    return buildManifest(schema, name, namespace, effectiveSpecValue);
-  }, [schema, effectiveSpecValue, name, namespace]);
+    if (!formSchema || effectiveSpecValue === null) return null;
+    return buildManifest(formSchema, name, namespace, effectiveSpecValue);
+  }, [formSchema, effectiveSpecValue, name, namespace]);
+
+  const choose = (groupId: string, optionId: string) => {
+    setSelection({ ...selection, [groupId]: optionId });
+    const preset = groups.find((g) => g.id === groupId)?.options.find((o) => o.id === optionId)?.preset;
+    if (preset) setSpecValue((prev: unknown) => withPreset(prev, preset));
+  };
 
   if (error) {
     return (
-      <p className="rounded-sm border border-fd-border bg-fd-card p-4 text-sm text-fd-muted-foreground">
+      <p className="border border-(--rule-strong) px-6 py-10 text-[13px] text-fd-muted-foreground">
         Could not load the schema for <code>{kind}</code>: {error}
       </p>
     );
@@ -70,7 +102,7 @@ export function CrdForm({ kind }: { kind: string }) {
 
   if (!schema || specValue === null) {
     return (
-      <p className="rounded-sm border border-fd-border bg-fd-card p-4 text-sm text-fd-muted-foreground">
+      <p className="border border-(--rule-strong) px-6 py-10 text-[13px] text-fd-muted-foreground">
         Loading form...
       </p>
     );
@@ -95,9 +127,12 @@ export function CrdForm({ kind }: { kind: string }) {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <div className="flex flex-col gap-4">
-        <div className="rounded-sm border border-fd-border bg-fd-card/40 p-3">
+    <div className="not-prose grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="flex min-w-0 flex-col gap-4">
+        {groups.length > 0 ? (
+          <ChoicePicker groups={groups} selection={selection} onChange={choose} />
+        ) : null}
+        <div className="border border-(--rule-soft) p-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label className={labelClass}>
@@ -110,7 +145,7 @@ export function CrdForm({ kind }: { kind: string }) {
                 placeholder="my-resource"
               />
               {hasSpecName ? (
-                <p className="text-xs text-fd-muted-foreground/80">
+                <p className="text-[12px] text-fd-muted-foreground">
                   Used as both <code>metadata.name</code> and <code>spec.name</code> — keep it a valid
                   Kubernetes name (lowercase, alphanumeric, hyphens).
                 </p>
@@ -132,37 +167,39 @@ export function CrdForm({ kind }: { kind: string }) {
           </div>
         </div>
         <ObjectFields
-          schema={schema}
+          schema={formSchema ?? schema}
           value={specValue}
           onChange={setSpecValue}
-          omitKeys={hasSpecName ? ["name"] : undefined}
+          omitKeys={[...(hasSpecName ? ["name"] : []), ...hiddenKeys(groups, selection)]}
+          collapseOptional
+          priorityKeys={chosenFields(groups, selection)}
         />
       </div>
 
-      <div className="flex flex-col gap-2 lg:sticky lg:top-20 lg:self-start">
+      <div className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-20 lg:self-start">
         <div className="flex items-center justify-between">
           <span className={labelClass}>Generated manifest</span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={copyYaml}
-              className="cyber-glow rounded-sm border border-fd-primary/50 bg-fd-primary px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wide text-fd-primary-foreground transition-transform hover:-translate-y-px active:translate-y-0"
+              className="ctl"
             >
               {copied ? "copied" : "copy"}
             </button>
             <button
               type="button"
               onClick={downloadYaml}
-              className="rounded-sm border border-fd-border px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wide text-fd-muted-foreground transition-colors hover:border-fd-primary hover:text-fd-primary"
+              className="ctl"
             >
               download
             </button>
           </div>
         </div>
         {built && built.missing.length > 0 ? (
-          <div className="rounded-sm border border-fd-primary/40 bg-fd-primary/10 p-3 text-xs text-fd-foreground">
-            <p className="mb-1 font-mono font-semibold uppercase tracking-wide text-fd-primary">
-              Missing required fields
+          <div className="border border-(--accent) p-3 text-[13px] text-fd-foreground">
+            <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.1em] text-fd-primary">
+              Still to fill in
             </p>
             <ul className="list-inside list-disc">
               {built.missing.map((path) => (
@@ -173,7 +210,7 @@ export function CrdForm({ kind }: { kind: string }) {
             </ul>
           </div>
         ) : null}
-        <div className="yaml-preview max-h-[70vh] overflow-auto rounded-sm border border-fd-border text-xs [&_pre]:my-0">
+        <div className="yaml-preview max-h-[70vh] overflow-auto border border-(--rule-soft) text-[13px] [&_pre]:my-0">
           <DynamicCodeBlock
             lang="yaml"
             code={built?.yaml ?? ""}

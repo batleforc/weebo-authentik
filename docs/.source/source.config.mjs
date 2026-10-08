@@ -15,7 +15,14 @@ var docs = defineDocs({
 });
 var source_config_default = defineConfig({
   mdxOptions: {
-    // MDX options
+    // The default github-light/dark themes miss WCAG AA on the BatleHub
+    // grounds; the high-contrast pair is what batlehub's docs measured clean.
+    rehypeCodeOptions: {
+      themes: {
+        light: "github-light-high-contrast",
+        dark: "github-dark-high-contrast"
+      }
+    }
   }
 });
 export {

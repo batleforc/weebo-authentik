@@ -1,10 +1,31 @@
 ---
 title: AuthentikInstance
 description: Connection to a real Authentik server.
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Cluster
+- **Short names:** none
+- **Guide:** [Connect an AuthentikInstance](/docs/guides/connect-instance)
 
 Connection to a real Authentik server. Cluster-scoped — an org-wide,
 shared piece of infrastructure, not owned by a single namespace.
+
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikInstance
+metadata:
+  name: my-instance
+spec:
+  url: https://login.example.com
+  tokenSecretRef:
+    name: authentik-api-token
+    namespace: weebo-authentik
+    key: token
+```
 
 ## Spec fields
 
@@ -17,6 +38,6 @@ shared piece of infrastructure, not owned by a single namespace.
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikInstance` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikInstance" />

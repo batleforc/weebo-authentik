@@ -1,0 +1,16 @@
+{
+  "title": "Guides",
+  "pages": [
+    "---Getting started---",
+    "install",
+    "connect-instance",
+    "first-application",
+    "---Working with CRDs---",
+    "allow-list",
+    "build-a-manifest",
+    "migrate-from-terraform",
+    "release",
+    "---Maintainers---",
+    "cutting-a-release"
+  ]
+}

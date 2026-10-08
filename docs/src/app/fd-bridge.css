@@ -1,0 +1,81 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Fumadocs bridge — the only file that declares `--color-fd-*`.
+
+   Every value is a `var(--token)` from tokens.css, so this block is written
+   once and both renditions fall out of the token layer (the light values live
+   under `:root[data-theme="light"]` there). Mirrors batlehub's
+   `docs/.vitepress/theme/vp-bridge.css`, re-targeted at Fumadocs' names.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Utilities are generated from these theme values, so zeroing them here is
+   what removes Fumadocs' rounded corners and soft shadows at the source
+   (DESIGN.md: zero radius everywhere; nothing casts a shadow at rest). */
+@theme {
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-3xl: 0;
+  --radius-4xl: 0;
+
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 0 #0000;
+  --shadow-xl: 0 0 #0000;
+  --shadow-2xl: 0 0 #0000;
+}
+
+:root,
+.dark {
+  /* next/font hashes the family names, so the faces are reached through the
+     variables layout.tsx puts on <html> rather than the literal names. */
+  --face-display: var(--font-silkscreen), monospace;
+  --face-text: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-sans: var(--face-text);
+  --font-mono: var(--face-text);
+
+  --color-fd-background: var(--ground);
+  --color-fd-foreground: var(--ink);
+  --color-fd-muted: var(--ground-raised);
+  --color-fd-muted-foreground: var(--ink-dim);
+  --color-fd-popover: var(--ground-sunk);
+  --color-fd-popover-foreground: var(--ink);
+  --color-fd-card: var(--ground-sunk);
+  --color-fd-card-foreground: var(--ink);
+  --color-fd-border: var(--rule-soft);
+  --color-fd-primary: var(--accent);
+  /* The Counter-Ink Rule: a crimson fill always takes --accent-ink. */
+  --color-fd-primary-foreground: var(--accent-ink);
+  --color-fd-secondary: var(--ground-raised);
+  --color-fd-secondary-foreground: var(--ink);
+  --color-fd-accent: color-mix(in oklab, var(--accent) 12%, var(--ground));
+  --color-fd-accent-foreground: var(--ink);
+  --color-fd-ring: var(--focus);
+  --color-fd-overlay: color-mix(in oklab, var(--ground-sunk) 70%, transparent);
+
+  /* Callout hues, remapped by job (The One Synthetic Rule): ordinary notes
+     are ink, anything waiting or cautionary is copper, a refusal is crimson. */
+  --color-fd-info: var(--ink-dim);
+  --color-fd-success: var(--ink);
+  --color-fd-idea: var(--ink-dim);
+  --color-fd-warning: var(--copper);
+  --color-fd-error: var(--accent);
+
+  --color-fd-diff-add: color-mix(in oklab, var(--ink) 8%, transparent);
+  --color-fd-diff-add-symbol: var(--ink);
+  --color-fd-diff-remove: color-mix(in oklab, var(--accent) 12%, transparent);
+  --color-fd-diff-remove-symbol: var(--accent);
+}
+
+/* Fumadocs re-tints the sidebar in dark mode with an id selector; meet it at
+   the same specificity so the bridge stays the single source. */
+#nd-sidebar,
+.dark #nd-sidebar {
+  --color-fd-muted: var(--ground-raised);
+  --color-fd-secondary: var(--ground-raised);
+  --color-fd-muted-foreground: var(--ink-dim);
+}

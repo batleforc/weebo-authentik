@@ -1,9 +1,14 @@
 ---
 title: AuthentikScopeMapping
 description: >-
-  Mirrors `authentik_property_mapping_provider_scope` — the OAuth2/OIDC **scope
-  mapping**, i.e.
+  Mirrors authentik_property_mapping_provider_scope — the OAuth2/OIDC scope
+  mapping, i.e. one entry of the list a provider exposes as propertyMappings.
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Cluster
+- **Short names:** none
 
 Mirrors `authentik_property_mapping_provider_scope` — the OAuth2/OIDC
 **scope mapping**, i.e. one entry of the list a provider exposes as
@@ -41,6 +46,20 @@ until the mapping's own reconcile lands. That resolves itself on the
 application's error requeue; when order matters for a first install,
 give the mapping a lower Argo CD sync-wave than the application.
 
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikScopeMapping
+metadata:
+  name: my-scopemapping
+spec:
+  name: weebo groups
+  scopeName: groups
+  expression: |
+    return {"groups": [g.name for g in request.user.ak_groups.all()]}
+```
+
 ## Spec fields
 
 | Field | Type | Required | Default | Description |
@@ -52,6 +71,6 @@ give the mapping a lower Argo CD sync-wave than the application.
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikScopeMapping` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikScopeMapping" />

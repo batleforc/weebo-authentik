@@ -2,6 +2,8 @@ import { getLLMText, getPageMarkdownUrl, source } from '@/lib/source';
 import { notFound } from 'next/navigation';
 
 export const revalidate = false;
+// Pre-rendered per page via generateStaticParams below; emit as static files.
+export const dynamic = 'force-static';
 
 export async function GET(_req: Request, { params }: RouteContext<'/llms.mdx/docs/[[...slug]]'>) {
   const { slug } = await params;

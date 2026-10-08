@@ -1,11 +1,39 @@
 ---
 title: AuthentikApplication
-description: Mirrors `authentik_application` + its `protocol_provider`.
+description: Mirrors authentik_application + its protocol_provider.
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Namespaced
+- **Short names:** none
+- **Guide:** [First application walkthrough](/docs/guides/first-application#2-create-the-application-oauth2-provider)
 
 Mirrors `authentik_application` + its `protocol_provider`. Namespaced —
 owned by whichever team/namespace created it, governed by
 `AuthentikNamespacePolicy`.
+
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikApplication
+metadata:
+  name: my-application
+  namespace: team-a
+spec:
+  instanceRef: main
+  name: Harbor
+  slug: harbor
+  provider:
+    kind: oauth2
+    oauth2:
+      authorizationFlow: default-provider-authorization-implicit-consent
+      invalidationFlow: default-provider-invalidation-flow
+      allowedRedirectUris:
+        - matchingMode: strict
+          url: https://harbor.example.com/c/oidc/callback
+```
 
 ## Spec fields
 
@@ -20,6 +48,6 @@ owned by whichever team/namespace created it, governed by
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikApplication` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikApplication" />

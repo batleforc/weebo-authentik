@@ -1,6 +1,17 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
+@import './tokens.css';
+@import './fd-bridge.css';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BatleHub design system — "The Proof Sheet" — applied to Fumadocs.
+
+   Layering mirrors batlehub's docs site: tokens.css decides every value,
+   fd-bridge.css maps Fumadocs' variables onto them, and this file holds the
+   component rules. No colour literal appears below this line; ask for a
+   token, never for a rendition.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 html {
   scrollbar-gutter: stable;
@@ -11,149 +22,434 @@ html > body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
-/* ============================================================================
-   MONOFOLIO THEME — Maxime Leriche (Batleforc), Cyberpunk x Steampunk
-   Dark-only palette: near-black base, crimson primary, copper accent,
-   sharp 2px corners. Overrides fumadocs' default token values in place so
-   every component (nav, sidebar, cards, search, TOC) inherits it for free.
-   ============================================================================ */
-:root,
-.dark {
-  color-scheme: dark;
-
-  --font-sans: var(--font-ibm-plex-sans);
-  --font-mono: var(--font-jetbrains-mono);
-
-  --radius-xs: 1px;
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 4px;
-  --radius-2xl: 8px;
-
-  --color-fd-background: oklch(0.07 0.018 18);
-  --color-fd-foreground: oklch(0.93 0.018 25);
-  --color-fd-muted: oklch(0.13 0.016 18);
-  --color-fd-muted-foreground: oklch(0.58 0.04 30);
-  --color-fd-popover: oklch(0.1 0.018 18);
-  --color-fd-popover-foreground: oklch(0.93 0.018 25);
-  --color-fd-card: oklch(0.1 0.018 18);
-  --color-fd-card-foreground: oklch(0.93 0.018 25);
-  --color-fd-border: oklch(0.65 0.26 25 / 22%);
-  --color-fd-primary: oklch(0.65 0.26 25);
-  --color-fd-primary-foreground: oklch(0.97 0.01 0);
-  --color-fd-secondary: oklch(0.14 0.022 18);
-  --color-fd-secondary-foreground: oklch(0.93 0.018 25);
-  --color-fd-accent: oklch(0.72 0.14 52 / 16%);
-  --color-fd-accent-foreground: oklch(0.93 0.018 25);
-  --color-fd-ring: oklch(0.65 0.26 25 / 45%);
-  --color-fd-overlay: oklch(0.05 0.01 18 / 60%);
-}
-
-.dark #nd-sidebar {
-  --color-fd-muted: oklch(0.13 0.016 18);
-  --color-fd-secondary: oklch(0.14 0.022 18);
-  --color-fd-muted-foreground: oklch(0.58 0.04 30);
-}
-
 body {
   -webkit-font-smoothing: antialiased;
-  background-image:
-    linear-gradient(oklch(0.65 0.26 25 / 6%) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.65 0.26 25 / 6%) 1px, transparent 1px);
-  background-size: 48px 48px;
+  font-family: var(--face-text);
+  background: var(--ground);
+  color: var(--ink);
 }
 
-/* ---- Signature effect utilities, reusable in page content ---------------- */
-
-.cyber-grid-bg {
-  background-image:
-    linear-gradient(oklch(0.65 0.26 25 / 6%) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.65 0.26 25 / 6%) 1px, transparent 1px);
-  background-size: 48px 48px;
+/* ── Flat at rest ─────────────────────────────────────────────────────────────
+   Zero radius everywhere, including `rounded-full` (which the theme scale
+   cannot reach): the square corner is the bitmap face's own geometry. */
+*,
+*::before,
+*::after {
+  border-radius: var(--radius) !important;
 }
 
-.cyber-text-glow {
-  text-shadow:
-    0 0 6px oklch(0.65 0.26 25 / 65%),
-    0 0 22px oklch(0.65 0.26 25 / 30%);
+/* ── Focus ───────────────────────────────────────────────────────────────── */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
-.cyber-glow {
+/* ── Reading ─────────────────────────────────────────────────────────────────
+   The Reading Role Rule: prose read for minutes is 16px / 1.7 / 68ch.
+   Lowercase text is never tracked; weight stays 400. */
+.prose {
+  --tw-prose-body: var(--ink);
+  --tw-prose-headings: var(--ink);
+  --tw-prose-links: var(--accent);
+  --tw-prose-bold: var(--ink);
+  --tw-prose-counters: var(--ink-dim);
+  --tw-prose-bullets: var(--ink-dim);
+  --tw-prose-hr: var(--rule-soft);
+  --tw-prose-quotes: var(--ink);
+  --tw-prose-quote-borders: var(--rule-strong);
+  --tw-prose-code: var(--copper);
+  --tw-prose-th-borders: var(--rule-strong);
+  --tw-prose-td-borders: var(--rule-soft);
+}
+
+.prose :where(p, li, blockquote p, dd, summary):not(:where(.not-prose, .not-prose *)) {
+  font-size: var(--t-sub);
+  line-height: 1.7;
+  max-width: 68ch;
+}
+
+/* ── Headings ────────────────────────────────────────────────────────────────
+   Silkscreen only at multiples of 8px (The Integer Em Rule). The h2 sits in
+   the bitmap face at 16px above a 20px mono h3: face, case and tracking carry
+   the rank, not size alone. */
+#nd-page h1 {
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-md);
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+#nd-page .prose h2 {
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-sm);
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  border-top: 1px solid var(--rule-soft);
+  padding-top: var(--s5);
+  margin-top: var(--s6);
+}
+
+#nd-page .prose h3 {
+  font-family: var(--face-text);
+  font-weight: 600;
+  font-size: var(--t-head);
+  line-height: 1.4;
+  color: var(--ink);
+  margin-top: var(--s5);
+}
+
+#nd-page .prose :is(h4, h5, h6) {
+  font-family: var(--face-text);
+  font-weight: 600;
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+  margin-top: var(--s5);
+}
+
+/* ── Links ───────────────────────────────────────────────────────────────── */
+.prose a:not(.not-prose, .not-prose *, [data-card]) {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  font-weight: 400;
+}
+
+.prose a:not(.not-prose, .not-prose *, [data-card]):hover {
+  text-decoration-thickness: 2px;
+}
+
+/* ── Inline code and code blocks ─────────────────────────────────────────── */
+.prose :not(pre) > code {
+  color: var(--copper);
+  background: transparent;
+  border: 1px solid var(--rule-soft);
+  padding: 1px var(--s1);
+  font-size: 0.9em;
+}
+
+.prose figure.shiki {
+  border: 1px solid var(--rule-soft);
+  background: var(--ground-sunk);
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────────
+   The Own-Container Overflow Rule: a wide table scrolls inside itself, the
+   body never scrolls horizontally. No zebra — fill is not a state channel. */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--rule-soft);
+  border-collapse: collapse;
+  font-size: var(--t-row);
+}
+
+.prose th {
+  font-size: var(--t-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-dim);
+  text-align: left;
+  border-bottom: 1px solid var(--rule-strong);
+  background: transparent;
+}
+
+.prose :is(th, td) {
+  padding: var(--s2) var(--s3);
+}
+
+.prose td {
+  border-top: 1px dashed var(--rule-soft);
+  /* break-word, not anywhere: a cell may break an over-long identifier, but
+     its minimum width stays its longest word, so `object[]` never splits. */
+  overflow-wrap: break-word;
+}
+
+/* The first column names the row (a field, a kind, a flag): keep it whole. */
+.prose td:first-child {
+  white-space: nowrap;
+}
+
+.prose tr:hover td {
+  background: var(--ground-raised);
+}
+
+/* ── Callouts ────────────────────────────────────────────────────────────────
+   Three tiers, carried by the 1px edge and the icon rather than by fill:
+   neutral (info/tip/success), copper (warn), crimson (error). */
+#nd-page [style*='--callout-color'] {
+  background: var(--ground-sunk);
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--callout-color);
+  padding-inline-start: var(--s3);
+}
+
+#nd-page [style*='--callout-color'] > [role='none'] {
+  display: none;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────────
+   The world has no card; a Fumadocs Card becomes a hairline-framed row that
+   firms its rule on hover. Heading anchors carry `data-card=""` too, so
+   match the Card's own `true` value only. */
+[data-card='true'] {
+  background: transparent !important;
+  border: 1px solid var(--rule-soft);
+  transition: border-color var(--resolve);
+}
+
+[data-card='true']:hover {
+  border-color: var(--rule-strong);
+}
+
+#nd-page [data-card='true'] p {
+  font-size: var(--t-body);
+  line-height: 1.6;
+}
+
+#nd-page [data-card='true'] h3 {
+  margin-top: 0;
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-sm);
+  letter-spacing: 0.02em;
+}
+
+/* ── Steps ───────────────────────────────────────────────────────────────── */
+.fd-steps {
+  border-color: var(--rule-strong);
+}
+
+.fd-step::before {
+  font-family: var(--face-display);
+  font-weight: 700;
+  background: var(--ground);
+  border: 1px solid var(--rule-strong);
+  color: var(--ink);
+}
+
+/* ── Sidebar and TOC ─────────────────────────────────────────────────────────
+   Section labels are standalone Meta (0.16em). The active page is carried by
+   crimson ink, weight and the 1px lit edge — never by fill alone. */
+#nd-sidebar,
+#nd-sidebar-mobile {
+  font-size: var(--t-row);
+}
+
+#nd-sidebar p,
+#nd-sidebar-mobile p {
+  font-size: var(--t-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+
+#nd-sidebar a[data-active='true'],
+#nd-sidebar-mobile a[data-active='true'] {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--ground-raised);
+}
+
+#nd-toc-title,
+#nd-toc h3 {
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+
+#nd-nav {
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────
+   `.action` is the one filled action per view; `.ctl` is every other
+   control. The only two box-shadows in the system live here: the cut-out
+   ring on hover and the pixel step on press — zero blur, both. */
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--accent);
+}
+
+.action:hover {
   box-shadow:
-    0 0 6px oklch(0.65 0.26 25 / 65%),
-    0 0 22px oklch(0.65 0.26 25 / 30%);
+    0 0 0 2px var(--ground),
+    0 0 0 3px var(--accent);
 }
 
-.steam-glow {
+.action:active {
   box-shadow:
-    0 0 6px oklch(0.72 0.14 52 / 60%),
-    0 0 22px oklch(0.72 0.14 52 / 25%);
+    3px 0 0 var(--accent-ink),
+    6px 0 0 var(--accent);
+  transform: translateX(-2px);
 }
 
-.glitch {
-  animation: glitch-flicker 6s infinite;
+.ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid var(--rule-strong);
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
-@keyframes glitch-flicker {
-  0%,
-  90%,
-  100% {
-    text-shadow:
-      0 0 6px oklch(0.65 0.26 25 / 65%),
-      0 0 22px oklch(0.65 0.26 25 / 30%);
-    opacity: 1;
-  }
-  92% {
-    text-shadow: none;
-    opacity: 0.85;
-    clip-path: inset(20% 0 30% 0);
-  }
-  93% {
-    text-shadow:
-      0 0 6px oklch(0.65 0.26 25 / 65%),
-      0 0 22px oklch(0.65 0.26 25 / 30%);
-    opacity: 1;
-    clip-path: none;
-  }
-  95% {
-    text-shadow: none;
-    opacity: 0.9;
-    clip-path: inset(60% 0 10% 0);
-  }
-  96% {
-    text-shadow:
-      0 0 6px oklch(0.65 0.26 25 / 65%),
-      0 0 22px oklch(0.65 0.26 25 / 30%);
-    opacity: 1;
-    clip-path: none;
+.ctl:hover {
+  color: var(--ink);
+  border-color: var(--ink-dim);
+}
+
+/* ── Home: the proof sheet ───────────────────────────────────────────────────
+   One form at poster scale, captioned by its facts, then ruled regions. The
+   display face steps discretely (40 → 72), never fluid. */
+.sheet-display {
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 640px) {
+  .sheet-display {
+    font-size: 72px;
   }
 }
 
-/* Shiki's `css-variables` theme (see CrdForm.tsx) mapped onto the
-   Monofolio palette — the live YAML preview is the only highlighted code
-   on this site that's generated at runtime rather than at MDX build
+.sheet-label {
+  font-size: var(--t-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+}
+
+.sheet-region {
+  border-top: 1px solid var(--rule-soft);
+  padding-block: var(--s6);
+}
+
+.sheet-caption {
+  font-size: var(--t-sub);
+  line-height: 1.7;
+  max-width: 68ch;
+  color: var(--ink-dim);
+}
+
+.sheet-pre {
+  font-size: var(--t-body);
+  line-height: 1.6;
+  background: var(--ground-sunk);
+  border: 1px solid var(--rule-soft);
+  padding: var(--s4);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  color: var(--ink);
+}
+
+.sheet-pre .k {
+  color: var(--ink-dim);
+}
+
+.sheet-pre .v {
+  color: var(--copper);
+}
+
+.sheet-feature h2 {
+  font-family: var(--face-display);
+  font-weight: 700;
+  font-size: var(--t-px-sm);
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.sheet-feature + .sheet-feature {
+  border-top: 1px dashed var(--rule-soft);
+}
+
+@media (min-width: 900px) {
+  .sheet-feature + .sheet-feature {
+    border-top: 0;
+    border-left: 1px dashed var(--rule-soft);
+  }
+}
+
+.sheet-feature a {
+  color: var(--accent);
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Live YAML preview ───────────────────────────────────────────────────────
+   Shiki's `css-variables` theme (see CrdForm.tsx) mapped onto the tokens —
+   the only highlighted code generated at runtime rather than at MDX build
    time, so it carries its own theme object instead of a bundled one. */
 .yaml-preview {
-  --shiki-foreground: var(--color-fd-foreground);
+  --shiki-foreground: var(--ink);
   --shiki-background: transparent;
-  --shiki-token-keyword: var(--color-fd-primary);
-  --shiki-token-string: oklch(0.72 0.14 52);
-  --shiki-token-string-expression: oklch(0.72 0.14 52);
-  --shiki-token-constant: oklch(0.72 0.14 52);
-  --shiki-token-comment: var(--color-fd-muted-foreground);
-  --shiki-token-punctuation: var(--color-fd-muted-foreground);
-  --shiki-token-link: var(--color-fd-primary);
+  --shiki-token-keyword: var(--ink-dim);
+  --shiki-token-string: var(--copper);
+  --shiki-token-string-expression: var(--copper);
+  --shiki-token-constant: var(--copper);
+  --shiki-token-comment: var(--ink-dim);
+  --shiki-token-punctuation: var(--ink-dim);
+  --shiki-token-link: var(--accent);
 }
 
-/* Docs prose section headings: mono + neon glow, matching the SectionTitle role */
-#nd-page h2 {
-  font-family: var(--font-mono);
-  text-shadow:
-    0 0 6px oklch(0.65 0.26 25 / 65%),
-    0 0 22px oklch(0.65 0.26 25 / 30%);
+/* ── Scrollbars (Chromium/WebKit) ────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-#nd-page :is(h1, h3, h4, h5, h6) {
-  font-family: var(--font-mono);
+::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────
+   Removed outright, with no crossfade substitute (The One Motion Rule). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

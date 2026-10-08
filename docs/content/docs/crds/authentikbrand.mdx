@@ -1,13 +1,32 @@
 ---
 title: AuthentikBrand
-description: Mirrors `authentik_brand`.
+description: Mirrors authentik_brand.
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Cluster
+- **Short names:** none
 
 Mirrors `authentik_brand`. Cluster-scoped — a brand is tied to a domain
 at the instance level, not to an application namespace. See
 `.prompt/plan.md`, "Election du brand par defaut" for the `default`
 field's reconcile semantics (implemented in `domain::brand_election`,
 wired up in the `application` crate's `reconcile_brand` use-case).
+
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikBrand
+metadata:
+  name: my-brand
+spec:
+  domain: login.example.com
+  brandingTitle: Weebo
+  default: true
+  flowAuthentication: default-authentication-flow
+```
 
 ## Spec fields
 
@@ -28,6 +47,6 @@ wired up in the `application` crate's `reconcile_brand` use-case).
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikBrand` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikBrand" />

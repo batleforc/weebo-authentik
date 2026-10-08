@@ -3,7 +3,13 @@ title: AuthentikNamespacePolicy
 description: >-
   Namespace allow-list enforced by the admission webhook (and double-checked by
   reconcilers).
+full: true
 ---
+
+- **API version:** `authentik.weebo.io/v1alpha1`
+- **Scope:** Cluster
+- **Short names:** none
+- **Guide:** [The allow-list](/docs/guides/allow-list)
 
 Namespace allow-list enforced by the admission webhook (and
 double-checked by reconcilers). Cluster-scoped. Default-deny: a
@@ -11,6 +17,23 @@ double-checked by reconcilers). Cluster-scoped. Default-deny: a
 `AuthentikNamespacePolicy` explicitly allows it — see
 `domain::allow_list::evaluate`, which this CRD's rules map directly
 onto.
+
+## Example
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikNamespacePolicy
+metadata:
+  name: my-namespacepolicy
+spec:
+  rules:
+    - namespaces:
+        - team-a
+      allowedKinds:
+        - AuthentikApplication
+        - AuthentikAccessPolicy
+      effect: Allow
+```
 
 ## Spec fields
 
@@ -20,6 +43,6 @@ onto.
 
 ## Build a manifest
 
-Fill in the fields below to generate a ready-to-apply `AuthentikNamespacePolicy` YAML manifest.
+Answer the questions and fill in the fields: the YAML preview updates as you type, ready to copy or download and `kubectl apply`.
 
 <CrdForm kind="AuthentikNamespacePolicy" />
