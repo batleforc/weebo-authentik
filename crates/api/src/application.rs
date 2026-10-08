@@ -159,7 +159,6 @@ pub enum Oauth2ClientType {
     Confidential,
 }
 
-
 /// Authentik's built-in self-signed certificate key pair, present on every
 /// instance — the sensible default signing key when a provider doesn't
 /// name one explicitly. See `.prompt/plan.md` (certificate key pairs are
