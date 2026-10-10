@@ -44,6 +44,7 @@ task lint              # cargo fmt --check + clippy -D warnings
 task lint:helm          # helm lint + template smoke test on deploy/charts/
 task test               # fast unit + contract tests (--lib --bins)
 task test:integration   # + real envtest-backed controller tests (--tests)
+task perf                # resource budget of the release binary (weebo-kit-perf)
 task recu                # regenerate CRDs (deploy/crd/) + chart crds/ + docs
 task docs                # Fumadocs dev server
 ```
