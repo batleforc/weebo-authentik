@@ -63,6 +63,16 @@ weebo_kit_domain::reason_codes! {
         /// Authentik API error). See `application::ports::SecretStoreError`
         /// and `SecretStoreFactoryError`.
         SecretStoreError,
+        /// The remote Authentik object was created for this CR (Event
+        /// only: `status.authentikId` was just recorded).
+        Created,
+        /// The finalizer deleted the remote Authentik object of this CR
+        /// (Event only).
+        Deleted,
+        /// A Kubernetes API call of the operator itself failed (reading a CR,
+        /// patching its status, adding or removing its finalizer) — the
+        /// reconcile stopped before reaching a status, and is retried.
+        KubernetesApiError,
         /// `AuthentikApplication.spec.provider.kind` changed from what's
         /// currently live in Authentik, but the CR lacks the
         /// `authentik.weebo.io/allow-disruptive-update` annotation authorizing
@@ -87,7 +97,10 @@ impl Reason for ReasonCode {
 impl ReasonCode {
     pub const fn severity(self) -> Severity {
         match self {
-            ReasonCode::NoAccessPolicyBound | ReasonCode::Reconciled => Severity::Advisory,
+            ReasonCode::NoAccessPolicyBound
+            | ReasonCode::Reconciled
+            | ReasonCode::Created
+            | ReasonCode::Deleted => Severity::Advisory,
             _ => Severity::Blocking,
         }
     }
@@ -100,7 +113,7 @@ mod tests {
     #[test]
     fn every_code_is_pascal_case() {
         weebo_kit_domain::reason::assert_pascal_case(ReasonCode::ALL);
-        assert_eq!(ReasonCode::ALL.len(), 16);
+        assert_eq!(ReasonCode::ALL.len(), 19);
     }
 
     #[test]

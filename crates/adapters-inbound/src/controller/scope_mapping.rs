@@ -31,7 +31,7 @@ async fn reconcile(obj: Arc<AuthentikScopeMapping>, ctx: Arc<Ctx>) -> Result<Act
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(
@@ -63,8 +63,14 @@ async fn apply(
     };
     super::record_reconcile("AuthentikScopeMapping", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &ctx.recorder, mapping, outcome, "scope mapping synced")
-        .await?;
+    super::patch_reconcile_outcome(
+        api,
+        &ctx.recorder,
+        &current,
+        outcome,
+        "scope mapping synced",
+    )
+    .await?;
 
     Ok(action)
 }
@@ -95,5 +101,6 @@ async fn cleanup(
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
     }
+    super::announce_deleted(&ctx.recorder, mapping).await;
     Ok(Action::await_change())
 }

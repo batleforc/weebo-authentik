@@ -31,7 +31,7 @@ async fn reconcile(obj: Arc<AuthentikFlow>, ctx: Arc<Ctx>) -> Result<Action, Err
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(api: &Api<AuthentikFlow>, flow: &AuthentikFlow, ctx: &Ctx) -> Result<Action, Error> {
@@ -50,7 +50,7 @@ async fn apply(api: &Api<AuthentikFlow>, flow: &AuthentikFlow, ctx: &Ctx) -> Res
     };
     super::record_reconcile("AuthentikFlow", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &ctx.recorder, flow, outcome, "flow synced").await?;
+    super::patch_reconcile_outcome(api, &ctx.recorder, &current, outcome, "flow synced").await?;
 
     Ok(action)
 }
@@ -71,5 +71,6 @@ async fn cleanup(
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
     }
+    super::announce_deleted(&ctx.recorder, flow).await;
     Ok(Action::await_change())
 }

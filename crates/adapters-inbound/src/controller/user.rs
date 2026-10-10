@@ -31,7 +31,7 @@ async fn reconcile(obj: Arc<AuthentikUser>, ctx: Arc<Ctx>) -> Result<Action, Err
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(api: &Api<AuthentikUser>, user: &AuthentikUser, ctx: &Ctx) -> Result<Action, Error> {
@@ -65,5 +65,6 @@ async fn cleanup(
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
     }
+    super::announce_deleted(&ctx.recorder, user).await;
     Ok(Action::await_change())
 }

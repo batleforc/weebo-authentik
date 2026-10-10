@@ -11,7 +11,7 @@ use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 
 mod support;
-use support::{init_tracing, new_ctx, wait_for, wait_for_absence};
+use support::{init_tracing, new_ctx, wait_for, wait_for_absence, wait_for_event};
 
 #[tokio::test]
 async fn group_controller_syncs_authentik_id_onto_status() {
@@ -69,6 +69,15 @@ async fn group_controller_syncs_authentik_id_onto_status() {
     .await;
 
     assert_eq!(synced, expected_pk);
+
+    // The state changes are announced on the CR (a cluster-scoped CR's
+    // Events land in `default`).
+    for reason in ["Created", "Reconciled"] {
+        assert_eq!(
+            wait_for_event(&client, "default", "weebo-user", reason).await,
+            "Normal"
+        );
+    }
 }
 
 #[tokio::test]
@@ -182,4 +191,8 @@ async fn group_controller_removes_finalizer_after_delete_calls_gateway() {
         .expect("CR delete must succeed");
 
     wait_for_absence(&groups, "weebo-deletable").await;
+    assert_eq!(
+        wait_for_event(&client, "default", "weebo-deletable", "Deleted").await,
+        "Normal"
+    );
 }

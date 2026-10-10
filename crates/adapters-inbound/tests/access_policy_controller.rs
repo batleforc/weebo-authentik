@@ -13,7 +13,7 @@ use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 
 mod support;
-use support::{init_tracing, new_ctx, wait_for};
+use support::{init_tracing, new_ctx, wait_for, wait_for_event};
 
 async fn wait_for_ready_status(
     api: &Api<AuthentikAccessPolicy>,
@@ -71,6 +71,16 @@ async fn errors_when_application_ref_not_found_in_namespace() {
     assert_eq!(status, "False");
     assert_eq!(reason, "ApplicationRefNotFound");
     assert_eq!(authentik_id, None);
+
+    // Every failed reconcile is announced on the CR, not only in its status.
+    let event_type = wait_for_event(
+        &client,
+        "default",
+        "harbor-access",
+        "ApplicationRefNotFound",
+    )
+    .await;
+    assert_eq!(event_type, "Warning");
 }
 
 #[tokio::test]

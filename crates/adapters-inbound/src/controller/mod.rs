@@ -25,6 +25,7 @@ use kube::{Client, Resource, ResourceExt};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use weebo_kit_runtime::Health;
+use weebo_kit_runtime::events;
 use weebo_kit_runtime::metrics::ReconcileMetrics;
 
 /// Resolves once the process is asked to stop: every controller then stops
@@ -97,8 +98,10 @@ where
 pub enum Error {
     #[error("kube error: {0}")]
     Kube(#[from] kube::Error),
-    #[error("finalizer error: {0}")]
-    Finalizer(String),
+    /// Anything the finalizer helper reports: the reconcile's own error
+    /// (`ApplyFailed`/`CleanupFailed`) or adding/removing the finalizer.
+    #[error("{0}")]
+    Finalizer(Box<kube::runtime::finalizer::Error<Error>>),
     #[error("authentik gateway error: {0}")]
     Gateway(String),
     #[error("secret store error: {0}")]
@@ -108,7 +111,39 @@ pub enum Error {
 /// Shared by every controller's `Controller::run(reconcile, error_policy,
 /// ctx)` call — the body never depended on the CRD kind `K`, only on
 /// `Error`/`Ctx`, so making it generic is a pure deletion of duplication.
-pub fn error_policy<K>(_obj: Arc<K>, _err: &Error, _ctx: Arc<Ctx>) -> Action {
+impl Error {
+    /// The reason code of the Event announcing this error, and whether it
+    /// happened reconciling or cleaning up (the Event's `action`).
+    pub fn reason(&self) -> (ReasonCode, &'static str) {
+        use kube::runtime::finalizer::Error as Finalizer;
+        match self {
+            Error::Kube(_) => (ReasonCode::KubernetesApiError, events::RECONCILE),
+            Error::Gateway(_) => (ReasonCode::AuthentikApiError, events::RECONCILE),
+            Error::SecretStore(_) => (ReasonCode::SecretStoreError, events::RECONCILE),
+            Error::Finalizer(err) => match err.as_ref() {
+                Finalizer::ApplyFailed(inner) => inner.reason(),
+                Finalizer::CleanupFailed(inner) => (inner.reason().0, events::CLEANUP),
+                _ => (ReasonCode::KubernetesApiError, events::RECONCILE),
+            },
+        }
+    }
+}
+
+/// Every reconcile that errors out — before reaching a status patch, or in
+/// a finalizer cleanup — is announced by a `Warning` Event on its CR (the
+/// kit folds repeats into one series), then retried in 30s.
+pub fn error_policy<K>(obj: Arc<K>, err: &Error, ctx: Arc<Ctx>) -> Action
+where
+    K: Resource<DynamicType = ()>,
+{
+    let (reason, action) = err.reason();
+    events::spawn_error(
+        &ctx.recorder,
+        obj.object_ref(&()),
+        reason,
+        action,
+        err.to_string(),
+    );
     Action::requeue(std::time::Duration::from_secs(30))
 }
 
@@ -178,10 +213,12 @@ pub fn conditions(
 /// Shared `ReconcileOutcome` -> `status` translation — call this instead of
 /// matching on `outcome` in each controller's `apply()`. One merge patch on
 /// the status subresource (conditions, `observedGeneration` on success,
-/// `authentikId` when the outcome carries one), then a Kubernetes Event if
-/// `Ready`'s status or reason changed. `obj` gives the previous conditions
-/// and the generation; `synced_message` is `Ready`'s message on success
-/// (e.g. `"group synced"`).
+/// `authentikId` when the outcome carries one), then Kubernetes Events: a
+/// `Warning` for every failed reconcile, a `Normal` for every condition
+/// change and for the remote object's creation. `obj` gives the previous
+/// conditions, the generation and whether `authentikId` was already
+/// recorded: pass the freshest copy at hand. `synced_message` is `Ready`'s
+/// message on success (e.g. `"group synced"`).
 ///
 /// `authentikId` is written in the same call as `Ready: True`: without it,
 /// the next reconcile would see `authentik_id: None` again and attempt a
@@ -227,14 +264,49 @@ where
     )
     .await?;
 
-    weebo_kit_runtime::conditions::announce_ready_change(
-        recorder,
-        &obj.object_ref(&()),
-        previous,
-        &conds,
-    )
-    .await;
+    // A `Warning` on every failed reconcile, a `Normal` for every
+    // condition change, and one for the remote object's creation.
+    let object = obj.object_ref(&());
+    events::announce_outcome(recorder, &object, previous, &conds).await;
+    let recorded = obj
+        .authentik_status()
+        .and_then(|s| s.authentik_id.as_deref());
+    if let ReconcileOutcome::Synced {
+        authentik_id: Some(id),
+    } = &outcome
+        && recorded.is_none()
+    {
+        events::announce_change(
+            recorder,
+            &object,
+            ReasonCode::Created,
+            events::RECONCILE,
+            &format!("created in Authentik as {id}"),
+        )
+        .await;
+    }
     Ok(())
+}
+
+/// Call at the end of a successful finalizer cleanup: a `Normal` Event when
+/// it deleted the CR's remote object.
+pub async fn announce_deleted<K>(recorder: &Recorder, obj: &K)
+where
+    K: Resource<DynamicType = ()> + HasStatus,
+{
+    if let Some(id) = obj
+        .authentik_status()
+        .and_then(|s| s.authentik_id.as_deref())
+    {
+        events::announce_change(
+            recorder,
+            &obj.object_ref(&()),
+            ReasonCode::Deleted,
+            events::CLEANUP,
+            &format!("deleted {id} from Authentik"),
+        )
+        .await;
+    }
 }
 
 /// Records one reconcile attempt's outcome as
@@ -262,6 +334,31 @@ mod tests {
 
     fn at(secs: i64) -> Time {
         Time(Timestamp::from_second(secs).unwrap())
+    }
+
+    #[test]
+    fn errors_map_to_a_reason_and_an_action() {
+        use kube::runtime::finalizer::Error as Finalizer;
+        let gateway = || Error::Gateway("boom".into());
+        assert_eq!(
+            gateway().reason(),
+            (ReasonCode::AuthentikApiError, events::RECONCILE)
+        );
+        assert_eq!(
+            Error::Finalizer(Box::new(Finalizer::ApplyFailed(gateway()))).reason(),
+            (ReasonCode::AuthentikApiError, events::RECONCILE)
+        );
+        assert_eq!(
+            Error::Finalizer(Box::new(Finalizer::CleanupFailed(Error::SecretStore(
+                "denied".into()
+            ))))
+            .reason(),
+            (ReasonCode::SecretStoreError, events::CLEANUP)
+        );
+        assert_eq!(
+            Error::Finalizer(Box::new(Finalizer::UnnamedObject)).reason(),
+            (ReasonCode::KubernetesApiError, events::RECONCILE)
+        );
     }
 
     #[test]

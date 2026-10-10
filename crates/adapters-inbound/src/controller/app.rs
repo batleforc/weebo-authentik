@@ -34,7 +34,7 @@ async fn reconcile(obj: Arc<AuthentikApplication>, ctx: Arc<Ctx>) -> Result<Acti
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(
@@ -126,5 +126,6 @@ async fn cleanup(
                 .map_err(|e| Error::SecretStore(e.to_string()))?;
         }
     }
+    super::announce_deleted(&ctx.recorder, app).await;
     Ok(Action::await_change())
 }

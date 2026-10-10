@@ -83,3 +83,33 @@ where
 {
     testkit::polling::wait_for_absence(api, name, TIMEOUT, POLL_INTERVAL).await
 }
+
+/// Waits for a Kubernetes Event of `reason` on the object `name` in
+/// `namespace`, and returns its type (`Warning`/`Normal`).
+pub async fn wait_for_event(
+    client: &kube::Client,
+    namespace: &str,
+    name: &str,
+    reason: &str,
+) -> String {
+    use k8s_openapi::api::core::v1::Event;
+    let events: kube::Api<Event> = kube::Api::namespaced(client.clone(), namespace);
+    let params = kube::api::ListParams::default().fields(&format!("involvedObject.name={name}"));
+    tokio::time::timeout(TIMEOUT, async {
+        loop {
+            let found = events
+                .list(&params)
+                .await
+                .expect("events must be listable")
+                .items
+                .into_iter()
+                .find(|e| e.reason.as_deref() == Some(reason));
+            if let Some(event) = found {
+                return event.type_.unwrap_or_default();
+            }
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("no {reason} Event on {namespace}/{name} within {TIMEOUT:?}"))
+}

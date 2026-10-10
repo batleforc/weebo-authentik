@@ -34,7 +34,7 @@ async fn reconcile(obj: Arc<AuthentikBrand>, ctx: Arc<Ctx>) -> Result<Action, Er
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(
@@ -109,6 +109,7 @@ async fn cleanup(brand: &AuthentikBrand, ctx: &Ctx) -> Result<Action, Error> {
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
     }
+    super::announce_deleted(&ctx.recorder, brand).await;
     Ok(Action::await_change())
 }
 

@@ -34,7 +34,7 @@ async fn reconcile(obj: Arc<AuthentikAccessPolicy>, ctx: Arc<Ctx>) -> Result<Act
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(
@@ -123,5 +123,6 @@ async fn cleanup(
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
     }
+    super::announce_deleted(&ctx.recorder, policy).await;
     Ok(Action::await_change())
 }

@@ -31,7 +31,7 @@ async fn reconcile(obj: Arc<AuthentikGroup>, ctx: Arc<Ctx>) -> Result<Action, Er
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(
@@ -61,7 +61,7 @@ async fn apply(
     };
     super::record_reconcile("AuthentikGroup", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &ctx.recorder, group, outcome, "group synced").await?;
+    super::patch_reconcile_outcome(api, &ctx.recorder, &current, outcome, "group synced").await?;
 
     Ok(action)
 }
@@ -86,5 +86,6 @@ async fn cleanup(
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
     }
+    super::announce_deleted(&ctx.recorder, group).await;
     Ok(Action::await_change())
 }
