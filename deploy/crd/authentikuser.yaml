@@ -79,9 +79,7 @@ spec:
                       nullable: true
                       type: integer
                     reason:
-                      description: |-
-                        One of `domain::error::ReasonCode`'s `as_str()` values — never a
-                        hand-written string.
+                      description: One of the operator's reason codes — never a hand-written string.
                       type: string
                     status:
                       description: '`"True"`, `"False"`, or `"Unknown"`.'

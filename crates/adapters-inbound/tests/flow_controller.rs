@@ -13,7 +13,6 @@ use api::AuthentikFlow;
 use api::flow::{AuthentikFlowSpec, FlowDesignation};
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
-use testkit::envtest::EnvTestCluster;
 
 mod support;
 use support::{init_tracing, new_ctx, wait_for, wait_for_absence};
@@ -63,7 +62,7 @@ fn flow_response(slug: &str) -> serde_json::Value {
 async fn flow_controller_syncs_slug_onto_status() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;
@@ -92,7 +91,7 @@ async fn flow_controller_syncs_slug_onto_status() {
 async fn flow_controller_marks_errored_on_authentik_conflict() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;
@@ -127,7 +126,7 @@ async fn flow_controller_marks_errored_on_authentik_conflict() {
 async fn flow_controller_removes_finalizer_after_delete_calls_gateway() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;

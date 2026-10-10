@@ -3,9 +3,8 @@ use std::sync::Arc;
 use api::AuthentikApplication;
 use api::application::ProviderKind;
 use application::use_cases::errored_from_factory_error;
-use application::use_cases::errored_from_secret_store_factory_error;
-use application::use_cases::reconcile_application::reconcile_application;
-use futures::StreamExt;
+use application::use_cases::errored_from_secret_store_error;
+use application::use_cases::reconcile_application::{delete_credentials, reconcile_application};
 use kube::api::Api;
 use kube::runtime::Controller;
 use kube::runtime::controller::Action;
@@ -17,14 +16,11 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikApplication> = Api::all(client);
-    Controller::new(api, watcher::Config::default())
-        .run(reconcile, error_policy, ctx)
-        .for_each(|res| async move {
-            if let Err(err) = res {
-                tracing::error!(error = %err, "AuthentikApplication reconcile failed");
-            }
-        })
-        .await;
+    let health = ctx.health.clone();
+    let results = Controller::new(api, watcher::Config::default())
+        .graceful_shutdown_on(ctx.shutdown.wait())
+        .run(reconcile, error_policy, ctx);
+    super::drive("AuthentikApplication", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikApplication>, ctx: Arc<Ctx>) -> Result<Action, Error> {
@@ -46,7 +42,6 @@ async fn apply(
     app: &AuthentikApplication,
     ctx: &Ctx,
 ) -> Result<Action, Error> {
-    let name = app.name_any();
     let started = std::time::Instant::now();
     let authentik_id = app.status.as_ref().and_then(|s| s.authentik_id.clone());
 
@@ -55,7 +50,11 @@ async fn apply(
         .gateway_for(&app.spec.instance_ref)
         .await
     {
-        Ok(gateway) => match ctx.secrets_factory.secret_store_for(app).await {
+        Ok(gateway) => match ctx
+            .secrets_factory
+            .store_for(Some(&app.spec.instance_ref))
+            .await
+        {
             Ok(secrets) => {
                 reconcile_application(
                     app,
@@ -65,13 +64,13 @@ async fn apply(
                 )
                 .await
             }
-            Err(e) => errored_from_secret_store_factory_error(e),
+            Err(e) => errored_from_secret_store_error(e),
         },
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikApplication", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &name, outcome, "application synced").await?;
+    super::patch_reconcile_outcome(api, &ctx.recorder, app, outcome, "application synced").await?;
 
     Ok(action)
 }
@@ -117,15 +116,12 @@ async fn cleanup(
             .map_err(|e| Error::Gateway(e.to_string()))?;
 
         if matches!(app.spec.provider.kind, ProviderKind::Oauth2) {
-            let namespace = app.metadata.namespace.clone().unwrap_or_default();
-            let name = app.name_any();
             let secrets = ctx
                 .secrets_factory
-                .secret_store_for(app)
+                .store_for(Some(&app.spec.instance_ref))
                 .await
                 .map_err(|e| Error::SecretStore(e.to_string()))?;
-            secrets
-                .delete(&namespace, &name)
+            delete_credentials(app, secrets.as_ref())
                 .await
                 .map_err(|e| Error::SecretStore(e.to_string()))?;
         }

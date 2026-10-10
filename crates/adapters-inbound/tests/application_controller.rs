@@ -14,7 +14,6 @@ use api::application::{
 use k8s_openapi::api::core::v1::Secret;
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
-use testkit::envtest::EnvTestCluster;
 
 mod support;
 use support::{init_tracing, new_ctx, wait_for};
@@ -57,7 +56,7 @@ async fn wait_for_authentik_id(api: &Api<AuthentikApplication>, name: &str) -> S
 async fn oauth2_application_syncs_id_and_writes_the_credentials_secret() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;
@@ -156,7 +155,7 @@ async fn oauth2_application_syncs_id_and_writes_the_credentials_secret() {
 async fn proxy_application_syncs_id_attaches_outpost_and_writes_no_secret() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;

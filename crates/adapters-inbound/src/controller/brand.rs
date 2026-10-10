@@ -6,7 +6,6 @@ use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_brand::{
     BrandAction, BrandReconcileInput, plan_brand_action, reconcile_brand,
 };
-use futures::StreamExt;
 use kube::api::Api;
 use kube::runtime::Controller;
 use kube::runtime::controller::Action;
@@ -18,14 +17,11 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikBrand> = Api::all(client);
-    Controller::new(api, watcher::Config::default())
-        .run(reconcile, error_policy, ctx)
-        .for_each(|res| async move {
-            if let Err(err) = res {
-                tracing::error!(error = %err, "AuthentikBrand reconcile failed");
-            }
-        })
-        .await;
+    let health = ctx.health.clone();
+    let results = Controller::new(api, watcher::Config::default())
+        .graceful_shutdown_on(ctx.shutdown.wait())
+        .run(reconcile, error_policy, ctx);
+    super::drive("AuthentikBrand", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikBrand>, ctx: Arc<Ctx>) -> Result<Action, Error> {
@@ -75,7 +71,7 @@ async fn apply(
     };
     super::record_reconcile("AuthentikBrand", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &name, outcome, "brand synced").await?;
+    super::patch_reconcile_outcome(api, &ctx.recorder, brand, outcome, "brand synced").await?;
 
     Ok(action)
 }

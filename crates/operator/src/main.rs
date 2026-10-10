@@ -1,201 +1,140 @@
-mod telemetry;
-
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use adapters_inbound::controller::{self, Ctx};
+use adapters_inbound::controller::{self, Ctx, Shutdown};
 use adapters_inbound::webhook::{self, WebhookState};
 use adapters_outbound::{AuthentikGatewayFactory, AuthentikSecretStoreFactory};
 use api::AuthentikInstance;
 use application::ports::{GatewayFactory, SecretStoreFactory};
-use axum_server::tls_rustls::RustlsConfig;
 use futures::StreamExt;
 use kube::Client;
 use kube::api::Api;
-use kube::runtime::{reflector, watcher};
-use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
+use kube::runtime::events::{Recorder, Reporter};
+use kube::runtime::{WatchStreamExt, reflector, watcher};
+use weebo_kit_runtime::{Health, leader, telemetry, webhook_server};
 
-/// How often the webhook's TLS cert/key are re-read from disk, so
-/// cert-manager's periodic rotation is picked up without a pod restart.
-/// No filesystem watcher is used — a Secret-volume update already lands
-/// with its own propagation delay, and a fixed poll is simpler/more
-/// robust than reacting to the intermediate states of an atomic-rename
-/// volume update.
-const TLS_RELOAD_INTERVAL: Duration = Duration::from_secs(60);
-
-/// Same 3:1 renew:ttl ratio as `kube-leader-election`'s own example —
-/// enough headroom to survive a couple of missed renewals from GC pauses
-/// or transient API server hiccups without losing leadership spuriously.
-const LEASE_TTL: Duration = Duration::from_secs(15);
-const LEASE_RENEW_INTERVAL: Duration = Duration::from_secs(5);
+/// Default `LEASE_NAME`: what every release used before it became
+/// configurable — keep it across upgrades, or old and new pods would each
+/// hold "their" lease during the rollout.
+const DEFAULT_LEASE_NAME: &str = "weebo-authentik-operator-leader";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    telemetry::init()?;
+    let telemetry = telemetry::init("weebo-authentik-operator")?;
+    let result = run(&telemetry).await;
+    if let Err(err) = &result {
+        tracing::error!(error = %err, "operator failed");
+    }
+    telemetry.shutdown();
+    result
+}
 
+async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
     // Both `ring` and `aws-lc-rs` are reachable transitively (`kube`'s
     // rustls-tls vs. `authentik-client`'s reqwest stack); rustls refuses
-    // to pick a default automatically when more than one is linked. See
-    // `testkit::envtest::EnvTestCluster::start` for the same fix applied
-    // to the test harness.
+    // to pick a default automatically when more than one is linked.
     let _ = rustls::crypto::ring::default_provider().install_default();
 
+    telemetry.serve_metrics().await?;
+    register_leader_gauge();
+
     let client = Client::try_default().await?;
+
+    // The binary is PID 1 in its container: without a handler, SIGTERM
+    // would be ignored and every rollout would wait for the SIGKILL.
+    let shutdown = Shutdown::on_termination()?;
+    let health = Arc::new(Health::default());
 
     // Both factories resolve `AuthentikInstance` CRs on every reconcile;
     // rather than each doing a per-call apiserver GET/LIST, they share a
     // single reflector-backed `Store` kept live by the watch spawned here.
-    // The store is cluster-scoped and tiny (one CR per Authentik server),
-    // so the reflector is cheap and reflects config edits as soon as the
-    // watch delivers them.
+    // Watch errors back off exponentially instead of spinning.
     let (instance_store, instance_writer) = reflector::store::<AuthentikInstance>();
     let instance_reflector = reflector::reflector(
         instance_writer,
         watcher(
             Api::<AuthentikInstance>::all(client.clone()),
             watcher::Config::default(),
-        ),
+        )
+        .default_backoff(),
     );
-    tokio::spawn(async move {
-        instance_reflector
-            .for_each(|event| async move {
-                if let Err(err) = event {
-                    tracing::warn!(error = %err, "AuthentikInstance reflector watch error");
-                }
-            })
-            .await;
+    tokio::spawn({
+        let health = health.clone();
+        async move {
+            instance_reflector
+                .for_each(|event| {
+                    match event {
+                        Ok(_) => health.ok("AuthentikInstance reflector"),
+                        Err(err) => {
+                            tracing::warn!(error = %err, "AuthentikInstance reflector watch error");
+                            health.failed("AuthentikInstance reflector", err.to_string());
+                        }
+                    }
+                    futures::future::ready(())
+                })
+                .await;
+        }
     });
 
     // Resolves an AuthentikGateway per AuthentikInstance CR (url from the
     // CR, token read fresh from its tokenSecretRef on every call — see
     // `application::ports::GatewayFactory`). CRDs with no `instanceRef`
     // field go through `default_gateway`, which requires exactly one
-    // AuthentikInstance CR to exist; true multi-instance cohabitation for
-    // those CRDs remains the explicitly-deferred item from
-    // `.prompt/plan.md`.
+    // AuthentikInstance CR to exist.
     let gateway_factory: Arc<dyn GatewayFactory> = Arc::new(
         AuthentikGatewayFactory::with_instance_store(client.clone(), instance_store.clone()),
     );
-    // Resolves K8sSecretStore/VaultSecretStore per AuthentikInstance CR
-    // (`spec.secretStore`, defaulting to Kubernetes) — see
-    // `application::ports::SecretStoreFactory`. Caches the Vault login for
-    // its lease lifetime rather than re-authenticating per reconcile.
+    // Routes each secret target to Kubernetes or to the instance's Vault
+    // (`spec.secretStore`), logging in to Vault only when a target needs it.
     let secrets_factory: Arc<dyn SecretStoreFactory> = Arc::new(
         AuthentikSecretStoreFactory::with_instance_store(client.clone(), instance_store),
     );
 
+    let holder_id = std::env::var("HOSTNAME").unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
     let ctx = Arc::new(Ctx {
         client: client.clone(),
         gateway_factory,
         secrets_factory,
+        recorder: Recorder::new(
+            client.clone(),
+            Reporter {
+                controller: "weebo-authentik-operator".into(),
+                instance: Some(holder_id.clone()),
+            },
+        ),
+        shutdown: shutdown.clone(),
+        health: health.clone(),
     });
 
-    let webhook_state = WebhookState {
-        client: client.clone(),
-    };
-    let app = webhook::router(webhook_state);
-    let port: u16 = std::env::var("WEBHOOK_PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(8443);
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-
-    // A `ValidatingWebhookConfiguration` only ever calls over HTTPS —
-    // the cert/key are cert-manager-issued, mounted from a
-    // `kubernetes.io/tls` Secret (see `.prompt/plan.md` decision 1).
-    let tls_cert_file = std::env::var("WEBHOOK_TLS_CERT_FILE")
-        .unwrap_or_else(|_| "/etc/webhook/certs/tls.crt".to_string());
-    let tls_key_file = std::env::var("WEBHOOK_TLS_KEY_FILE")
-        .unwrap_or_else(|_| "/etc/webhook/certs/tls.key".to_string());
-    let tls_config = RustlsConfig::from_pem_file(&tls_cert_file, &tls_key_file).await?;
-
-    tokio::spawn({
-        let tls_config = tls_config.clone();
-        async move {
-            let mut interval = tokio::time::interval(TLS_RELOAD_INTERVAL);
-            interval.tick().await; // first tick fires immediately; cert is already fresh from startup
-            loop {
-                interval.tick().await;
-                if let Err(err) = tls_config
-                    .reload_from_pem_file(&tls_cert_file, &tls_key_file)
-                    .await
-                {
-                    tracing::error!(error = %err, "failed to reload webhook TLS cert, keeping previous one");
-                }
-            }
-        }
-    });
-
-    tracing::info!(%addr, "starting weebo-authentik-operator webhook");
-
-    // The webhook must serve every replica, always — `failurePolicy:
-    // Fail` on the ValidatingWebhookConfiguration means a webhook that's
-    // only up on the leader would turn routine leader failover into a
-    // cluster-wide outage for AuthentikApplication/AuthentikAccessPolicy
-    // writes. It is therefore spawned independently of leader election,
-    // never gated behind it.
-    let webhook_handle = tokio::spawn(async move {
-        axum_server::bind_rustls(addr, tls_config)
-            .serve(app.into_make_service())
-            .await
-    });
+    // The webhook serves on every replica, before and regardless of
+    // leadership: with failurePolicy: Fail, a leader-only webhook would turn
+    // every failover into a cluster-wide outage for AuthentikApplication/
+    // AuthentikAccessPolicy writes. On shutdown it keeps answering while
+    // endpoints drain.
+    let webhook = webhook_server::spawn(
+        webhook::router(
+            WebhookState {
+                client: client.clone(),
+            },
+            health.clone(),
+        ),
+        health,
+        shutdown.clone(),
+    )
+    .await?;
 
     // The controllers, in contrast, must only run on one replica at a
-    // time — see `.prompt/plan.md`, "HA du controller manager: leader
-    // election standard": two active reconcilers could both
-    // attempt-create the same Authentik object concurrently.
-    let pod_namespace = std::env::var("POD_NAMESPACE").unwrap_or_else(|_| "default".to_string());
-    let holder_id = std::env::var("HOSTNAME").unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
-    let lease_name = std::env::var("LEASE_NAME")
-        .unwrap_or_else(|_| "weebo-authentik-operator-leader".to_string());
-    let lease = Arc::new(LeaseLock::new(
-        client.clone(),
-        &pod_namespace,
-        LeaseLockParams {
-            holder_id,
-            lease_name,
-            lease_ttl: LEASE_TTL,
-        },
-    ));
-
-    tracing::info!("waiting to acquire leader lease before starting reconcilers");
-    loop {
-        match lease.try_acquire_or_renew().await {
-            Ok(LeaseLockResult::Acquired(_)) => break,
-            Ok(LeaseLockResult::NotAcquired(_)) => {}
-            Err(err) => {
-                tracing::error!(error = %err, "leader lease acquisition attempt failed, retrying")
-            }
+    // time: two active reconcilers could both attempt-create the same
+    // Authentik object concurrently.
+    let leadership = tokio::select! {
+        leadership = leader::acquire_leadership(&client, holder_id, DEFAULT_LEASE_NAME) => leadership,
+        () = shutdown.wait() => {
+            webhook.stopped().await;
+            return Ok(());
         }
-        tokio::time::sleep(LEASE_RENEW_INTERVAL).await;
-    }
-    tracing::info!("acquired leader lease, starting reconcilers");
+    };
 
-    tokio::spawn({
-        let lease = lease.clone();
-        async move {
-            let mut interval = tokio::time::interval(LEASE_RENEW_INTERVAL);
-            interval.tick().await; // first tick fires immediately; lease was just acquired above
-            loop {
-                interval.tick().await;
-                match lease.try_acquire_or_renew().await {
-                    Ok(LeaseLockResult::Acquired(_)) => {}
-                    Ok(LeaseLockResult::NotAcquired(_)) => {
-                        tracing::error!(
-                            "lost leader lease, exiting so another replica can take over"
-                        );
-                        std::process::exit(1);
-                    }
-                    Err(err) => {
-                        tracing::error!(error = %err, "failed to renew leader lease, exiting so another replica can take over");
-                        std::process::exit(1);
-                    }
-                }
-            }
-        }
-    });
-
+    tracing::info!("starting controllers");
     tokio::join!(
         controller::instance::run(client.clone(), ctx.clone()),
         controller::group::run(client.clone(), ctx.clone()),
@@ -208,8 +147,22 @@ async fn main() -> anyhow::Result<()> {
         controller::access_policy::run(client.clone(), ctx.clone()),
         controller::namespace_policy::run(client, ctx),
     );
-
-    webhook_handle.await??;
-
+    // Every controller returns once the shutdown signal arrived and its
+    // in-flight reconciles finished: hand the lease over right away
+    // instead of making the next leader wait out the TTL.
+    leadership.release().await;
+    // Bounded: the drain started with the signal, long before.
+    let _ = tokio::time::timeout(Duration::from_secs(30), webhook.stopped()).await;
     Ok(())
+}
+
+/// `weebo_authentik_leader`: 1 on the replica holding the lease.
+fn register_leader_gauge() {
+    // The callback is registered with the meter provider and lives as long
+    // as it does: the handle itself can go.
+    let _ = opentelemetry::global::meter("weebo-authentik-operator")
+        .u64_observable_gauge("weebo_authentik_leader")
+        .with_description("1 when this replica holds the leader lease")
+        .with_callback(|observer| observer.observe(u64::from(leader::is_leader()), &[]))
+        .build();
 }

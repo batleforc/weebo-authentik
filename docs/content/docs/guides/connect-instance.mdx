@@ -172,12 +172,12 @@ the CA Secret may live in any namespace.
 
 ### Per-application targets and fan-out
 
-The `secretStore` above defines a single default destination for every
-application on the instance. An individual `AuthentikApplication` can
-override that by listing explicit `spec.secretTargets`, each selecting a
-`backend` and — for Vault — an exact `path`. When one or more targets
-are set, the credentials are **written to every one of them**; Kubernetes
-and Vault targets may be mixed, so a single application can populate two
+The `secretStore` above defines the default destination for every
+application on the instance: a target named after the application, in
+its namespace. An individual `AuthentikApplication` can override that by
+listing explicit `spec.secretTargets`. When one or more targets are set,
+the credentials are **written to every one of them**; Kubernetes and
+Vault targets may be mixed, so a single application can populate two
 Vault paths and a Kubernetes `Secret` at once:
 
 ```yaml
@@ -197,27 +197,34 @@ spec:
       invalidationFlow: default-invalidation-flow
   secretTargets:
     - backend: vault
-      path: apps/frontend/oauth # exact KV path under the instance's mount
+      name: frontend # default path: <pathPrefix>/team-a/frontend
     - backend: vault
-      path: shared/frontend-credentials
-    - backend: kubernetes
-      name: frontend-oauth # Secret name; defaults to the CR name
+      name: frontend-shared
+      path: weebo-authentik/team-a/shared/frontend # explicit KV path
+    - name: frontend-oauth # backend defaults to kubernetes
 ```
 
 Notes:
 
+- Every target has a `name`: the `Secret` name for Kubernetes, the last
+  segment of the default `<pathPrefix>/<namespace>/<name>` path for Vault
+  (when `path` is unset). `backend` defaults to `kubernetes`.
+- A target stays in the application's namespace (`namespace`, when set,
+  must be the application's own), and an explicit Vault `path` must stay
+  under `<pathPrefix>/<namespace>/` — a team can't write over another
+  team's credentials.
 - A `vault` target reuses the connection/auth config from the instance's
   `secretStore.vault` (address, mount, Kubernetes-auth role) — it only
   chooses _where under that mount_ to write. The instance must therefore
   carry a `secretStore.vault` block for Vault targets to work, even if the
   instance's default `backend` is `kubernetes`; otherwise the application
-  reconcile errors.
-- A `vault` target with no `path` falls back to the default
-  `<pathPrefix>/<namespace>/<name>` convention; a `kubernetes` target with
-  no `name` falls back to the application CR's name (in the application's
-  own namespace).
-- Leaving `secretTargets` empty (the default) keeps the historical
-  behavior: the single destination from the instance's `secretStore`.
+  reconcile errors. Vault is only logged in to when a target needs it.
+- The operator records which application owns each value (label
+  `app.kubernetes.io/managed-by: weebo-authentik` and annotation
+  `authentik.weebo.io/owner` on Secrets, `owner` custom metadata in Vault)
+  and never overwrites nor deletes a value owned by someone else: such a
+  target fails the reconcile with `SecretStoreError`. Secrets written by
+  earlier releases are adopted.
 - `secretTargets` is only meaningful for `provider.kind: oauth2` — proxy
   providers carry no client secret, so it is ignored for them.
 

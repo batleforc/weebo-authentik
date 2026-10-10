@@ -31,9 +31,9 @@ spec:
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `secretStore` | `object` | no | `{"backend":"kubernetes"}` | Where `SecretStore::write_oauth2_credentials`/`delete` writes this instance's oauth2 application credentials. Defaults to a Kubernetes `Secret` (`crates/adapters-outbound/src/secret_k8s.rs`) when unset. |
+| `secretStore` | `object` | no | `{"backend":"kubernetes"}` | Where this instance's oauth2 application credentials are written: the backend of the implicit target of an `AuthentikApplication` without `secretTargets` (default `kubernetes`), and the Vault connection every Vault target uses. |
 | `tls` | `object` | no | `{"insecureSkipVerify":false}` | TLS verification for the API connection above — a private CA to trust (`tls.caSecretRef`), or the `tls.insecureSkipVerify` escape hatch. Defaults to plain platform-trust-store verification. |
-| `tokenSecretRef` | `object` | yes |  |  |
+| `tokenSecretRef` | `object` | yes |  | A key inside a Kubernetes `Secret` in an explicit namespace — used by cluster-scoped CRDs, which have no namespace of their own to default to. |
 | `url` | `string` | yes |  | Base **web** URL of the Authentik instance, e.g. `https://login.example.com` — not the `/api/v3` REST endpoint, which is derived from it (see [`split_urls`]). This is the root the per-application OIDC issuers hang off, `<url>/application/o/<slug>/`, so it is what oauth2 consumers end up trusting. |
 
 ## Build a manifest

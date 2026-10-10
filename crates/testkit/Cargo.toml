@@ -13,5 +13,4 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
-envtest = { workspace = true }
-rustls = { workspace = true }
+weebo-kit-testkit = { workspace = true }

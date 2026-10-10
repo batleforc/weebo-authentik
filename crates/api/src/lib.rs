@@ -1,5 +1,9 @@
 pub mod status;
 
+/// Annotation naming the CR that emitted a `Secret` (`<kind>/<ns>/<name>`):
+/// the operator never overwrites nor deletes a Secret owned by another CR.
+pub const SECRET_OWNER_ANNOTATION: &str = "authentik.weebo.io/owner";
+
 pub mod access_policy;
 pub mod application;
 pub mod brand;

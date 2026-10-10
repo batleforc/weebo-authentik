@@ -1,5 +1,5 @@
 //! Functional smoke test for leader election (`crates/operator/src/main.rs`,
-//! `kube-leader-election`): spawns two real compiled `operator` processes
+//! the kit's `leader` module): spawns two real compiled `operator` processes
 //! against the same (envtest) cluster and confirms exactly one of them
 //! becomes — and is recorded as — the leader on the shared `Lease`, while
 //! both keep serving the webhook regardless of who leads.
@@ -10,7 +10,6 @@ use std::time::{Duration, Instant};
 
 use k8s_openapi::api::coordination::v1::Lease;
 use kube::Api;
-use testkit::envtest::EnvTestCluster;
 
 struct KillOnDrop(Child);
 
@@ -85,13 +84,13 @@ fn assert_tls_handshake_ok(port: u16) {
 
 #[tokio::test]
 async fn exactly_one_replica_becomes_leader() {
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
 
     let dir = std::env::temp_dir().join(format!("leader-election-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
 
     let kubeconfig_path = dir.join("kubeconfig.yaml");
-    std::fs::write(&kubeconfig_path, cluster.kubeconfig_str()).unwrap();
+    cluster.write_kubeconfig(&kubeconfig_path);
 
     let cert_path = dir.join("tls.crt");
     let key_path = dir.join("tls.key");

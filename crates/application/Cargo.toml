@@ -10,7 +10,10 @@ api = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
+weebo-kit-api = { workspace = true }
+weebo-kit-application = { workspace = true }
 
 [dev-dependencies]
+weebo-kit-application = { workspace = true, features = ["test-support"] }
 kube = { workspace = true }
 tokio = { workspace = true }

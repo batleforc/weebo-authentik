@@ -11,10 +11,7 @@ use api::{
     AuthentikScopeMapping, AuthentikUser,
 };
 
-use crate::ports::{
-    AuthentikGateway, GatewayError, Oauth2Credentials, Oauth2ProviderUpsertResult,
-    RemoteApplication, SecretStore, SecretStoreError,
-};
+use crate::ports::{AuthentikGateway, GatewayError, Oauth2ProviderUpsertResult, RemoteApplication};
 
 /// Scriptable `AuthentikGateway` double. Every field defaults to `None`; a
 /// method whose field is unset panics naming itself if called — a test
@@ -250,36 +247,5 @@ impl AuthentikGateway for FakeGateway {
     }
     async fn delete_policy_binding(&self, _authentik_id: &str) -> Result<(), GatewayError> {
         unimplemented!("delete_policy_binding not scripted on FakeGateway")
-    }
-}
-
-/// `SecretStore` double for `reconcile_application` tests. Every field
-/// defaults to `None`; a method whose field is unset panics naming itself
-/// if called — same convention as `FakeGateway`. `FakeSecretStore::default()`
-/// is exactly the old always-panics behavior, for tests (e.g. a proxy-kind
-/// provider, which has no credentials to store) that must never reach a
-/// secret write/delete at all.
-#[derive(Default)]
-pub struct FakeSecretStore {
-    pub write_oauth2_credentials_result: Option<Result<(), SecretStoreError>>,
-    pub delete_result: Option<Result<(), SecretStoreError>>,
-}
-
-#[async_trait::async_trait]
-impl SecretStore for FakeSecretStore {
-    async fn write_oauth2_credentials(
-        &self,
-        _namespace: &str,
-        _name: &str,
-        _credentials: &Oauth2Credentials,
-    ) -> Result<(), SecretStoreError> {
-        self.write_oauth2_credentials_result
-            .clone()
-            .expect("test did not script a write_oauth2_credentials response on FakeSecretStore")
-    }
-    async fn delete(&self, _namespace: &str, _name: &str) -> Result<(), SecretStoreError> {
-        self.delete_result
-            .clone()
-            .expect("test did not script a delete response on FakeSecretStore")
     }
 }

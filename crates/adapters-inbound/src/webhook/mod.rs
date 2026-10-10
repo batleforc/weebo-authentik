@@ -1,9 +1,8 @@
-//! Admission webhook — fully functional, not a stub. The underlying
-//! `domain::allow_list` logic already exists; this just adapts an
-//! incoming `AdmissionReview` into a call to
-//! `application::use_cases::evaluate_admission`.
+//! Admission webhook: adapts an incoming `AdmissionReview` into a call to
+//! `application::use_cases::evaluate_admission` (the kit's allow-list
+//! engine, through `domain::allow_list`).
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use api::AuthentikNamespacePolicy;
 use api::namespace_policy::{Effect as ApiEffect, ResourceKind as ApiResourceKind};
@@ -13,13 +12,14 @@ use application::use_cases::evaluate_admission::{
 use axum::extract::State;
 use axum::routing::post;
 use axum::{Json, Router};
-use domain::allow_list::{Effect, NamespaceRule, ResourceKind};
+use domain::allow_list::{self, Effect, NamespaceRule, ResourceKind};
 use domain::error::ReasonCode;
 use kube::core::DynamicObject;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use kube::{Api, Client};
 use opentelemetry::metrics::Counter;
 use opentelemetry::{KeyValue, global};
+use weebo_kit_runtime::Health;
 
 /// OTLP-exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (see
 /// `operator::telemetry::init`) — a safe no-op otherwise, same rationale
@@ -46,10 +46,13 @@ pub struct WebhookState {
     pub client: Client,
 }
 
-pub fn router(state: WebhookState) -> Router {
+/// `/validate`, plus the kit's `/readyz`, `/livez` and `/healthz` probes
+/// on the same TLS port.
+pub fn router(state: WebhookState, health: Arc<Health>) -> Router {
     Router::new()
         .route("/validate", post(validate))
         .with_state(state)
+        .merge(weebo_kit_runtime::health::routes(health))
 }
 
 async fn validate(
@@ -116,7 +119,7 @@ async fn validate(
         Json(deny(
             &req,
             result.reason.unwrap_or(ReasonCode::NamespaceNotAllowed),
-            "namespace not allowed by any AuthentikNamespacePolicy",
+            result.message.as_deref().unwrap_or("denied"),
         ))
     }
 }
@@ -160,14 +163,14 @@ async fn fetch_rules(client: &Client) -> Result<(Vec<NamespaceRule>, bool), kube
 }
 
 fn to_domain_rule(rule: api::namespace_policy::NamespaceRule) -> NamespaceRule {
-    NamespaceRule {
-        namespaces: rule.namespaces,
-        allowed_kinds: rule.allowed_kinds.into_iter().map(to_domain_kind).collect(),
-        effect: match rule.effect {
+    allow_list::rule(
+        rule.namespaces,
+        rule.allowed_kinds.into_iter().map(to_domain_kind).collect(),
+        match rule.effect {
             ApiEffect::Allow => Effect::Allow,
             ApiEffect::Deny => Effect::Deny,
         },
-    }
+    )
 }
 
 fn to_domain_kind(kind: ApiResourceKind) -> ResourceKind {

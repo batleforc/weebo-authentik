@@ -27,10 +27,10 @@ spec:
                 default:
                   backend: kubernetes
                 description: |-
-                  Where `SecretStore::write_oauth2_credentials`/`delete` writes this
-                  instance's oauth2 application credentials. Defaults to a
-                  Kubernetes `Secret` (`crates/adapters-outbound/src/secret_k8s.rs`)
-                  when unset.
+                  Where this instance's oauth2 application credentials are written:
+                  the backend of the implicit target of an `AuthentikApplication`
+                  without `secretTargets` (default `kubernetes`), and the Vault
+                  connection every Vault target uses.
                 properties:
                   backend:
                     default: kubernetes
@@ -89,10 +89,9 @@ spec:
                       pathPrefix:
                         default: weebo-authentik
                         description: |-
-                          Path prefix under `mount` — the final KV path is
-                          `<pathPrefix>/<namespace>/<name>`, one secret per
-                          `AuthentikApplication` CR (same convention as the Kubernetes
-                          backend's Secret naming).
+                          Path prefix under `mount` — a target's default KV path is
+                          `<pathPrefix>/<namespace>/<name>`, and an `AuthentikApplication`
+                          may only write under `<pathPrefix>/<its namespace>/`.
                         type: string
                     required:
                     - address
@@ -110,8 +109,8 @@ spec:
                 properties:
                   caSecretRef:
                     description: |-
-                      Optional custom CA certificate to verify Authentik's TLS with, read
-                      from a Kubernetes `Secret` (the referenced `key` must hold a PEM
+                      Optional custom CA certificate to verify the instance's TLS with,
+                      read from a Kubernetes `Secret` (the referenced `key` must hold a PEM
                       bundle). Use this to trust a private CA without mounting it into the
                       operator pod — the operator reads the Secret via the API and hands the
                       PEM to its HTTP client. It is added *on top of* the platform trust
@@ -140,6 +139,9 @@ spec:
                     type: boolean
                 type: object
               tokenSecretRef:
+                description: |-
+                  A key inside a Kubernetes `Secret` in an explicit namespace — used by
+                  cluster-scoped CRDs, which have no namespace of their own to default to.
                 properties:
                   key:
                     type: string
@@ -192,9 +194,7 @@ spec:
                       nullable: true
                       type: integer
                     reason:
-                      description: |-
-                        One of `domain::error::ReasonCode`'s `as_str()` values — never a
-                        hand-written string.
+                      description: One of the operator's reason codes — never a hand-written string.
                       type: string
                     status:
                       description: '`"True"`, `"False"`, or `"Unknown"`.'

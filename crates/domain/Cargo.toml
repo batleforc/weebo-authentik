@@ -3,3 +3,6 @@ name = "domain"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+
+[dependencies]
+weebo-kit-domain = { workspace = true }

@@ -2,8 +2,12 @@ use api::AuthentikApplication;
 use api::application::ProviderKind;
 use domain::error::ReasonCode;
 
-use crate::ports::{AuthentikGateway, GatewayError, SecretStore};
+use crate::ports::{
+    AuthentikGateway, GatewayError, Oauth2Credentials, SecretOwner, SecretStore, SecretStoreError,
+};
 use crate::use_cases::{ReconcileOutcome, errored_from_gateway_error};
+use weebo_kit_api::SecretTarget;
+use weebo_kit_application::emit;
 
 /// Annotation authorizing a `spec.provider.kind` change on an existing
 /// `AuthentikApplication`. Such a change deletes the old Authentik
@@ -80,11 +84,9 @@ fn classify_provider_kind_change(
 /// `ALLOW_DISRUPTIVE_UPDATE_ANNOTATION`. See `.prompt/plan.md`, "Politique
 /// de mutation".
 ///
-/// Secret naming convention (previously open in `.prompt/plan.md`):
-/// `SecretStore::write_oauth2_credentials` is called with the CR's own
-/// `metadata.name`/`metadata.namespace` — one Secret per
-/// `AuthentikApplication`, same name, same namespace as the CR that owns
-/// it.
+/// oauth2 credentials go to every `spec.secretTargets` entry — or, when
+/// there is none, to one target named after the CR, in its namespace, on
+/// the instance's default backend ([`credential_targets`]).
 pub async fn reconcile_application(
     app: &AuthentikApplication,
     authentik_id: Option<&str>,
@@ -230,19 +232,7 @@ async fn try_reconcile_application(
                 .await
                 .map_err(errored_from_gateway_error)?;
 
-            let namespace = app.metadata.namespace.clone().unwrap_or_default();
-            let name = app
-                .metadata
-                .name
-                .clone()
-                .unwrap_or_else(|| app.spec.slug.clone());
-            secrets
-                .write_oauth2_credentials(&namespace, &name, &result.credentials)
-                .await
-                .map_err(|e| ReconcileOutcome::Errored {
-                    reason: ReasonCode::SecretStoreError,
-                    message: format!("failed writing oauth2 credentials secret: {e}"),
-                })?;
+            write_credentials(app, &result.credentials, secrets).await?;
 
             parse_provider_id(&result.authentik_id)?
         }
@@ -294,6 +284,60 @@ fn parse_provider_id(id: &str) -> Result<i32, ReconcileOutcome> {
     })
 }
 
+/// `kind` recorded as the owner of every emitted credential.
+pub const OWNER_KIND: &str = "AuthentikApplication";
+
+fn cr_name(app: &AuthentikApplication) -> &str {
+    app.metadata.name.as_deref().unwrap_or(&app.spec.slug)
+}
+
+/// The application, as the owner of the credentials it emits.
+pub fn credentials_owner(app: &AuthentikApplication) -> SecretOwner<'_> {
+    SecretOwner::namespaced(
+        OWNER_KIND,
+        app.metadata.namespace.as_deref().unwrap_or_default(),
+        cr_name(app),
+    )
+}
+
+/// `spec.secretTargets`, or the implicit target named after the CR.
+pub fn credential_targets(
+    app: &AuthentikApplication,
+    secrets: &dyn SecretStore,
+) -> Vec<SecretTarget> {
+    emit::targets(&app.spec.secret_targets, cr_name(app), secrets)
+}
+
+/// Fans the credentials out to every target. Targets are checked first: an
+/// application only ever writes into its own namespace (and, on Vault,
+/// under `<pathPrefix>/<namespace>/`).
+async fn write_credentials(
+    app: &AuthentikApplication,
+    credentials: &Oauth2Credentials,
+    secrets: &dyn SecretStore,
+) -> Result<(), ReconcileOutcome> {
+    let owner = credentials_owner(app);
+    let targets = credential_targets(app, secrets);
+    let failed = |message: String| ReconcileOutcome::Errored {
+        reason: ReasonCode::SecretStoreError,
+        message,
+    };
+    emit::check_targets(&targets, &owner).map_err(|e| failed(e.to_string()))?;
+    emit::write_all(&targets, &owner, &credentials.to_secret_data(), secrets)
+        .await
+        .map_err(|e| failed(format!("failed writing oauth2 credentials: {e}")))
+}
+
+/// Finalizer half: removes the credentials from every target this
+/// application owns (another owner's value is left alone).
+pub async fn delete_credentials(
+    app: &AuthentikApplication,
+    secrets: &dyn SecretStore,
+) -> Result<(), SecretStoreError> {
+    let owner = credentials_owner(app);
+    emit::delete_all(&credential_targets(app, secrets), &owner, secrets).await
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -303,10 +347,9 @@ mod tests {
     use kube::api::ObjectMeta;
 
     use super::*;
-    use crate::ports::{
-        GatewayError, Oauth2Credentials, Oauth2ProviderUpsertResult, RemoteApplication,
-    };
-    use crate::test_support::{FakeGateway, FakeSecretStore};
+    use crate::ports::{GatewayError, Oauth2ProviderUpsertResult, RemoteApplication};
+    use crate::test_support::FakeGateway;
+    use weebo_kit_application::test_support::FakeSecretStore;
 
     fn oauth2_spec() -> ProviderSpec {
         ProviderSpec {
@@ -588,10 +631,7 @@ mod tests {
             create_result: Some(Ok("harbor".to_string())),
             ..Default::default()
         };
-        let secrets = FakeSecretStore {
-            write_oauth2_credentials_result: Some(Ok(())),
-            ..Default::default()
-        };
+        let secrets = FakeSecretStore::default();
 
         let outcome =
             reconcile_application(&app(oauth2_spec(), None), None, &gateway, &secrets).await;
@@ -622,10 +662,7 @@ mod tests {
             update_result: Some(Ok(())),
             ..Default::default()
         };
-        let secrets = FakeSecretStore {
-            write_oauth2_credentials_result: Some(Ok(())),
-            ..Default::default()
-        };
+        let secrets = FakeSecretStore::default();
 
         let outcome = reconcile_application(
             &app(oauth2_spec(), None),
@@ -639,6 +676,116 @@ mod tests {
             outcome,
             ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "harbor"
         ));
+    }
+
+    // --- where the credentials go ---
+
+    fn oauth2_gateway() -> FakeGateway {
+        FakeGateway {
+            upsert_oauth2_provider_result: Some(Ok(Oauth2ProviderUpsertResult {
+                authentik_id: "42".to_string(),
+                credentials: Oauth2Credentials {
+                    client_id: "client".to_string(),
+                    client_secret: "secret".to_string(),
+                    authentik_url: "https://authentik.example.com".to_string(),
+                },
+            })),
+            create_result: Some(Ok("harbor".to_string())),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn credentials_go_to_the_implicit_target_owned_by_the_application() {
+        let secrets = FakeSecretStore::default();
+        reconcile_application(&app(oauth2_spec(), None), None, &oauth2_gateway(), &secrets).await;
+
+        let data = secrets
+            .get("team-a/harbor")
+            .expect("implicit target written");
+        assert_eq!(data["AUTHENTIK_CLIENT_ID"], "client");
+        assert_eq!(data["AUTHENTIK_CLIENT_SECRET"], "secret");
+        assert_eq!(data["AUTHENTIK_URL"], "https://authentik.example.com");
+        assert_eq!(
+            secrets.owner_of("team-a/harbor").as_deref(),
+            Some("AuthentikApplication/team-a/harbor")
+        );
+    }
+
+    #[tokio::test]
+    async fn credentials_fan_out_to_every_target() {
+        let mut application = app(oauth2_spec(), None);
+        application.spec.secret_targets = ["a", "b"]
+            .map(|name| SecretTarget {
+                backend: Default::default(),
+                name: name.to_string(),
+                namespace: None,
+                path: None,
+            })
+            .to_vec();
+        let secrets = FakeSecretStore::default();
+        reconcile_application(&application, None, &oauth2_gateway(), &secrets).await;
+
+        assert!(secrets.get("team-a/a").is_some());
+        assert!(secrets.get("team-a/b").is_some());
+        assert_eq!(secrets.get("team-a/harbor"), None);
+    }
+
+    #[tokio::test]
+    async fn a_target_in_another_namespace_is_refused_before_any_write() {
+        let mut application = app(oauth2_spec(), None);
+        application.spec.secret_targets = vec![SecretTarget {
+            backend: Default::default(),
+            name: "stolen".to_string(),
+            namespace: Some("kube-system".to_string()),
+            path: None,
+        }];
+        let secrets = FakeSecretStore::default();
+        let outcome = reconcile_application(&application, None, &oauth2_gateway(), &secrets).await;
+
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::SecretStoreError,
+                ..
+            }
+        ));
+        assert_eq!(secrets.get("kube-system/stolen"), None);
+    }
+
+    #[tokio::test]
+    async fn another_owners_secret_is_neither_overwritten_nor_deleted() {
+        let theirs = BTreeMap::from([("k".to_string(), "v".to_string())]);
+        let secrets = FakeSecretStore::default();
+        secrets.insert_foreign(
+            "team-a/harbor",
+            "AuthentikApplication/team-a/other",
+            theirs.clone(),
+        );
+        let application = app(oauth2_spec(), None);
+
+        let outcome = reconcile_application(&application, None, &oauth2_gateway(), &secrets).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::SecretStoreError,
+                ..
+            }
+        ));
+        delete_credentials(&application, &secrets).await.unwrap();
+        assert_eq!(secrets.get("team-a/harbor"), Some(theirs));
+    }
+
+    #[test]
+    fn a_public_client_has_no_secret_key() {
+        let data = Oauth2Credentials {
+            client_id: "client".to_string(),
+            client_secret: String::new(),
+            authentik_url: "https://authentik.example.com".to_string(),
+        }
+        .to_secret_data();
+        assert!(!data.contains_key("AUTHENTIK_CLIENT_SECRET"));
+        assert_eq!(data.len(), 2);
     }
 
     // --- gateway/secret-store error propagation ---
@@ -730,12 +877,8 @@ mod tests {
             })),
             ..Default::default()
         };
-        let secrets = FakeSecretStore {
-            write_oauth2_credentials_result: Some(Err(crate::ports::SecretStoreError::Write(
-                "disk full".to_string(),
-            ))),
-            ..Default::default()
-        };
+        let secrets = FakeSecretStore::default();
+        secrets.fail_writes(true);
 
         let outcome =
             reconcile_application(&app(oauth2_spec(), None), None, &gateway, &secrets).await;
@@ -762,10 +905,7 @@ mod tests {
             })),
             ..Default::default()
         };
-        let secrets = FakeSecretStore {
-            write_oauth2_credentials_result: Some(Ok(())),
-            ..Default::default()
-        };
+        let secrets = FakeSecretStore::default();
 
         let outcome =
             reconcile_application(&app(oauth2_spec(), None), None, &gateway, &secrets).await;

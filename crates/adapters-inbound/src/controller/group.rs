@@ -3,7 +3,6 @@ use std::sync::Arc;
 use api::AuthentikGroup;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_group::reconcile_group;
-use futures::StreamExt;
 use kube::api::Api;
 use kube::runtime::Controller;
 use kube::runtime::controller::Action;
@@ -15,14 +14,11 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikGroup> = Api::all(client);
-    Controller::new(api, watcher::Config::default())
-        .run(reconcile, error_policy, ctx)
-        .for_each(|res| async move {
-            if let Err(err) = res {
-                tracing::error!(error = %err, "AuthentikGroup reconcile failed");
-            }
-        })
-        .await;
+    let health = ctx.health.clone();
+    let results = Controller::new(api, watcher::Config::default())
+        .graceful_shutdown_on(ctx.shutdown.wait())
+        .run(reconcile, error_policy, ctx);
+    super::drive("AuthentikGroup", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikGroup>, ctx: Arc<Ctx>) -> Result<Action, Error> {
@@ -65,7 +61,7 @@ async fn apply(
     };
     super::record_reconcile("AuthentikGroup", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &name, outcome, "group synced").await?;
+    super::patch_reconcile_outcome(api, &ctx.recorder, group, outcome, "group synced").await?;
 
     Ok(action)
 }

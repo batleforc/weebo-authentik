@@ -11,7 +11,6 @@ use api::application::{AuthentikApplicationSpec, ProviderKind, ProviderSpec, Pro
 use api::{AuthentikAccessPolicy, AuthentikApplication};
 use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
 use testkit::authentik_mock::AuthentikMock;
-use testkit::envtest::EnvTestCluster;
 
 mod support;
 use support::{init_tracing, new_ctx, wait_for};
@@ -36,7 +35,7 @@ async fn wait_for_ready_status(
 async fn errors_when_application_ref_not_found_in_namespace() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
     // No mock mounted at all: this path must never touch the gateway
     // (see reconcile_access_policy) — an unexpected call would 404 and
@@ -78,7 +77,7 @@ async fn errors_when_application_ref_not_found_in_namespace() {
 async fn syncs_the_binding_once_the_application_has_synced() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;

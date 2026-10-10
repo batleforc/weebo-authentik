@@ -26,6 +26,7 @@ pub struct AuthentikNamespacePolicySpec {
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct NamespaceRule {
+    /// Exact namespace names, `*`, or a prefix glob such as `team-*`.
     pub namespaces: Vec<String>,
     pub allowed_kinds: Vec<ResourceKind>,
     pub effect: Effect,

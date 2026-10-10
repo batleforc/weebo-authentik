@@ -3,6 +3,7 @@
 //! a concrete adapter — dependency injection happens in `operator::main`.
 //! See `.prompt/plan.md`, "Architecture hexagonale".
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
@@ -242,8 +243,8 @@ pub struct RemoteApplication {
 }
 
 /// Result of upserting an oauth2 provider: the pk (as `authentik_id`
-/// elsewhere) plus the credentials `reconcile_application` must hand to
-/// `SecretStore` — proxy providers have no equivalent since auth happens
+/// elsewhere) plus the credentials `reconcile_application` writes to the
+/// application's secret targets — proxy providers have no equivalent since auth happens
 /// at the outpost, hence this type is oauth2-only rather than a field on
 /// a shared result shape.
 #[derive(Debug, Clone)]
@@ -259,77 +260,31 @@ pub struct Oauth2Credentials {
     pub authentik_url: String,
 }
 
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum SecretStoreError {
-    #[error("secret store write failed: {0}")]
-    Write(String),
-    #[error("secret store delete failed: {0}")]
-    Delete(String),
+impl Oauth2Credentials {
+    /// Canonical secret shape: `AUTHENTIK_CLIENT_ID`/`AUTHENTIK_CLIENT_SECRET`/
+    /// `AUTHENTIK_URL`, matching every oauth2 app in the Terraform module
+    /// being replaced. A public client has no secret: the key is left out.
+    pub fn to_secret_data(&self) -> BTreeMap<String, String> {
+        let mut data = BTreeMap::from([
+            ("AUTHENTIK_CLIENT_ID".to_string(), self.client_id.clone()),
+            ("AUTHENTIK_URL".to_string(), self.authentik_url.clone()),
+        ]);
+        if !self.client_secret.is_empty() {
+            data.insert(
+                "AUTHENTIK_CLIENT_SECRET".to_string(),
+                self.client_secret.clone(),
+            );
+        }
+        data
+    }
 }
 
-/// Canonical secret shape: `AUTHENTIK_CLIENT_ID`/`AUTHENTIK_CLIENT_SECRET`/
-/// `AUTHENTIK_URL`, matching every oauth2 app in the Terraform module being
-/// replaced. Never called for proxy providers — they carry no client
-/// secret (auth happens at the outpost). See `.prompt/plan.md`.
-///
-/// `#[async_trait]` for the same `dyn`-compatibility reason as
-/// `AuthentikGateway`.
-#[async_trait::async_trait]
-pub trait SecretStore: Send + Sync {
-    async fn write_oauth2_credentials(
-        &self,
-        namespace: &str,
-        name: &str,
-        credentials: &Oauth2Credentials,
-    ) -> Result<(), SecretStoreError>;
-    async fn delete(&self, namespace: &str, name: &str) -> Result<(), SecretStoreError>;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum SecretStoreFactoryError {
-    /// `instanceRef` does not resolve to an `AuthentikInstance` CR. Maps
-    /// to `domain::error::ReasonCode::InstanceRefNotFound` — same failure
-    /// mode as `GatewayFactoryError::InstanceNotFound`.
-    #[error("AuthentikInstance {0:?} not found")]
-    InstanceNotFound(String),
-    /// Kubernetes-side failure resolving the `AuthentikInstance`, or a
-    /// failure building/authenticating the chosen `SecretStore` backend
-    /// (e.g. Vault Kubernetes-auth login failed, KV mount misconfigured).
-    /// Maps to `domain::error::ReasonCode::SecretStoreError`.
-    #[error("failed resolving SecretStore backend: {0}")]
-    ResolutionFailed(String),
-}
-
-/// Produces a `SecretStore` for a given `AuthentikApplication` CR. Only
-/// `AuthentikApplication` ever needs a `SecretStore` (oauth2 credentials),
-/// and it always carries an explicit `instanceRef`, so unlike
-/// `GatewayFactory` there is no `default_store`.
-///
-/// The whole `AuthentikApplication` is passed — not just its
-/// `instanceRef` — because the application's optional `secretTargets`
-/// decide the routing: an empty list yields the instance's single default
-/// destination, a non-empty list yields a fan-out store writing to every
-/// listed Vault path / Kubernetes Secret. The instance's `secretStore`
-/// still supplies the Vault *connection* (address, mount, auth) that Vault
-/// targets reuse.
-///
-/// The concrete adapter (`AuthentikSecretStoreFactory`) caches the Vault
-/// backend's login for its lease lifetime — each `login` mints a throwaway
-/// Vault token, so re-authenticating per reconcile churned tokens
-/// needlessly; a KV op rejected as unauthorized self-heals by re-logging-in
-/// (see `secret_vault.rs`). The Kubernetes backend and the per-application
-/// fan-out wrapper are zero-cost and not cached. This is an adapter-side
-/// concern the port stays agnostic to.
-///
-/// `#[async_trait]` for the same `dyn`-compatibility reason as
-/// `AuthentikGateway`.
-#[async_trait::async_trait]
-pub trait SecretStoreFactory: Send + Sync {
-    async fn secret_store_for(
-        &self,
-        app: &AuthentikApplication,
-    ) -> Result<Arc<dyn SecretStore>, SecretStoreFactoryError>;
-}
+/// Where emitted credentials are written: the kit's ports. A store routes
+/// each `SecretTarget` to its backend, records the owning CR on every value
+/// and refuses to overwrite or delete another owner's.
+pub use weebo_kit_application::ports::{
+    SecretOwner, SecretStore, SecretStoreError, SecretStoreFactory,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayFactoryError {

@@ -10,7 +10,6 @@ use api::AuthentikInstance;
 use api::instance::{AuthentikInstanceSpec, SecretKeyRef};
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
-use testkit::envtest::EnvTestCluster;
 
 mod support;
 use support::{init_tracing, new_ctx, wait_for};
@@ -19,7 +18,7 @@ use support::{init_tracing, new_ctx, wait_for};
 async fn instance_controller_marks_ready_with_no_remote_object() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;
