@@ -1,0 +1,2 @@
+{{- /* Every resource but the CRDs, from the kit's library chart. */ -}}
+{{ include "weebo-operator.all" (dict "ctx" . "params" (include "operator.params" . | fromYaml)) }}

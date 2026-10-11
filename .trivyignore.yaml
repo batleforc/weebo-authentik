@@ -1,0 +1,14 @@
+# Accepted findings of `task audit` (trivy), each scoped and justified.
+misconfigurations:
+  - id: KSV-0041
+    paths:
+      - deploy/charts/weebo-authentik/templates/operator.yaml
+    statement: >-
+      The operator writes AuthentikApplication OAuth2 credentials into the
+      namespaces their secretTargets name, and reads the AuthentikInstance
+      token Secrets: cluster-wide Secret access is the feature. The
+      AuthentikNamespacePolicy allow-list and namespaced RBAC on the CRs
+      bound who can make it write where; a namespaced CR may only write
+      into its own namespace, and only into Secrets the operator owns
+      (managed-by label + authentik.weebo.io/owner annotation). Secrets are
+      read by name, never listed or watched.

@@ -20,3 +20,9 @@ node_modules/
 
 # desloppify local state (per-machine, not shared)
 .desloppify/
+
+# The kit's library chart, fetched by `task helm:deps` (Chart.lock pins it)
+deploy/charts/*/charts/
+
+# Task's cache of the remote includes (weebo-operator-kit's tasks/)
+.task/remote/

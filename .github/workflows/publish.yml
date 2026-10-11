@@ -82,5 +82,7 @@ jobs:
 
       - name: Package and push the chart
         run: |
+          # The kit's library chart, as Chart.lock pins it.
+          mise exec -- helm dependency build --skip-refresh deploy/charts/weebo-authentik
           mise exec -- helm package deploy/charts/weebo-authentik
           mise exec -- helm push weebo-authentik-*.tgz oci://ghcr.io/batleforc/charts

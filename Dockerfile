@@ -18,5 +18,7 @@ RUN cargo build --release -p operator
 # for a network-facing admission webhook.
 FROM gcr.io/distroless/cc-debian12:nonroot
 COPY --from=builder /build/target/release/operator /usr/local/bin/operator
-USER nonroot:nonroot
+# 65532 is distroless's `nonroot`. Numeric so Kubernetes can enforce
+# `runAsNonRoot` without resolving names; the Helm chart pins the same UID.
+USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/operator"]

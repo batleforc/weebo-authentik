@@ -115,18 +115,26 @@ helm upgrade weebo-authentik oci://ghcr.io/batleforc/charts/weebo-authentik \
   --values values-prod.yaml
 ```
 
+The chart renders the CRDs as regular templates (`templates/crds/`), so
+`helm upgrade` upgrades them too. Each CRD carries
+`helm.sh/resource-policy: keep`: `helm uninstall`, or switching
+`crds.install` off, never deletes them, and with them every CR. Managing
+CRDs separately (a GitOps CRD stage, a cluster where only admins write
+CRDs)? Install with `--set crds.install=false` and apply `deploy/crd/`
+from a checkout at the target tag yourself.
+
 <Callout type="warn">
-**Helm does not upgrade CRDs.** CRDs ship in the chart's `crds/`
-directory, which Helm installs once and then never upgrades or deletes
-(this is Helm's documented behavior, not a chart bug). When a release
-changes a CRD schema, apply the new definitions yourself **before** the
+**Upgrading from 0.15 or earlier, once.** Those charts shipped the CRDs in
+Helm's `crds/` directory, outside the release: Helm refuses to take over
+objects it doesn't own. Hand them to the release before the first
 `helm upgrade`:
 
 ```bash
-kubectl apply -f deploy/crd/            # from a checkout at the target tag
-# or pull them out of the chart:
-helm pull oci://ghcr.io/batleforc/charts/weebo-authentik --version <NEW> --untar
-kubectl apply -f weebo-authentik/crds/
+for crd in $(kubectl get crd -o name | grep '\.authentik\.weebo\.io$'); do
+  kubectl label "$crd" app.kubernetes.io/managed-by=Helm --overwrite
+  kubectl annotate "$crd" meta.helm.sh/release-name=weebo-authentik \
+    meta.helm.sh/release-namespace=weebo-authentik --overwrite
+done
 ```
 </Callout>
 
@@ -141,9 +149,7 @@ helm rollback weebo-authentik <REVISION> --namespace weebo-authentik
 ```
 
 Rollback reverts the `Deployment` (image tag included) and the other
-templated resources. It does **not** roll back CRDs — a rollback across a
-CRD-schema change needs the matching older CRDs re-applied the same way
-as an upgrade.
+templated resources, the CRDs included.
 
 ## Day-2: uninstall (read before running)
 
@@ -154,7 +160,7 @@ helm uninstall weebo-authentik --namespace weebo-authentik
 Two things `helm uninstall` deliberately leaves behind, both of which
 matter:
 
-- **CRDs are not removed** (again, Helm never deletes `crds/`). Any
+- **CRDs are not removed** (`helm.sh/resource-policy: keep`). Any
   `AuthentikInstance`/`AuthentikApplication`/… objects you created also
   remain.
 - **Finalizers need a running operator to clear.** Every managed CR
