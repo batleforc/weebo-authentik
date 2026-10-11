@@ -71,7 +71,9 @@ fn review_request(namespace: &str, kind: &str) -> Request<Body> {
 
 async fn decision(client: kube::Client, namespace: &str, kind: &str) -> serde_json::Value {
     let router = webhook::router(
-        WebhookState { client },
+        WebhookState {
+            policies: std::sync::Arc::new(adapters_outbound::KubePolicySource::new(client)),
+        },
         std::sync::Arc::new(weebo_kit_runtime::Health::default()),
     );
     let response = router

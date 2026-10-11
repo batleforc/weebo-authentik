@@ -52,6 +52,17 @@ unreachable, writes are blocked cluster-wide rather than silently
 allowed through. This is why the
 [Helm chart](/docs/guides/install) runs it multi-replica by default.
 
+## Existing resources after a policy change
+
+The operator re-checks the same rules on every reconcile of an
+`AuthentikApplication` or `AuthentikAccessPolicy`, and re-triggers all of
+them whenever an `AuthentikNamespacePolicy` changes. An object created
+before a rule was narrowed (or before the first policy existed) turns
+`Ready: False` with reason `NamespaceNotAllowed` and an Event; the
+operator stops updating it in Authentik but deletes nothing — the object
+stays as it was until the rule allows it again (it then resumes) or the
+CR is deleted (its cleanup always runs).
+
 ## Why `DELETE` is never validated
 
 Revoking a namespace's access (removing or narrowing its

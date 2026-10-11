@@ -4,7 +4,9 @@ use api::AuthentikApplication;
 use api::application::ProviderKind;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::errored_from_secret_store_error;
+use application::use_cases::evaluate_admission::enforce;
 use application::use_cases::reconcile_application::{delete_credentials, reconcile_application};
+use domain::allow_list::ResourceKind;
 use kube::api::Api;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
@@ -13,9 +15,9 @@ use kube::{Client, ResourceExt};
 use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
-    let api: Api<AuthentikApplication> = Api::all(client);
+    let api: Api<AuthentikApplication> = Api::all(client.clone());
     let health = ctx.health.clone();
-    let results = super::controller(api)
+    let results = super::on_policy_change(super::controller(api), client)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikApplication", health, results).await;
@@ -48,28 +50,39 @@ async fn apply(
     let started = std::time::Instant::now();
     let authentik_id = app.status.as_ref().and_then(|s| s.authentik_id.clone());
 
-    let outcome = match ctx
-        .gateway_factory
-        .gateway_for(&app.spec.instance_ref)
-        .await
-    {
-        Ok(gateway) => match ctx
-            .secrets_factory
-            .store_for(Some(&app.spec.instance_ref))
+    let namespace = app.namespace().unwrap_or_default();
+    let admission = enforce(
+        ctx.policies.as_ref(),
+        &namespace,
+        ResourceKind::AuthentikApplication,
+    )
+    .await?;
+    let outcome = match admission.refusal() {
+        // Re-checked here too: a policy may have changed since admission.
+        Some(refused) => refused,
+        None => match ctx
+            .gateway_factory
+            .gateway_for(&app.spec.instance_ref)
             .await
         {
-            Ok(secrets) => {
-                reconcile_application(
-                    app,
-                    authentik_id.as_deref(),
-                    gateway.as_ref(),
-                    secrets.as_ref(),
-                )
+            Ok(gateway) => match ctx
+                .secrets_factory
+                .store_for(Some(&app.spec.instance_ref))
                 .await
-            }
-            Err(e) => errored_from_secret_store_error(e),
+            {
+                Ok(secrets) => {
+                    reconcile_application(
+                        app,
+                        authentik_id.as_deref(),
+                        gateway.as_ref(),
+                        secrets.as_ref(),
+                    )
+                    .await
+                }
+                Err(e) => errored_from_secret_store_error(e),
+            },
+            Err(e) => errored_from_factory_error(e),
         },
-        Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikApplication", started, &outcome);
     let action = super::requeue_after(&outcome);

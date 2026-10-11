@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use api::{AuthentikAccessPolicy, AuthentikApplication};
 use application::use_cases::errored_from_factory_error;
+use application::use_cases::evaluate_admission::enforce;
 use application::use_cases::reconcile_access_policy::{
     application_ref_not_found, reconcile_access_policy,
 };
+use domain::allow_list::ResourceKind;
 use kube::api::Api;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
@@ -13,9 +15,9 @@ use kube::{Client, ResourceExt};
 use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
-    let api: Api<AuthentikAccessPolicy> = Api::all(client);
+    let api: Api<AuthentikAccessPolicy> = Api::all(client.clone());
     let health = ctx.health.clone();
-    let results = super::controller(api)
+    let results = super::on_policy_change(super::controller(api), client)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikAccessPolicy", health, results).await;
@@ -49,33 +51,43 @@ async fn apply(
     let started = std::time::Instant::now();
     let authentik_id = policy.status.as_ref().and_then(|s| s.authentik_id.clone());
 
-    // Same-namespace lookup, never a cluster-wide client — this is the
-    // enforcement mechanism from `.prompt/plan.md`, "Confinement au
-    // namespace, deux couches": a same-named AuthentikApplication in a
-    // different namespace is invisible here by construction.
-    let app_api: Api<AuthentikApplication> = Api::namespaced(ctx.client.clone(), namespace);
-    let resolved = app_api.get_opt(&policy.spec.application_ref).await?;
-
-    let outcome = match &resolved {
-        Some(application) => {
-            match ctx
-                .gateway_factory
-                .gateway_for(&application.spec.instance_ref)
-                .await
-            {
-                Ok(gateway) => {
-                    reconcile_access_policy(
-                        policy,
-                        application,
-                        authentik_id.as_deref(),
-                        gateway.as_ref(),
-                    )
-                    .await
+    let admission = enforce(
+        ctx.policies.as_ref(),
+        namespace,
+        ResourceKind::AuthentikAccessPolicy,
+    )
+    .await?;
+    let outcome = match admission.refusal() {
+        // Re-checked here too: a policy may have changed since admission.
+        Some(refused) => refused,
+        None => {
+            // Same-namespace lookup, never a cluster-wide client — this is
+            // the enforcement mechanism from `.prompt/plan.md`, "Confinement
+            // au namespace, deux couches": a same-named AuthentikApplication
+            // in a different namespace is invisible here by construction.
+            let app_api: Api<AuthentikApplication> = Api::namespaced(ctx.client.clone(), namespace);
+            match app_api.get_opt(&policy.spec.application_ref).await? {
+                Some(application) => {
+                    match ctx
+                        .gateway_factory
+                        .gateway_for(&application.spec.instance_ref)
+                        .await
+                    {
+                        Ok(gateway) => {
+                            reconcile_access_policy(
+                                policy,
+                                &application,
+                                authentik_id.as_deref(),
+                                gateway.as_ref(),
+                            )
+                            .await
+                        }
+                        Err(e) => errored_from_factory_error(e),
+                    }
                 }
-                Err(e) => errored_from_factory_error(e),
+                None => application_ref_not_found(policy),
             }
         }
-        None => application_ref_not_found(policy),
     };
     super::record_reconcile("AuthentikAccessPolicy", started, &outcome);
     let action = super::requeue_after(&outcome);

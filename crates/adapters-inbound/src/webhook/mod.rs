@@ -1,25 +1,24 @@
 //! Admission webhook: adapts an incoming `AdmissionReview` into a call to
-//! `application::use_cases::evaluate_admission` (the kit's allow-list
-//! engine, through `domain::allow_list`).
+//! `application::use_cases::evaluate_admission::enforce` (the kit's
+//! allow-list engine, through `domain::allow_list`) — the same check the
+//! reconcilers repeat.
 
 use std::sync::Arc;
 
-use api::AuthentikNamespacePolicy;
-use api::namespace_policy::{Effect as ApiEffect, ResourceKind as ApiResourceKind};
-use application::use_cases::evaluate_admission::{
-    AdmissionRequest as EvaluateAdmissionRequest, evaluate_admission,
-};
+use api::namespace_policy::NamespaceRule;
+use application::ports::PolicySource;
+use application::use_cases::evaluate_admission::enforce;
 use axum::Router;
-use domain::allow_list::{self, Effect, NamespaceRule, ResourceKind};
+use domain::allow_list::ResourceKind;
 use domain::error::ReasonCode;
 use kube::core::DynamicObject;
-use kube::{Api, Client};
 use weebo_kit_runtime::Health;
 use weebo_kit_runtime::admission::{Admission, Denial};
 
 #[derive(Clone)]
 pub struct WebhookState {
-    pub client: Client,
+    /// Every `AuthentikNamespacePolicy`, read on each request.
+    pub policies: Arc<dyn PolicySource<NamespaceRule>>,
 }
 
 /// `POST /validate` (the kit's: a `DELETE`, or an `UPDATE` leaving `spec`
@@ -53,20 +52,17 @@ impl Admission for WebhookState {
                 format!("unrecognized kind for this webhook: {kind}"),
             ));
         };
-        let (rules, policies_exist) = fetch_rules(&self.client).await.map_err(|err| {
-            tracing::error!(error = %err, "failed to list AuthentikNamespacePolicy");
-            // failurePolicy: Fail already blocks the request if this
-            // webhook errors; this denial is the same fail-closed intent.
-            Denial::new(
-                ReasonCode::NamespaceNotAllowed,
-                "AuthentikNamespacePolicy lookup failed",
-            )
-        })?;
-        let result = evaluate_admission(
-            &EvaluateAdmissionRequest { namespace, kind },
-            &rules,
-            policies_exist,
-        );
+        let result = enforce(self.policies.as_ref(), namespace, kind)
+            .await
+            .map_err(|err| {
+                tracing::error!(error = %err, "failed to list AuthentikNamespacePolicy");
+                // failurePolicy: Fail already blocks the request if this
+                // webhook errors; this denial is the same fail-closed intent.
+                Denial::new(
+                    ReasonCode::NamespaceNotAllowed,
+                    "AuthentikNamespacePolicy lookup failed",
+                )
+            })?;
         if result.allowed {
             Ok(())
         } else {
@@ -90,56 +86,28 @@ fn parse_kind(kind: &str) -> Option<ResourceKind> {
     }
 }
 
-/// Returns the flattened rules plus whether any `AuthentikNamespacePolicy`
-/// object exists at all — the two are distinct: a policy with an empty
-/// `rules` list still counts as "exists" and keeps default-deny in force
-/// (see `domain::allow_list::evaluate`).
-async fn fetch_rules(client: &Client) -> Result<(Vec<NamespaceRule>, bool), kube::Error> {
-    let api: Api<AuthentikNamespacePolicy> = Api::all(client.clone());
-    let list = api.list(&Default::default()).await?;
-    let policies_exist = !list.items.is_empty();
-    let rules = list
-        .into_iter()
-        .flat_map(|policy| policy.spec.rules)
-        .map(to_domain_rule)
-        .collect();
-    Ok((rules, policies_exist))
-}
-
-fn to_domain_rule(rule: api::namespace_policy::NamespaceRule) -> NamespaceRule {
-    allow_list::rule(
-        rule.namespaces,
-        rule.allowed_kinds.into_iter().map(to_domain_kind).collect(),
-        match rule.effect {
-            ApiEffect::Allow => Effect::Allow,
-            ApiEffect::Deny => Effect::Deny,
-        },
-    )
-}
-
-fn to_domain_kind(kind: ApiResourceKind) -> ResourceKind {
-    match kind {
-        ApiResourceKind::AuthentikApplication => ResourceKind::AuthentikApplication,
-        ApiResourceKind::AuthentikAccessPolicy => ResourceKind::AuthentikAccessPolicy,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use kube::core::admission::AdmissionReview;
 
     use super::*;
 
-    /// `validate`'s unrecognized-`kind` branch returns before ever touching
-    /// `state.client` (see the `let Some(kind) = parse_kind(...) else`
-    /// above), so this only needs a `Client` value that type-checks — no
-    /// real cluster. `Client::try_from(Config::new(..))` builds the HTTP
-    /// stack without making any network call.
-    fn state_with_unreachable_client() -> WebhookState {
-        let config = kube::Config::new("http://127.0.0.1:1".parse().unwrap());
+    /// A [`PolicySource`] that must never be read: `admit`'s
+    /// unrecognized-`kind` branch returns before touching the policies.
+    struct Unreachable;
+
+    #[async_trait::async_trait]
+    impl PolicySource<NamespaceRule> for Unreachable {
+        async fn policies(
+            &self,
+        ) -> Result<Vec<Vec<NamespaceRule>>, application::ports::ClusterError> {
+            unreachable!("an unrecognized kind is denied before any policy read")
+        }
+    }
+
+    fn state_with_unreachable_policies() -> WebhookState {
         WebhookState {
-            client: Client::try_from(config)
-                .expect("building a Client from a bare Config performs no network I/O"),
+            policies: Arc::new(Unreachable),
         }
     }
 
@@ -174,15 +142,10 @@ mod tests {
 
     #[tokio::test]
     async fn unrecognized_kind_fails_closed() {
-        // Same "which rustls CryptoProvider" fix every real entry point in
-        // this workspace applies before its first TLS-capable client is
-        // built — see `testkit::envtest::EnvTestCluster::start`.
-        let _ = rustls::crypto::ring::default_provider().install_default();
-
         let review = review_with_kind("SomeUnrelatedKind");
 
         let response =
-            weebo_kit_runtime::admission::handle(&state_with_unreachable_client(), review).await;
+            weebo_kit_runtime::admission::handle(&state_with_unreachable_policies(), review).await;
 
         let admission_response = response.response.expect("deny path always sets response");
         assert!(!admission_response.allowed);

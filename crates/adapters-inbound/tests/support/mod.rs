@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use adapters_inbound::controller::Ctx;
-use adapters_outbound::{AuthentikHttpGateway, kubernetes_secret_store};
+use adapters_outbound::{AuthentikHttpGateway, KubePolicySource, kubernetes_secret_store};
 use testkit::authentik_mock::AuthentikMock;
 use testkit::static_gateway_factory::StaticGatewayFactory;
 use testkit::static_secret_store_factory::StaticSecretStoreFactory;
@@ -50,6 +50,7 @@ pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
         client: client.clone(),
         gateway_factory,
         secrets_factory,
+        policies: Arc::new(KubePolicySource::new(client.clone())),
         recorder: kube::runtime::events::Recorder::new(
             client.clone(),
             kube::runtime::events::Reporter {

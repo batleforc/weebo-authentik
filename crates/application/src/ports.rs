@@ -286,6 +286,12 @@ pub use weebo_kit_application::ports::{
     SecretOwner, SecretStore, SecretStoreError, SecretStoreFactory,
 };
 
+/// The `AuthentikNamespacePolicy` rules, one list per policy (an empty
+/// list: no policy exists, everything is allowed) — read by the admission
+/// webhook and re-checked by the reconcilers: the kit's port, as
+/// `PolicySource<api::namespace_policy::NamespaceRule>`.
+pub use weebo_kit_application::ports::{ClusterError, PolicySource};
+
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayFactoryError {
     /// `instanceRef` does not resolve to an `AuthentikInstance` CR. Maps

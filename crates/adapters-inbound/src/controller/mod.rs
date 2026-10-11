@@ -8,8 +8,9 @@ use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use api::AuthentikStatus;
+use api::namespace_policy::NamespaceRule;
 use api::status::Condition;
-use application::ports::{GatewayFactory, SecretStoreFactory};
+use application::ports::{ClusterError, GatewayFactory, PolicySource, SecretStoreFactory};
 use application::use_cases::ReconcileOutcome;
 use domain::Failure;
 use domain::error::ReasonCode;
@@ -56,6 +57,9 @@ pub struct Ctx {
     pub client: Client,
     pub gateway_factory: Arc<dyn GatewayFactory>,
     pub secrets_factory: Arc<dyn SecretStoreFactory>,
+    /// Every `AuthentikNamespacePolicy`: the reconcilers of the kinds they
+    /// govern re-check them, a policy may have changed since admission.
+    pub policies: Arc<dyn PolicySource<NamespaceRule>>,
     /// Publishes an Event on every `Ready` transition.
     pub recorder: Recorder,
     pub shutdown: Shutdown,
@@ -86,6 +90,9 @@ pub enum Error {
     Gateway(String),
     #[error("secret store error: {0}")]
     SecretStore(String),
+    /// Reading the cluster for the use-case (the namespace policies) failed.
+    #[error(transparent)]
+    Cluster(#[from] ClusterError),
 }
 
 /// Shared by every controller's `Controller::run(reconcile, error_policy,
@@ -97,7 +104,9 @@ impl Error {
     pub fn reason(&self) -> (ReasonCode, &'static str) {
         use kube::runtime::finalizer::Error as Finalizer;
         match self {
-            Error::Kube(_) => (ReasonCode::KubernetesApiError, events::RECONCILE),
+            Error::Kube(_) | Error::Cluster(_) => {
+                (ReasonCode::KubernetesApiError, events::RECONCILE)
+            }
             Error::Gateway(_) => (ReasonCode::AuthentikApiError, events::RECONCILE),
             Error::SecretStore(_) => (ReasonCode::SecretStoreError, events::RECONCILE),
             Error::Finalizer(err) => match err.as_ref() {
@@ -123,6 +132,30 @@ where
         reason,
         action,
         err,
+    )
+}
+
+/// Re-checks every CR of `K` when an `AuthentikNamespacePolicy` changes:
+/// a new policy may forbid them (or allow one denied so far). Policies
+/// change rarely, and the check is a local list.
+pub fn on_policy_change<K>(
+    controller: kube::runtime::Controller<K>,
+    client: Client,
+) -> kube::runtime::Controller<K>
+where
+    K: Resource<DynamicType = ()> + Clone + Debug + DeserializeOwned + Send + Sync + 'static,
+{
+    let governed = controller.store();
+    controller.watches(
+        Api::<api::AuthentikNamespacePolicy>::all(client),
+        kube::runtime::watcher::Config::default(),
+        move |_| {
+            governed
+                .state()
+                .into_iter()
+                .map(|o| kube::runtime::reflector::ObjectRef::from_obj(o.as_ref()))
+                .collect::<Vec<_>>()
+        },
     )
 }
 

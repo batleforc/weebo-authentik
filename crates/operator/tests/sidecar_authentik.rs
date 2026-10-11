@@ -305,6 +305,7 @@ fn new_ctx(client: kube::Client) -> Arc<Ctx> {
         client: client.clone(),
         gateway_factory,
         secrets_factory,
+        policies: Arc::new(adapters_outbound::KubePolicySource::new(client.clone())),
         recorder: kube::runtime::events::Recorder::new(
             client.clone(),
             kube::runtime::events::Reporter {

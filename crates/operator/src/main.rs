@@ -3,9 +3,10 @@ use std::time::Duration;
 
 use adapters_inbound::controller::{self, Ctx, Shutdown};
 use adapters_inbound::webhook::{self, WebhookState};
-use adapters_outbound::{AuthentikGatewayFactory, AuthentikSecretStoreFactory};
+use adapters_outbound::{AuthentikGatewayFactory, AuthentikSecretStoreFactory, KubePolicySource};
 use api::AuthentikInstance;
-use application::ports::{GatewayFactory, SecretStoreFactory};
+use api::namespace_policy::NamespaceRule;
+use application::ports::{GatewayFactory, PolicySource, SecretStoreFactory};
 use futures::StreamExt;
 use kube::Client;
 use kube::api::Api;
@@ -90,11 +91,17 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
         AuthentikSecretStoreFactory::with_instance_store(client.clone(), instance_store),
     );
 
+    // Every AuthentikNamespacePolicy, read by the webhook and re-checked by
+    // the AuthentikApplication/AuthentikAccessPolicy reconcilers.
+    let policies: Arc<dyn PolicySource<NamespaceRule>> =
+        Arc::new(KubePolicySource::new(client.clone()));
+
     let holder_id = std::env::var("HOSTNAME").unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
     let ctx = Arc::new(Ctx {
         client: client.clone(),
         gateway_factory,
         secrets_factory,
+        policies: policies.clone(),
         recorder: Recorder::new(
             client.clone(),
             Reporter {
@@ -114,7 +121,7 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
     let webhook = webhook_server::spawn(
         webhook::router(
             WebhookState {
-                client: client.clone(),
+                policies: policies.clone(),
             },
             health.clone(),
         ),
