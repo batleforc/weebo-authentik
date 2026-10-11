@@ -59,17 +59,20 @@ spec:
             - name: webhook-tls
               mountPath: /etc/webhook/certs
               readOnly: true
-          # No dedicated /healthz route exists on the webhook router yet
-          # (adapters-inbound/src/webhook/mod.rs only registers POST
-          # /validate) — a TCP probe is the only thing that's honestly
-          # correct here without adding one.
+          # The kit's health routes, served next to /validate: ready once
+          # the webhook listens (and no longer once shutdown starts, so
+          # endpoints drain first), live while no watch keeps failing.
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /livez
               port: webhook
+              scheme: HTTPS
             initialDelaySeconds: 5
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /readyz
               port: webhook
+              scheme: HTTPS
             initialDelaySeconds: 5
           {{- with .Values.resources }}
           resources:

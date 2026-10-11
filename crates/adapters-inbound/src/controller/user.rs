@@ -3,43 +3,41 @@ use std::sync::Arc;
 use api::AuthentikUser;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_user::reconcile_user;
-use futures::StreamExt;
+use kube::Client;
 use kube::api::Api;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::runtime::watcher;
-use kube::{Client, ResourceExt};
 
 use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikUser> = Api::all(client);
-    Controller::new(api, watcher::Config::default())
-        .run(reconcile, error_policy, ctx)
-        .for_each(|res| async move {
-            if let Err(err) = res {
-                tracing::error!(error = %err, "AuthentikUser reconcile failed");
-            }
-        })
-        .await;
+    let health = ctx.health.clone();
+    let results = super::controller(api)
+        .graceful_shutdown_on(ctx.shutdown.wait())
+        .run(reconcile, error_policy, ctx);
+    super::drive("AuthentikUser", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikUser>, ctx: Arc<Ctx>) -> Result<Action, Error> {
+    if super::import_pending(obj.as_ref()) {
+        return Ok(Action::await_change());
+    }
     let api: Api<AuthentikUser> = Api::all(ctx.client.clone());
 
     finalizer(&api, FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(user) => apply(&api, &user, &ctx).await,
-            FinalizerEvent::Cleanup(user) => cleanup(&api, &user, &ctx).await,
+            FinalizerEvent::Cleanup(user) => {
+                super::finalize(user.as_ref(), &ctx, cleanup(&api, &user, &ctx)).await
+            }
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(api: &Api<AuthentikUser>, user: &AuthentikUser, ctx: &Ctx) -> Result<Action, Error> {
-    let name = user.name_any();
     let authentik_id = user.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let started = std::time::Instant::now();
@@ -49,7 +47,7 @@ async fn apply(api: &Api<AuthentikUser>, user: &AuthentikUser, ctx: &Ctx) -> Res
     };
     super::record_reconcile("AuthentikUser", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &name, outcome, "user synced").await?;
+    super::patch_reconcile_outcome(api, &ctx.recorder, user, outcome, "user synced").await?;
 
     Ok(action)
 }
@@ -70,5 +68,6 @@ async fn cleanup(
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
     }
+    super::announce_deleted(&ctx.recorder, user).await;
     Ok(Action::await_change())
 }

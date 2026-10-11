@@ -3,6 +3,7 @@ name = "adapters-inbound"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 
 [dependencies]
 domain = { workspace = true }
@@ -10,12 +11,15 @@ api = { workspace = true }
 application = { workspace = true }
 kube = { workspace = true, features = ["admission"] }
 axum = { workspace = true }
+async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
-futures = "0.3"
+futures = { workspace = true }
 opentelemetry = { workspace = true }
+weebo-kit-runtime = { workspace = true }
+k8s-openapi = { workspace = true }
 
 [dev-dependencies]
 testkit = { workspace = true }
@@ -23,5 +27,4 @@ adapters-outbound = { workspace = true }
 tracing-subscriber = { workspace = true }
 rustls = { workspace = true }
 tokio = { workspace = true }
-k8s-openapi = { workspace = true }
 tower = { workspace = true }

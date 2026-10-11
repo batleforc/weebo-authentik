@@ -8,9 +8,7 @@
 //! own variant.
 
 use api::instance::SecretKeyRef;
-use k8s_openapi::api::core::v1::Secret;
 use kube::Client;
-use kube::api::Api;
 
 /// Returns the raw bytes of `secret_ref`'s key. `what` names the reference's
 /// role in the error message ("secret", "Authentik CA secret", "Vault CA
@@ -26,18 +24,9 @@ pub(crate) async fn read_secret_key(
     secret_ref: &SecretKeyRef,
     what: &str,
 ) -> Result<Vec<u8>, String> {
-    let secrets: Api<Secret> = Api::namespaced(client.clone(), &secret_ref.namespace);
-    let secret = secrets.get(&secret_ref.name).await.map_err(|e| {
-        format!(
-            "fetching {what} {}/{}: {e}",
-            secret_ref.namespace, secret_ref.name
-        )
-    })?;
-    secret
-        .data
-        .as_ref()
-        .and_then(|data| data.get(&secret_ref.key))
-        .map(|bytes| bytes.0.clone())
+    weebo_kit_adapters::read_secret_key(client, secret_ref)
+        .await
+        .map_err(|e| format!("{what}: {e}"))?
         .ok_or_else(|| {
             format!(
                 "{what} {}/{} has no key {:?}",

@@ -25,6 +25,7 @@
             "type": "string"
           },
           "namespaces": {
+            "description": "Exact namespace names, `*`, or a prefix glob such as `team-*`.",
             "items": {
               "type": "string"
             },

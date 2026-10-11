@@ -4,20 +4,32 @@
 //! `.prompt/plan.md`, "Politique de mutation").
 
 use std::fmt::Debug;
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
-use application::ports::{GatewayFactory, SecretStoreFactory};
+use api::AuthentikStatus;
+use api::namespace_policy::NamespaceRule;
+use api::status::Condition;
+use application::ports::{ClusterError, GatewayFactory, PolicySource, SecretStoreFactory};
 use application::use_cases::ReconcileOutcome;
+use domain::Failure;
 use domain::error::ReasonCode;
-use domain::status::ConditionStatus;
-use kube::api::{Api, Patch, PatchParams};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
+use kube::api::Api;
 use kube::runtime::controller::Action;
+use kube::runtime::events::Recorder;
 use kube::{Client, Resource};
-use opentelemetry::metrics::{Counter, Histogram};
-use opentelemetry::{KeyValue, global};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use weebo_kit_runtime::Health;
+use weebo_kit_runtime::events;
+use weebo_kit_runtime::metrics::ReconcileMetrics;
+use weebo_kit_runtime::status::StatusUpdate;
+
+/// Resolves once the process is asked to stop: every controller then stops
+/// taking new work, lets its in-flight reconciles finish, and its `run`
+/// returns (`Controller::graceful_shutdown_on`).
+pub use weebo_kit_runtime::Shutdown;
 
 pub mod access_policy;
 /// The `AuthentikApplication` controller. Named `app`, not `application`
@@ -45,7 +57,22 @@ pub struct Ctx {
     pub client: Client,
     pub gateway_factory: Arc<dyn GatewayFactory>,
     pub secrets_factory: Arc<dyn SecretStoreFactory>,
+    /// Every `AuthentikNamespacePolicy`: the reconcilers of the kinds they
+    /// govern re-check them, a policy may have changed since admission.
+    pub policies: Arc<dyn PolicySource<NamespaceRule>>,
+    /// Publishes an Event on every `Ready` transition.
+    pub recorder: Recorder,
+    pub shutdown: Shutdown,
+    /// Liveness: controllers report their watch errors here.
+    pub health: Arc<Health>,
 }
+
+/// The kit's controller skeleton: a watch filtered to what reconciling
+/// acts on (spec, annotations, labels, finalizers, deletion — never the
+/// CR's own status patches), bounded concurrency
+/// (`WEEBO_RECONCILE_CONCURRENCY`), the result stream drained into the
+/// liveness.
+pub use weebo_kit_runtime::controller::{controller, drive};
 
 /// Shared reconcile-error type for every controller. Not every variant is
 /// constructed by every controller (e.g. `instance`/`namespace_policy` never
@@ -55,19 +82,81 @@ pub struct Ctx {
 pub enum Error {
     #[error("kube error: {0}")]
     Kube(#[from] kube::Error),
-    #[error("finalizer error: {0}")]
-    Finalizer(String),
+    /// Anything the finalizer helper reports: the reconcile's own error
+    /// (`ApplyFailed`/`CleanupFailed`) or adding/removing the finalizer.
+    #[error("{0}")]
+    Finalizer(Box<kube::runtime::finalizer::Error<Error>>),
     #[error("authentik gateway error: {0}")]
     Gateway(String),
     #[error("secret store error: {0}")]
     SecretStore(String),
+    /// Reading the cluster for the use-case (the namespace policies) failed.
+    #[error(transparent)]
+    Cluster(#[from] ClusterError),
 }
 
 /// Shared by every controller's `Controller::run(reconcile, error_policy,
 /// ctx)` call — the body never depended on the CRD kind `K`, only on
 /// `Error`/`Ctx`, so making it generic is a pure deletion of duplication.
-pub fn error_policy<K>(_obj: Arc<K>, _err: &Error, _ctx: Arc<Ctx>) -> Action {
-    Action::requeue(std::time::Duration::from_secs(30))
+impl Error {
+    /// The reason code of the Event announcing this error, and whether it
+    /// happened reconciling or cleaning up (the Event's `action`).
+    pub fn reason(&self) -> (ReasonCode, &'static str) {
+        use kube::runtime::finalizer::Error as Finalizer;
+        match self {
+            Error::Kube(_) | Error::Cluster(_) => {
+                (ReasonCode::KubernetesApiError, events::RECONCILE)
+            }
+            Error::Gateway(_) => (ReasonCode::AuthentikApiError, events::RECONCILE),
+            Error::SecretStore(_) => (ReasonCode::SecretStoreError, events::RECONCILE),
+            Error::Finalizer(err) => match err.as_ref() {
+                Finalizer::ApplyFailed(inner) => inner.reason(),
+                Finalizer::CleanupFailed(inner) => (inner.reason().0, events::CLEANUP),
+                _ => (ReasonCode::KubernetesApiError, events::RECONCILE),
+            },
+        }
+    }
+}
+
+/// Every reconcile that errors out — before reaching a status patch, or in
+/// a finalizer cleanup — is announced by a `Warning` Event on its CR (the
+/// kit folds repeats into one series), then retried in ~30s (jittered).
+pub fn error_policy<K>(obj: Arc<K>, err: &Error, ctx: Arc<Ctx>) -> Action
+where
+    K: Resource<DynamicType = ()>,
+{
+    let (reason, action) = err.reason();
+    weebo_kit_runtime::controller::retry_after_error(
+        &ctx.recorder,
+        obj.object_ref(&()),
+        reason,
+        action,
+        err,
+    )
+}
+
+/// Re-checks every CR of `K` when an `AuthentikNamespacePolicy` changes:
+/// a new policy may forbid them (or allow one denied so far). Policies
+/// change rarely, and the check is a local list.
+pub fn on_policy_change<K>(
+    controller: kube::runtime::Controller<K>,
+    client: Client,
+) -> kube::runtime::Controller<K>
+where
+    K: Resource<DynamicType = ()> + Clone + Debug + DeserializeOwned + Send + Sync + 'static,
+{
+    let governed = controller.store();
+    controller.watches(
+        Api::<api::AuthentikNamespacePolicy>::all(client),
+        kube::runtime::watcher::Config::default(),
+        move |_| {
+            governed
+                .state()
+                .into_iter()
+                .map(|o| kube::runtime::reflector::ObjectRef::from_obj(o.as_ref()))
+                .collect::<Vec<_>>()
+        },
+    )
 }
 
 /// Requeue delay to return from a successful `apply()`, chosen from the
@@ -80,181 +169,260 @@ pub fn error_policy<K>(_obj: Arc<K>, _err: &Error, _ctx: Arc<Ctx>) -> Action {
 /// convergence for up to 5 minutes (and times out the e2e golden-path
 /// waits, which poll for ~150s); a short backoff, matching `error_policy`'s
 /// hard-error cadence, lets the dependency resolve in seconds. Mirrors a
-/// hard `Err`'s `error_policy` requeue, kept as one number.
+/// hard `Err`'s `error_policy` requeue, kept as one number. Both jittered
+/// (the kit's), so CRs created together don't stay in lockstep.
 pub fn requeue_after(outcome: &ReconcileOutcome) -> Action {
+    weebo_kit_runtime::controller::requeue_after(
+        matches!(outcome, ReconcileOutcome::Synced { .. }),
+        None,
+    )
+}
+
+/// The `status` of every CRD here is an `AuthentikStatus`; this gives the
+/// shared helpers access to it without a trait per field.
+pub trait HasStatus {
+    fn authentik_status(&self) -> Option<&AuthentikStatus>;
+}
+
+macro_rules! impl_has_status {
+    ($($kind:ty),+) => {$(
+        impl HasStatus for $kind {
+            fn authentik_status(&self) -> Option<&AuthentikStatus> {
+                self.status.as_ref()
+            }
+        }
+    )+};
+}
+impl_has_status!(
+    api::AuthentikInstance,
+    api::AuthentikGroup,
+    api::AuthentikFlow,
+    api::AuthentikUser,
+    api::AuthentikOutpost,
+    api::AuthentikScopeMapping,
+    api::AuthentikBrand,
+    api::AuthentikApplication,
+    api::AuthentikAccessPolicy,
+    api::AuthentikNamespacePolicy
+);
+
+/// The full condition list of `outcome` (the kit's: `Ready` first, then
+/// one condition per advisory; `lastTransitionTime` only moves when a
+/// condition flips). `synced_message` is `Ready`'s message on success.
+pub fn conditions(
+    previous: &[Condition],
+    outcome: &ReconcileOutcome,
+    synced_message: &str,
+    generation: Option<i64>,
+    now: &Time,
+) -> Vec<Condition> {
+    let ready = ready_of(outcome, synced_message);
+    weebo_kit_runtime::conditions::conditions(previous, &ready, &[], generation, now)
+}
+
+/// `Ready`'s side of an outcome: `Ok(synced_message)` or the failure.
+fn ready_of(outcome: &ReconcileOutcome, synced_message: &str) -> Result<String, Failure> {
     match outcome {
-        ReconcileOutcome::Synced { .. } => Action::requeue(std::time::Duration::from_secs(300)),
-        ReconcileOutcome::Errored { .. } => Action::requeue(std::time::Duration::from_secs(30)),
+        ReconcileOutcome::Synced { .. } => Ok(synced_message.to_string()),
+        ReconcileOutcome::Errored { reason, message } => Err(Failure::new(*reason, message)),
     }
 }
 
-/// Patches only the `Ready` condition via the `status` subresource. The
-/// `ReasonCode`-only signature is the same type-level constraint as
-/// `domain::error::ReasonCode` — a reconciler cannot compile a
-/// hand-written reason string here.
-pub async fn patch_ready_condition<K>(
-    api: &Api<K>,
-    name: &str,
-    status: ConditionStatus,
-    reason: ReasonCode,
-    message: impl Into<String>,
-) -> Result<(), kube::Error>
+/// A finalizer's cleanup — unless the CR carries
+/// `authentik.weebo.io/force-orphan: "true"`, the way out for a CR whose
+/// cleanup can't succeed any more (its instance or token gone) — then a
+/// `Released` Event (the kit's).
+pub async fn finalize<K>(
+    obj: &K,
+    ctx: &Ctx,
+    cleanup: impl std::future::Future<Output = Result<Action, Error>>,
+) -> Result<Action, Error>
 where
-    K: Resource + Clone + Debug + DeserializeOwned + Serialize,
-    K::DynamicType: Default,
+    K: Resource<DynamicType = ()>,
 {
-    let status_str = match status {
-        ConditionStatus::True => "True",
-        ConditionStatus::False => "False",
-        ConditionStatus::Unknown => "Unknown",
-    };
-    let patch = serde_json::json!({
-        "status": {
-            "conditions": [{
-                "type": "Ready",
-                "status": status_str,
-                "reason": reason.as_str(),
-                "message": message.into(),
-            }]
-        }
-    });
-    // `force` is Server-Side-Apply-only (`Patch::Apply`) — a real
-    // apiserver rejects it paired with `Patch::Merge` ("PatchParams::force
-    // only works with Patch::Apply"), caught by the layer-3 envtest
-    // integration test, not by `cargo check`. `field_manager` alone is
-    // fine (optional, but still attributes the change) for any patch type.
-    api.patch_status(
-        name,
-        &PatchParams::apply(FIELD_MANAGER),
-        &Patch::Merge(&patch),
+    weebo_kit_runtime::controller::finalize(
+        obj,
+        &ctx.recorder,
+        &api::ANNOTATIONS,
+        ReasonCode::Released,
+        async { cleanup.await.map(|_| ()) },
     )
-    .await?;
-    Ok(())
+    .await
 }
 
-/// Shared `ReconcileOutcome` -> `status` patch translation — call this
-/// instead of matching on `outcome` directly in each controller's
-/// `apply()`. `synced_message` is used only for the `Ready` condition's
-/// message on a successful sync (e.g. `"group synced"`). Correct even for
-/// CRDs whose use-case never sets `authentik_id` (`AuthentikInstance`,
-/// `AuthentikNamespacePolicy`): `Synced { authentik_id: Some(_) }` is
-/// simply never constructed for those, so only the `None` arm below ever
-/// fires for them.
+/// Paused by the importer (`authentik.weebo.io/import-pending`): left
+/// alone until its status is seeded. A deletion is always processed.
+pub fn import_pending<K: Resource>(obj: &K) -> bool {
+    api::ANNOTATIONS.import_pending(obj.meta())
+}
+
+/// Shared `ReconcileOutcome` -> `status` translation — call this instead of
+/// matching on `outcome` in each controller's `apply()`. One merge patch on
+/// the status subresource (conditions, `observedGeneration` on success,
+/// `authentikId` when the outcome carries one), then Kubernetes Events: a
+/// `Warning` for every failed reconcile, a `Normal` for every condition
+/// change and for the remote object's creation. `obj` gives the previous
+/// conditions, the generation and whether `authentikId` was already
+/// recorded: pass the freshest copy at hand. `synced_message` is `Ready`'s
+/// message on success (e.g. `"group synced"`).
+///
+/// `authentikId` is written in the same call as `Ready: True`: without it,
+/// the next reconcile would see `authentik_id: None` again and attempt a
+/// second create against Authentik, which the "attempt-create-first"
+/// contract (see `.prompt/plan.md`, "Modele de status commun") turns into a
+/// spurious `AuthentikObjectAlreadyExists`.
 pub async fn patch_reconcile_outcome<K>(
     api: &Api<K>,
-    name: &str,
+    recorder: &Recorder,
+    obj: &K,
     outcome: ReconcileOutcome,
     synced_message: &str,
 ) -> Result<(), kube::Error>
 where
-    K: Resource + Clone + Debug + DeserializeOwned + Serialize,
-    K::DynamicType: Default,
+    K: Resource<DynamicType = ()> + HasStatus + Clone + Debug + DeserializeOwned + Serialize,
 {
-    match outcome {
-        ReconcileOutcome::Synced {
-            authentik_id: Some(id),
-        } => patch_synced_status(api, name, &id, synced_message).await,
-        ReconcileOutcome::Synced { authentik_id: None } => {
-            patch_ready_condition(
-                api,
-                name,
-                ConditionStatus::True,
-                ReasonCode::Reconciled,
-                synced_message,
-            )
-            .await
-        }
-        ReconcileOutcome::Errored { reason, message } => {
-            patch_ready_condition(api, name, ConditionStatus::False, reason, message).await
-        }
+    let previous = obj
+        .authentik_status()
+        .map(|s| s.conditions.as_slice())
+        .unwrap_or_default();
+    let ready = ready_of(&outcome, synced_message);
+    let mut fields = serde_json::Map::new();
+    if let ReconcileOutcome::Synced {
+        authentik_id: Some(id),
+    } = &outcome
+    {
+        fields.insert("authentikId".into(), id.clone().into());
+    }
+    // The kit's: one merge patch (conditions, `observedGeneration` on
+    // success), retried while the apiserver is unavailable, then a
+    // `Warning` on every failed reconcile and a `Normal` for every
+    // condition change. One more Event for the remote object's creation.
+    weebo_kit_runtime::status::publish(
+        api,
+        recorder,
+        FIELD_MANAGER,
+        obj,
+        previous,
+        StatusUpdate {
+            ready: &ready,
+            advisories: &[],
+            fields,
+        },
+    )
+    .await?;
+    let object = obj.object_ref(&());
+    let recorded = obj
+        .authentik_status()
+        .and_then(|s| s.authentik_id.as_deref());
+    if let ReconcileOutcome::Synced {
+        authentik_id: Some(id),
+    } = &outcome
+        && recorded.is_none()
+    {
+        events::announce_change(
+            recorder,
+            &object,
+            ReasonCode::Created,
+            events::RECONCILE,
+            &format!("created in Authentik as {id}"),
+        )
+        .await;
+    }
+    Ok(())
+}
+
+/// Call at the end of a successful finalizer cleanup: a `Normal` Event when
+/// it deleted the CR's remote object.
+pub async fn announce_deleted<K>(recorder: &Recorder, obj: &K)
+where
+    K: Resource<DynamicType = ()> + HasStatus,
+{
+    if let Some(id) = obj
+        .authentik_status()
+        .and_then(|s| s.authentik_id.as_deref())
+    {
+        events::announce_change(
+            recorder,
+            &obj.object_ref(&()),
+            ReasonCode::Deleted,
+            events::CLEANUP,
+            &format!("deleted {id} from Authentik"),
+        )
+        .await;
     }
 }
 
-/// OTLP-exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (see
-/// `operator::telemetry::init`) — a safe no-op otherwise, since the
-/// `opentelemetry::global` facade records nothing until a real
-/// `MeterProvider` is installed, same as `tracing`'s macros being safe to
-/// call before a subscriber is set.
-const METER_NAME: &str = "weebo-authentik-operator";
-
-static RECONCILE_TOTAL: LazyLock<Counter<u64>> = LazyLock::new(|| {
-    global::meter(METER_NAME)
-        .u64_counter("weebo_authentik_reconcile_total")
-        .with_description(
-            "Reconcile attempts, by CRD kind, result (synced/errored), and reason code",
-        )
-        .build()
-});
-
-static RECONCILE_DURATION_SECONDS: LazyLock<Histogram<f64>> = LazyLock::new(|| {
-    global::meter(METER_NAME)
-        .f64_histogram("weebo_authentik_reconcile_duration_seconds")
-        .with_description("Reconcile duration in seconds, by CRD kind")
-        .build()
-});
-
-/// Records one reconcile attempt's outcome — call from every controller's
-/// `apply()` right after computing `outcome`, before patching status.
-/// `kind` is the CRD's own kind string (e.g. `"AuthentikApplication"`),
-/// `started` is when that `apply()` call began.
+/// Records one reconcile attempt's outcome as
+/// `weebo_authentik_reconcile_total`/`_duration_seconds` (the kit's
+/// `ReconcileMetrics`) — call from every controller's `apply()` right after
+/// computing `outcome`. A no-op until `operator`'s telemetry installs a
+/// real `MeterProvider`. `kind` is the CRD's kind, `started` when that
+/// `apply()` call began.
 pub fn record_reconcile(kind: &'static str, started: Instant, outcome: &ReconcileOutcome) {
-    let (result, reason) = match outcome {
-        ReconcileOutcome::Synced { .. } => ("synced", ReasonCode::Reconciled.as_str()),
-        ReconcileOutcome::Errored { reason, .. } => ("errored", reason.as_str()),
+    static METRICS: OnceLock<ReconcileMetrics> = OnceLock::new();
+    let reason = match outcome {
+        ReconcileOutcome::Synced { .. } => ReasonCode::Reconciled,
+        ReconcileOutcome::Errored { reason, .. } => *reason,
     };
-    RECONCILE_TOTAL.add(
-        1,
-        &[
-            KeyValue::new("kind", kind),
-            KeyValue::new("result", result),
-            KeyValue::new("reason", reason),
-        ],
-    );
-    RECONCILE_DURATION_SECONDS.record(
-        started.elapsed().as_secs_f64(),
-        &[KeyValue::new("kind", kind)],
-    );
+    METRICS
+        .get_or_init(|| ReconcileMetrics::new(FIELD_MANAGER, "weebo_authentik"))
+        .record(kind, reason, started.elapsed());
 }
 
-/// Patches `status.authentikId` alongside `Ready: True` in a single
-/// `status` subresource call. Without this, `status.authentikId` is never
-/// persisted — the next reconcile would see `authentik_id: None` again and
-/// attempt a second create against Authentik, which the "attempt-create-
-/// first" contract (see `.prompt/plan.md`, "Modele de status commun")
-/// turns into a spurious `AuthentikObjectAlreadyExists`. `authentik_id`
-/// is `None` for CRDs with no remote object (`AuthentikInstance`,
-/// `AuthentikNamespacePolicy`) — those never call this helper.
-pub async fn patch_synced_status<K>(
-    api: &Api<K>,
-    name: &str,
-    authentik_id: &str,
-    message: impl Into<String>,
-) -> Result<(), kube::Error>
-where
-    K: Resource + Clone + Debug + DeserializeOwned + Serialize,
-    K::DynamicType: Default,
-{
-    let patch = serde_json::json!({
-        "status": {
-            "authentikId": authentik_id,
-            "conditions": [{
-                "type": "Ready",
-                "status": "True",
-                "reason": ReasonCode::Reconciled.as_str(),
-                "message": message.into(),
-            }]
-        }
-    });
-    // `force` is Server-Side-Apply-only (`Patch::Apply`) — a real
-    // apiserver rejects it paired with `Patch::Merge` ("PatchParams::force
-    // only works with Patch::Apply"), caught by the layer-3 envtest
-    // integration test, not by `cargo check`. `field_manager` alone is
-    // fine (optional, but still attributes the change) for any patch type.
-    api.patch_status(
-        name,
-        &PatchParams::apply(FIELD_MANAGER),
-        &Patch::Merge(&patch),
-    )
-    .await?;
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use k8s_openapi::jiff::Timestamp;
+
+    use super::*;
+
+    fn at(secs: i64) -> Time {
+        Time(Timestamp::from_second(secs).unwrap())
+    }
+
+    #[test]
+    fn errors_map_to_a_reason_and_an_action() {
+        use kube::runtime::finalizer::Error as Finalizer;
+        let gateway = || Error::Gateway("boom".into());
+        assert_eq!(
+            gateway().reason(),
+            (ReasonCode::AuthentikApiError, events::RECONCILE)
+        );
+        assert_eq!(
+            Error::Finalizer(Box::new(Finalizer::ApplyFailed(gateway()))).reason(),
+            (ReasonCode::AuthentikApiError, events::RECONCILE)
+        );
+        assert_eq!(
+            Error::Finalizer(Box::new(Finalizer::CleanupFailed(Error::SecretStore(
+                "denied".into()
+            ))))
+            .reason(),
+            (ReasonCode::SecretStoreError, events::CLEANUP)
+        );
+        assert_eq!(
+            Error::Finalizer(Box::new(Finalizer::UnnamedObject)).reason(),
+            (ReasonCode::KubernetesApiError, events::RECONCILE)
+        );
+    }
+
+    #[test]
+    fn transition_time_only_moves_when_ready_flips() {
+        let ok = ReconcileOutcome::Synced { authentik_id: None };
+        let first = conditions(&[], &ok, "synced", Some(1), &at(10));
+        assert_eq!(first[0].type_, "Ready");
+        assert_eq!(first[0].reason, "Reconciled");
+        assert_eq!(first[0].message, "synced");
+
+        let again = conditions(&first, &ok, "synced", Some(2), &at(20));
+        assert_eq!(again[0].last_transition_time, Some(at(10)));
+        assert_eq!(again[0].observed_generation, Some(2));
+
+        let failed = ReconcileOutcome::Errored {
+            reason: ReasonCode::AuthentikApiError,
+            message: "boom".into(),
+        };
+        let flipped = conditions(&again, &failed, "synced", Some(2), &at(30));
+        assert_eq!(flipped[0].status, "False");
+        assert_eq!(flipped[0].reason, "AuthentikApiError");
+        assert_eq!(flipped[0].last_transition_time, Some(at(30)));
+    }
 }

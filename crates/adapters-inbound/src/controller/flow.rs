@@ -3,39 +3,38 @@ use std::sync::Arc;
 use api::AuthentikFlow;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_flow::reconcile_flow;
-use futures::StreamExt;
 use kube::api::Api;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::runtime::watcher;
 use kube::{Client, ResourceExt};
 
 use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikFlow> = Api::all(client);
-    Controller::new(api, watcher::Config::default())
-        .run(reconcile, error_policy, ctx)
-        .for_each(|res| async move {
-            if let Err(err) = res {
-                tracing::error!(error = %err, "AuthentikFlow reconcile failed");
-            }
-        })
-        .await;
+    let health = ctx.health.clone();
+    let results = super::controller(api)
+        .graceful_shutdown_on(ctx.shutdown.wait())
+        .run(reconcile, error_policy, ctx);
+    super::drive("AuthentikFlow", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikFlow>, ctx: Arc<Ctx>) -> Result<Action, Error> {
+    if super::import_pending(obj.as_ref()) {
+        return Ok(Action::await_change());
+    }
     let api: Api<AuthentikFlow> = Api::all(ctx.client.clone());
 
     finalizer(&api, FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(flow) => apply(&api, &flow, &ctx).await,
-            FinalizerEvent::Cleanup(flow) => cleanup(&api, &flow, &ctx).await,
+            FinalizerEvent::Cleanup(flow) => {
+                super::finalize(flow.as_ref(), &ctx, cleanup(&api, &flow, &ctx)).await
+            }
         }
     })
     .await
-    .map_err(|e| Error::Finalizer(e.to_string()))
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn apply(api: &Api<AuthentikFlow>, flow: &AuthentikFlow, ctx: &Ctx) -> Result<Action, Error> {
@@ -54,7 +53,7 @@ async fn apply(api: &Api<AuthentikFlow>, flow: &AuthentikFlow, ctx: &Ctx) -> Res
     };
     super::record_reconcile("AuthentikFlow", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &name, outcome, "flow synced").await?;
+    super::patch_reconcile_outcome(api, &ctx.recorder, &current, outcome, "flow synced").await?;
 
     Ok(action)
 }
@@ -75,5 +74,6 @@ async fn cleanup(
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
     }
+    super::announce_deleted(&ctx.recorder, flow).await;
     Ok(Action::await_change())
 }

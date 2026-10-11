@@ -10,9 +10,9 @@ change; this section is just an index into the repo, not a substitute.
 
 ## Architecture (hexagonal)
 
-- `crates/domain` — pure logic (allow-list evaluation, brand-default
-  election, `ReasonCode` catalog, status/condition types). Zero `kube`/
-  `http` dependency, testable without I/O.
+- `crates/domain` — pure logic (allow-list rules over the kit's engine,
+  brand-default election, `ReasonCode` catalog via the kit's
+  `reason_codes!`). Zero `kube`/`http` dependency, testable without I/O.
 - `crates/application` — `reconcile_*`/`evaluate_admission` use-cases,
   orchestrating `domain` + the `AuthentikGateway`/`SecretStore` port
   traits (`ports.rs`). No concrete adapter dependency.
@@ -20,18 +20,27 @@ change; this section is just an index into the repo, not a substitute.
 - `crates/adapters-inbound` — kube.rs controllers (one per CRD) + the
   admission webhook (`axum`).
 - `crates/adapters-outbound` — `AuthentikHttpGateway` (wraps the generated
-  `authentik-client`), `K8sSecretStore`, `VaultSecretStore` (both real
-  `SecretStore` implementations; see `secret_vault.rs` for the Vault KV v2 +
-  Kubernetes-auth one).
-- `crates/operator` — the binary: wires everything, leader election,
-  webhook TLS.
+  `authentik-client`) and `AuthentikSecretStoreFactory`, which builds the
+  kit's `RoutingSecretStore` (Kubernetes + Vault) per `AuthentikInstance`.
+- `crates/operator` — the binary: wires everything on the kit's runtime
+  (telemetry, leader election, health, webhook TLS, graceful shutdown).
 - `crates/importer` — one-shot tool that reads a live Authentik instance
   and emits CRD YAML (migration path from the Terraform module).
-- `crates/testkit` — shared test harnesses: `envtest` (real
+- `crates/testkit` — shared test harnesses: `envtest` (the kit's real
   kube-apiserver+etcd, no Docker needed), `authentik_mock` (`wiremock`).
-- `docs/` — Fumadocs site; `docs/content/docs/crds/*.mdx` and
-  `docs/public/crd-schemas/*.json` are **generated**, never hand-edited
-  (see `task recu`).
+
+Shared plumbing (reason codes, conditions, secret stores, allow-list
+engine, runtime) comes from
+[weebo-operator-kit](https://github.com/batleforc/weebo-operator-kit)
+(`weebo-kit-*` in `Cargo.toml`); its `docs/plan.md` says what belongs there.
+- `docs/` — Fumadocs site on `@weebo/operator-docs` (the kit's
+  `packages/operator-docs`: CRD page generator, manifest builder, theme,
+  layout, routes); the site keeps its content, `crd-docs.config.mjs`
+  (examples, guides, order) and `src/lib/crd-choices.ts`.
+  `docs/content/docs/crds/*.mdx`, `docs/public/crd-schemas/*.json` and
+  `docs/content/docs/reference/` (from `ReasonCode`'s doc comments, the
+  metric names and `docs/perf/weebo-authentik.json`) are **generated**,
+  never hand-edited (see `task recu`).
 
 ## Common commands
 
@@ -40,6 +49,7 @@ task lint              # cargo fmt --check + clippy -D warnings
 task lint:helm          # helm lint + template smoke test on deploy/charts/
 task test               # fast unit + contract tests (--lib --bins)
 task test:integration   # + real envtest-backed controller tests (--tests)
+task perf                # resource budget of the release binary (weebo-kit-perf)
 task recu                # regenerate CRDs (deploy/crd/) + chart crds/ + docs
 task docs                # Fumadocs dev server
 ```

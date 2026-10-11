@@ -8,7 +8,7 @@
       "default": {
         "backend": "kubernetes"
       },
-      "description": "Where `SecretStore::write_oauth2_credentials`/`delete` writes this\ninstance's oauth2 application credentials. Defaults to a\nKubernetes `Secret` (`crates/adapters-outbound/src/secret_k8s.rs`)\nwhen unset.",
+      "description": "Where this instance's oauth2 application credentials are written:\nthe backend of the implicit target of an `AuthentikApplication`\nwithout `secretTargets` (default `kubernetes`), and the Vault\nconnection every Vault target uses.",
       "properties": {
         "backend": {
           "default": "kubernetes",
@@ -61,7 +61,7 @@
             },
             "pathPrefix": {
               "default": "weebo-authentik",
-              "description": "Path prefix under `mount` — the final KV path is\n`<pathPrefix>/<namespace>/<name>`, one secret per\n`AuthentikApplication` CR (same convention as the Kubernetes\nbackend's Secret naming).",
+              "description": "Path prefix under `mount` — a target's default KV path is\n`<pathPrefix>/<namespace>/<name>`, and an `AuthentikApplication`\nmay only write under `<pathPrefix>/<its namespace>/`.",
               "type": "string"
             }
           },
@@ -82,7 +82,7 @@
       "description": "TLS verification for the API connection above — a private CA to trust\n(`tls.caSecretRef`), or the `tls.insecureSkipVerify` escape hatch.\nDefaults to plain platform-trust-store verification.",
       "properties": {
         "caSecretRef": {
-          "description": "Optional custom CA certificate to verify Authentik's TLS with, read\nfrom a Kubernetes `Secret` (the referenced `key` must hold a PEM\nbundle). Use this to trust a private CA without mounting it into the\noperator pod — the operator reads the Secret via the API and hands the\nPEM to its HTTP client. It is added *on top of* the platform trust\nstore, so publicly-signed endpoints keep working. When unset, only the\nplatform trust store (plus the usual `SSL_CERT_FILE`/`SSL_CERT_DIR`\nenv vars) is used.",
+          "description": "Optional custom CA certificate to verify the instance's TLS with,\nread from a Kubernetes `Secret` (the referenced `key` must hold a PEM\nbundle). Use this to trust a private CA without mounting it into the\noperator pod — the operator reads the Secret via the API and hands the\nPEM to its HTTP client. It is added *on top of* the platform trust\nstore, so publicly-signed endpoints keep working. When unset, only the\nplatform trust store (plus the usual `SSL_CERT_FILE`/`SSL_CERT_DIR`\nenv vars) is used.",
           "nullable": true,
           "properties": {
             "key": {
@@ -111,6 +111,7 @@
       "type": "object"
     },
     "tokenSecretRef": {
+      "description": "A key inside a Kubernetes `Secret` in an explicit namespace — used by\ncluster-scoped CRDs, which have no namespace of their own to default to.",
       "properties": {
         "key": {
           "type": "string"

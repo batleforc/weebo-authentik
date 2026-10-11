@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use adapters_inbound::controller::Ctx;
-use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
+use adapters_outbound::{AuthentikHttpGateway, KubePolicySource, kubernetes_secret_store};
 use testkit::authentik_mock::AuthentikMock;
 use testkit::static_gateway_factory::StaticGatewayFactory;
 use testkit::static_secret_store_factory::StaticSecretStoreFactory;
@@ -33,7 +33,7 @@ pub fn init_tracing() {
 /// Builds the `Ctx` every controller integration test wires up: a real
 /// `AuthentikHttpGateway` pointed at the test's `AuthentikMock` (wrapped in
 /// a `StaticGatewayFactory` so no real `AuthentikInstance` resolution is
-/// needed), and a real `K8sSecretStore` against the test's `envtest`
+/// needed), and the kit's `K8sSecretStore` against the test's `envtest`
 /// client (wrapped in a `StaticSecretStoreFactory`, same rationale — the
 /// Vault backend is exercised by its own contract test, not these
 /// per-CRD controller tests).
@@ -44,12 +44,22 @@ pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
         "test-token",
     );
     let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
-    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
+    let secrets = Arc::new(kubernetes_secret_store(client.clone()));
     let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));
     Arc::new(Ctx {
-        client,
+        client: client.clone(),
         gateway_factory,
         secrets_factory,
+        policies: Arc::new(KubePolicySource::new(client.clone())),
+        recorder: kube::runtime::events::Recorder::new(
+            client.clone(),
+            kube::runtime::events::Reporter {
+                controller: "weebo-authentik-operator".into(),
+                instance: None,
+            },
+        ),
+        shutdown: adapters_inbound::controller::Shutdown::never(),
+        health: Arc::new(weebo_kit_runtime::Health::default()),
     })
 }
 
@@ -73,4 +83,34 @@ where
     K: Clone + serde::de::DeserializeOwned + std::fmt::Debug,
 {
     testkit::polling::wait_for_absence(api, name, TIMEOUT, POLL_INTERVAL).await
+}
+
+/// Waits for a Kubernetes Event of `reason` on the object `name` in
+/// `namespace`, and returns its type (`Warning`/`Normal`).
+pub async fn wait_for_event(
+    client: &kube::Client,
+    namespace: &str,
+    name: &str,
+    reason: &str,
+) -> String {
+    use k8s_openapi::api::core::v1::Event;
+    let events: kube::Api<Event> = kube::Api::namespaced(client.clone(), namespace);
+    let params = kube::api::ListParams::default().fields(&format!("involvedObject.name={name}"));
+    tokio::time::timeout(TIMEOUT, async {
+        loop {
+            let found = events
+                .list(&params)
+                .await
+                .expect("events must be listable")
+                .items
+                .into_iter()
+                .find(|e| e.reason.as_deref() == Some(reason));
+            if let Some(event) = found {
+                return event.type_.unwrap_or_default();
+            }
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("no {reason} Event on {namespace}/{name} within {TIMEOUT:?}"))
 }

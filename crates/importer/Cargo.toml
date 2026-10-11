@@ -3,8 +3,10 @@ name = "importer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 
 [dependencies]
+weebo-kit-adapters = { workspace = true }
 api = { workspace = true }
 authentik-client = { workspace = true }
 serde = { workspace = true }

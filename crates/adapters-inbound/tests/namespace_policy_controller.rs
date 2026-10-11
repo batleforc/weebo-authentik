@@ -10,7 +10,6 @@ use api::AuthentikNamespacePolicy;
 use api::namespace_policy::AuthentikNamespacePolicySpec;
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
-use testkit::envtest::EnvTestCluster;
 
 mod support;
 use support::{init_tracing, new_ctx, wait_for};
@@ -19,7 +18,7 @@ use support::{init_tracing, new_ctx, wait_for};
 async fn namespace_policy_controller_marks_ready() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;

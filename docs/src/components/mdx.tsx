@@ -1,13 +1,10 @@
-import defaultMdxComponents from 'fumadocs-ui/mdx';
+import { docsMdxComponents } from '@weebo/operator-docs/site';
 import type { MDXComponents } from 'mdx/types';
-import { CrdForm } from './crd-form/CrdForm';
-import { CrdBuilder } from './crd-form/CrdBuilder';
+import { CHOICES } from '@/lib/crd-choices';
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
-    ...defaultMdxComponents,
-    CrdForm,
-    CrdBuilder,
+    ...docsMdxComponents(CHOICES),
     ...components,
   } satisfies MDXComponents;
 }

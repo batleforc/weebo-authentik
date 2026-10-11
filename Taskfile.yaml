@@ -6,6 +6,8 @@ includes:
     taskfile: ./.task/test.yaml
     flatten: true
   mise: ./.task/mise.yaml
+  # cog.toml, rendered from weebo-operator-kit's template (task kit:cog).
+  kit: ./.task/kit.yaml
 
 # `testkit` (dev-dependency of `adapters-inbound`, pulled in by any cargo
 # invocation that builds its tests, including `clippy --all-targets`) pulls
@@ -15,8 +17,19 @@ includes:
 # that file's documented setup; override by exporting these yourself
 # before running `task` if your setup differs.
 env:
-  LIBCLANG_PATH: '{{.LIBCLANG_PATH | default "/home/user/.local/share/llvm-libclang/22.1.8/lib"}}'
-  BINDGEN_EXTRA_CLANG_ARGS: '{{.BINDGEN_EXTRA_CLANG_ARGS | default "-I/usr/lib/gcc/x86_64-linux-gnu/15/include -I/usr/include"}}'
+  # The exported value, else the Che workspace's libclang when present,
+  # else the system's (Fedora; CI on Ubuntu exports its own).
+  LIBCLANG_PATH:
+    sh: |
+      che=/home/user/.local/share/llvm-libclang/22.1.8/lib
+      if [ -n "${LIBCLANG_PATH:-}" ]; then echo "$LIBCLANG_PATH"
+      elif [ -d "$che" ]; then echo "$che"
+      else echo /usr/lib64; fi
+  BINDGEN_EXTRA_CLANG_ARGS:
+    sh: |
+      if [ -n "${BINDGEN_EXTRA_CLANG_ARGS+set}" ]; then echo "$BINDGEN_EXTRA_CLANG_ARGS"
+      elif [ -d /usr/lib/gcc/x86_64-linux-gnu/15/include ]; then echo "-I/usr/lib/gcc/x86_64-linux-gnu/15/include -I/usr/include"
+      else echo "-I/usr/lib/gcc/x86_64-redhat-linux/16/include -I/usr/include"; fi
 
 tasks:
   init:
@@ -76,13 +89,30 @@ tasks:
       # Helm's crds/ directory is a plain copy, not a template — kept in
       # sync here so it can't silently drift from the generated source.
       - cp deploy/crd/*.yaml deploy/charts/weebo-authentik/crds/
-      - mise exec -- node docs/scripts/gen-crd-docs.mjs
+      # CRD reference pages + form schemas of the docs site, and its operator
+      # reference (reason codes and metrics read from crates/, the budget from
+      # docs/perf/): weebo-crd-docs (@weebo/operator-docs) reads
+      # docs/crd-docs.config.mjs and clears its own previous outputs. Needs
+      # docs/node_modules (npm ci --prefix docs).
+      - mise exec -- npm run gen:crds --prefix docs --silent
 
   lint:
     desc: "Linting your project to apply good practice"
     cmds:
       - mise exec -- cargo fmt --check
       - mise exec -- cargo clippy --workspace --all-targets -- -D warnings
+
+  audit:
+    desc: "Check dependencies for CVE (cargo-deny + trivy on Cargo.lock, npm audit on the docs site)"
+    cmds:
+      # advisories (RUSTSEC, yanked, unmaintained), licenses and sources —
+      # see deny.toml.
+      - mise exec -- cargo deny check
+      # Lockfile CVEs from trivy's own DB, as a second opinion on cargo-deny.
+      - mise exec -- trivy fs --scanners vuln --exit-code 1 --severity HIGH,CRITICAL Cargo.lock
+      # The docs site's shipped dependencies (dev tooling never reaches the
+      # built site).
+      - mise exec -- npm audit --prefix docs --omit=dev --audit-level=high
 
   lint:helm:
     desc: "Lint and smoke-render the operator's Helm chart"

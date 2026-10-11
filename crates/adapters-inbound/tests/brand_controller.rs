@@ -12,7 +12,6 @@ use api::AuthentikBrand;
 use api::brand::AuthentikBrandSpec;
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
-use testkit::envtest::EnvTestCluster;
 
 mod support;
 use support::{init_tracing, new_ctx, wait_for};
@@ -47,7 +46,7 @@ async fn wait_for_ready_status(api: &Api<AuthentikBrand>, name: &str) -> (String
 async fn sole_default_brand_becomes_ready_and_default() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;
@@ -96,7 +95,7 @@ async fn sole_default_brand_becomes_ready_and_default() {
 async fn two_default_brands_conflict_loser_errored_without_touching_the_gateway() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;

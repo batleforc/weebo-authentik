@@ -33,14 +33,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use adapters_inbound::controller::{self, Ctx};
-use adapters_outbound::{AuthentikHttpGateway, K8sSecretStore};
+use adapters_outbound::{AuthentikHttpGateway, kubernetes_secret_store};
 use api::brand::AuthentikBrandSpec;
 use api::group::AuthentikGroupSpec;
 use api::outpost::{AuthentikOutpostSpec, OutpostType};
 use api::user::AuthentikUserSpec;
 use api::{AuthentikBrand, AuthentikGroup, AuthentikOutpost, AuthentikStatus, AuthentikUser};
 use kube::api::{Api, ObjectMeta, PostParams};
-use testkit::envtest::EnvTestCluster;
 use testkit::static_gateway_factory::StaticGatewayFactory;
 use testkit::static_secret_store_factory::StaticSecretStoreFactory;
 
@@ -300,12 +299,22 @@ fn new_ctx(client: kube::Client) -> Arc<Ctx> {
         BOOTSTRAP_TOKEN,
     );
     let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
-    let secrets = Arc::new(K8sSecretStore::new(client.clone()));
+    let secrets = Arc::new(kubernetes_secret_store(client.clone()));
     let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));
     Arc::new(Ctx {
-        client,
+        client: client.clone(),
         gateway_factory,
         secrets_factory,
+        policies: Arc::new(adapters_outbound::KubePolicySource::new(client.clone())),
+        recorder: kube::runtime::events::Recorder::new(
+            client.clone(),
+            kube::runtime::events::Reporter {
+                controller: "weebo-authentik-operator".into(),
+                instance: None,
+            },
+        ),
+        shutdown: adapters_inbound::controller::Shutdown::never(),
+        health: Arc::new(weebo_kit_runtime::Health::default()),
     })
 }
 
@@ -319,7 +328,7 @@ async fn group_controller_round_trips_against_real_sidecar_authentik() {
     ensure_ak_running(&pod, "authentik-worker", "worker");
     wait_for_authentik_ready(Instant::now() + READY_TIMEOUT);
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
     let ctx = new_ctx(client.clone());
 
@@ -355,7 +364,7 @@ async fn user_controller_round_trips_against_real_sidecar_authentik() {
     ensure_ak_running(&pod, "authentik-worker", "worker");
     wait_for_authentik_ready(Instant::now() + READY_TIMEOUT);
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
     let ctx = new_ctx(client.clone());
 
@@ -392,7 +401,7 @@ async fn outpost_controller_round_trips_against_real_sidecar_authentik() {
     ensure_ak_running(&pod, "authentik-worker", "worker");
     wait_for_authentik_ready(Instant::now() + READY_TIMEOUT);
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
     let ctx = new_ctx(client.clone());
 
@@ -427,7 +436,7 @@ async fn brand_controller_round_trips_against_real_sidecar_authentik() {
     ensure_ak_running(&pod, "authentik-worker", "worker");
     wait_for_authentik_ready(Instant::now() + READY_TIMEOUT);
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
     let ctx = new_ctx(client.clone());
 

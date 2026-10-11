@@ -3,6 +3,7 @@ name = "operator"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
 
 [dependencies]
 application = { workspace = true }
@@ -10,22 +11,20 @@ adapters-outbound = { workspace = true }
 adapters-inbound = { workspace = true }
 kube = { workspace = true }
 api = { workspace = true }
-futures = "0.3"
+weebo-kit-runtime = { workspace = true }
+futures = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 opentelemetry = { workspace = true }
-opentelemetry-otlp = { workspace = true }
-opentelemetry_sdk = { workspace = true }
-tracing-opentelemetry = { workspace = true }
-axum-server = { workspace = true }
 rustls = { workspace = true }
 anyhow = { workspace = true }
-kube-leader-election = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
 testkit = { workspace = true }
+tracing-subscriber = { workspace = true }
+weebo-kit-perf = { workspace = true }
+wiremock = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 k8s-openapi = { workspace = true }

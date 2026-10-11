@@ -26,7 +26,8 @@ spec:
 `AuthentikNamespacePolicy` is cluster-scoped — only a cluster admin can
 create or edit it. `rules` is a list; each rule names the namespaces it
 applies to, the resource kinds it covers, and whether it `Allow`s or
-`Deny`s. A `Deny` rule always wins over a matching `Allow`, regardless
+`Deny`s. A namespace entry is an exact name, `*` (every namespace), or a
+prefix glob: `team-*` matches `team-a`, `team-b`… A `Deny` rule always wins over a matching `Allow`, regardless
 of which one is listed first or which `AuthentikNamespacePolicy` object
 it came from — there's no ordering to reason about, a narrower deny is
 always the last word.
@@ -40,13 +41,27 @@ below) against the current rules. A denied request is rejected at
 
 ```
 Error from server: admission webhook "..." denied the request:
-namespace not allowed by any AuthentikNamespacePolicy
+no AuthentikNamespacePolicy rule allows AuthentikApplication in namespace "team-b"
 ```
+
+(or `a Deny rule matches namespace "team-b" for AuthentikApplication`
+when a `Deny` rule is what refused it).
 
 The webhook's `failurePolicy` is `Fail`: if the webhook pod itself is
 unreachable, writes are blocked cluster-wide rather than silently
 allowed through. This is why the
 [Helm chart](/docs/guides/install) runs it multi-replica by default.
+
+## Existing resources after a policy change
+
+The operator re-checks the same rules on every reconcile of an
+`AuthentikApplication` or `AuthentikAccessPolicy`, and re-triggers all of
+them whenever an `AuthentikNamespacePolicy` changes. An object created
+before a rule was narrowed (or before the first policy existed) turns
+`Ready: False` with reason `NamespaceNotAllowed` and an Event; the
+operator stops updating it in Authentik but deletes nothing — the object
+stays as it was until the rule allows it again (it then resumes) or the
+CR is deleted (its cleanup always runs).
 
 ## Why `DELETE` is never validated
 

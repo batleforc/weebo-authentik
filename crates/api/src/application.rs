@@ -2,8 +2,8 @@ use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::instance::SecretStoreBackend;
 use crate::status::AuthentikStatus;
+pub use weebo_kit_api::SecretTarget;
 
 /// Mirrors `authentik_application` + its `protocol_provider`. Namespaced —
 /// owned by whichever team/namespace created it, governed by
@@ -27,47 +27,16 @@ pub struct AuthentikApplicationSpec {
     pub meta_icon: Option<String>,
     pub provider: ProviderSpec,
     /// Where this application's oauth2 credentials are written. When empty
-    /// (the default), the credentials go to the single destination defined
-    /// by the `AuthentikInstance`'s `secretStore` (a Kubernetes `Secret`
-    /// named after this CR, or the instance's Vault path convention) —
-    /// exactly the pre-existing behavior. When non-empty, the credentials
-    /// are **fanned out** to every listed target; Kubernetes and Vault
-    /// targets may be mixed (e.g. two Vault paths plus one Kubernetes
-    /// Secret), and each Vault target may pin an explicit path. Only
-    /// meaningful for `provider.kind: oauth2` — proxy providers carry no
-    /// client secret, so this is ignored for them.
+    /// (the default), they go to one target named after this CR, in its
+    /// namespace, on the `AuthentikInstance`'s `secretStore.backend`. When
+    /// non-empty, they are **fanned out** to every listed target;
+    /// Kubernetes and Vault targets may be mixed. A target stays in this
+    /// CR's namespace, and a Vault `path` under
+    /// `<pathPrefix>/<namespace>/`. Only meaningful for
+    /// `provider.kind: oauth2` — proxy providers carry no client secret, so
+    /// this is ignored for them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub secret_targets: Vec<SecretTarget>,
-}
-
-/// One destination the oauth2 credentials are written to when an
-/// `AuthentikApplication` opts into explicit `secretTargets` fan-out.
-///
-/// Vault targets reuse the connection/auth config from the owning
-/// `AuthentikInstance`'s `secretStore.vault` (address, mount,
-/// Kubernetes-auth role) — an application selects only *where under that
-/// mount* to write, never how to reach Vault. A Vault target therefore
-/// requires the instance to carry a `secretStore.vault` block even if the
-/// instance's default `backend` is `kubernetes`; that mismatch surfaces as
-/// a reconcile error, not a silent skip.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SecretTarget {
-    /// Which backend this copy of the credentials is written to.
-    pub backend: SecretStoreBackend,
-    /// Vault targets only: the exact KV v2 path (under the instance's
-    /// `secretStore.vault.mount`) to write to, e.g.
-    /// `apps/frontend/oauth`. When unset, the instance's default
-    /// `<pathPrefix>/<namespace>/<name>` convention is used. Ignored for
-    /// `kubernetes` targets.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub path: Option<String>,
-    /// Kubernetes targets only: the name of the `Secret` to write, in this
-    /// application's own namespace. When unset, defaults to the
-    /// application CR's name (the pre-existing single-destination
-    /// convention). Ignored for `vault` targets.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
 }
 
 /// `oauth2`/`proxy` are implemented in v1 (both are in real use in the

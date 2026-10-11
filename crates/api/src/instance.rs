@@ -2,6 +2,8 @@ use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub use weebo_kit_api::{SecretKeyRef, SecretStoreBackend, TlsOptions};
+
 use crate::status::AuthentikStatus;
 
 /// Connection to a real Authentik server. Cluster-scoped — an org-wide,
@@ -29,44 +31,12 @@ pub struct AuthentikInstanceSpec {
     /// Defaults to plain platform-trust-store verification.
     #[serde(default)]
     pub tls: TlsOptions,
-    /// Where `SecretStore::write_oauth2_credentials`/`delete` writes this
-    /// instance's oauth2 application credentials. Defaults to a
-    /// Kubernetes `Secret` (`crates/adapters-outbound/src/secret_k8s.rs`)
-    /// when unset.
+    /// Where this instance's oauth2 application credentials are written:
+    /// the backend of the implicit target of an `AuthentikApplication`
+    /// without `secretTargets` (default `kubernetes`), and the Vault
+    /// connection every Vault target uses.
     #[serde(default)]
     pub secret_store: SecretStoreSpec,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct SecretKeyRef {
-    pub name: String,
-    pub namespace: String,
-    pub key: String,
-}
-
-/// How the operator verifies the Authentik server's TLS certificate. This
-/// covers the **API** connection only — the Vault connection has its own
-/// `secretStore.vault.caSecretRef` ([`VaultSecretStoreSpec`]), since the two
-/// endpoints are routinely signed by different CAs.
-#[derive(Serialize, Deserialize, Clone, Debug, Default, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct TlsOptions {
-    /// Skip certificate verification entirely — insecure, intended only for
-    /// throwaway/self-signed instances. Prefer `caSecretRef` below, which
-    /// trusts a private CA without turning verification off.
-    #[serde(default)]
-    pub insecure_skip_verify: bool,
-    /// Optional custom CA certificate to verify Authentik's TLS with, read
-    /// from a Kubernetes `Secret` (the referenced `key` must hold a PEM
-    /// bundle). Use this to trust a private CA without mounting it into the
-    /// operator pod — the operator reads the Secret via the API and hands the
-    /// PEM to its HTTP client. It is added *on top of* the platform trust
-    /// store, so publicly-signed endpoints keep working. When unset, only the
-    /// platform trust store (plus the usual `SSL_CERT_FILE`/`SSL_CERT_DIR`
-    /// env vars) is used.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ca_secret_ref: Option<SecretKeyRef>,
 }
 
 /// Deliberately **not** a Rust sum type (`enum SecretStoreSpec { Kubernetes,
@@ -84,14 +54,6 @@ pub struct SecretStoreSpec {
     pub vault: Option<VaultSecretStoreSpec>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum SecretStoreBackend {
-    #[default]
-    Kubernetes,
-    Vault,
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultSecretStoreSpec {
@@ -100,10 +62,9 @@ pub struct VaultSecretStoreSpec {
     /// KV v2 secrets engine mount (e.g. `secret`) credentials are written
     /// under.
     pub mount: String,
-    /// Path prefix under `mount` — the final KV path is
-    /// `<pathPrefix>/<namespace>/<name>`, one secret per
-    /// `AuthentikApplication` CR (same convention as the Kubernetes
-    /// backend's Secret naming).
+    /// Path prefix under `mount` — a target's default KV path is
+    /// `<pathPrefix>/<namespace>/<name>`, and an `AuthentikApplication`
+    /// may only write under `<pathPrefix>/<its namespace>/`.
     #[serde(default = "default_vault_path_prefix")]
     pub path_prefix: String,
     /// Vault Kubernetes-auth role this operator authenticates as — its

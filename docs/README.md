@@ -20,7 +20,13 @@ Open http://localhost:3000 with your browser to see the result.
 In the project, you can see:
 
 - `lib/source.ts`: Code for content source adapter, [`loader()`](https://fumadocs.dev/docs/headless/source-api) provides the interface to access your content.
-- `lib/layout.shared.tsx`: Shared options for layouts, optional but preferred to keep.
+- `lib/shared.ts`: the site's name, pitch and repository; `lib/crd-choices.ts`: the manifest builder's guided choices.
+- `crd-docs.config.mjs`: input of `weebo-crd-docs` (`npm run gen:crds`, run by `task recu`), which generates `content/docs/crds/` and `public/crd-schemas/` from `deploy/crd/`, and `content/docs/reference/` (reason codes, Events, metrics & health, resource budget) from `crates/` and `perf/weebo-authentik.json` (the last `task perf` report, copied from `target/perf/`).
+
+Everything else the weebo operators' sites share (CRD page generator,
+manifest builder, theme, layouts, docs page, search/llms/OG routes) comes
+from [`@weebo/operator-docs`](https://github.com/batleforc/weebo-operator-kit/tree/main/packages/operator-docs),
+the kit release's tarball in `package.json`.
 
 | Route                     | Description                                            |
 | ------------------------- | ------------------------------------------------------ |

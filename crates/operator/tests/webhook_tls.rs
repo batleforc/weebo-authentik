@@ -12,7 +12,6 @@ use std::time::{Duration, Instant};
 use api::AuthentikNamespacePolicy;
 use api::namespace_policy::{AuthentikNamespacePolicySpec, Effect, NamespaceRule, ResourceKind};
 use kube::api::{Api, ObjectMeta, PostParams};
-use testkit::envtest::EnvTestCluster;
 
 struct KillOnDrop(Child);
 
@@ -25,7 +24,7 @@ impl Drop for KillOnDrop {
 
 #[tokio::test]
 async fn webhook_serves_real_tls_and_responds() {
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
 
     // Create a policy that covers only `team-a` so that a policy *exists* in
     // the cluster but does not cover the `default` namespace used by the
@@ -59,7 +58,7 @@ async fn webhook_serves_real_tls_and_responds() {
     std::fs::create_dir_all(&dir).unwrap();
 
     let kubeconfig_path = dir.join("kubeconfig.yaml");
-    std::fs::write(&kubeconfig_path, cluster.kubeconfig_str()).unwrap();
+    cluster.write_kubeconfig(&kubeconfig_path);
 
     let cert_path = dir.join("tls.crt");
     let key_path = dir.join("tls.key");

@@ -13,6 +13,7 @@
     "guides/release",
     "---Reference---",
     "...crds",
+    "reference",
     "---Contributing---",
     "guides/cutting-a-release"
   ]

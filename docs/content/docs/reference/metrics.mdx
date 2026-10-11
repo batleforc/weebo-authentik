@@ -1,0 +1,62 @@
+---
+title: Metrics & health
+description: What the operator exports, the probes it answers, and the settings of its runtime.
+---
+
+## Exporting
+
+| Variable | Effect |
+| --- | --- |
+| `WEEBO_METRICS_ADDR` | Serves Prometheus metrics in plain HTTP on that address (e.g. `0.0.0.0:9090`, `GET /metrics`), on every replica: a standby shows up too, its leader gauge at 0 |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Also exports traces and metrics over OTLP/gRPC |
+| `RUST_LOG` | Log verbosity (default `info`) |
+| `LOG_FORMAT=json` | Logs as JSON lines |
+
+## Metrics
+
+| Metric | Type | Labels | What |
+| --- | --- | --- | --- |
+| `weebo_authentik_reconcile_total` | counter | `kind`, `result` (`success`/`error`: the severity of the `Ready` reason), `reason` (the `Ready` reason code) | Reconcile runs |
+| `weebo_authentik_reconcile_duration_seconds` | histogram | `kind` | Reconcile run duration; buckets 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 s |
+| `weebo_authentik_webhook_decisions_total` | counter | `kind`, `result` (`allow`/`deny`) | Admission webhook decisions |
+| `weebo_authentik_leader` | gauge (0/1) | none | `1` on the replica holding the leader lease |
+
+`result` and `reason` come from the reason code the reconcile ended on,
+so the label set stays bounded by the [catalog](/docs/reference/reason-codes).
+For example:
+
+```text
+# Share of failing reconciles, per kind
+sum by (kind) (rate(weebo_authentik_reconcile_total{result="error"}[15m]))
+  / sum by (kind) (rate(weebo_authentik_reconcile_total[15m]))
+
+# Why they fail
+sum by (reason) (rate(weebo_authentik_reconcile_total{result="error"}[15m]))
+
+# Reconcile p95, per kind
+histogram_quantile(0.95, sum by (kind, le) (rate(weebo_authentik_reconcile_duration_seconds_bucket[5m])))
+
+# Nothing reconciles: no replica holds the lease
+sum(weebo_authentik_leader) < 1
+```
+
+## Probes
+
+Served on every replica, on the admission webhook's HTTPS port
+(`WEBHOOK_PORT`, default 8443):
+
+| Path | Answers 200 when |
+| --- | --- |
+| `/readyz` (alias `/healthz`) | The process serves admission requests. It turns 503 as soon as shutdown starts, so the endpoints drain before the server stops |
+| `/livez` | No component kept failing for 300 s in a row (a controller's watch erroring in a loop); a streak ends after 120 s without a new failure. Restarting the pod is then the remedy |
+
+## Runtime settings
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `WEEBO_RECONCILE_CONCURRENCY` | 4 | Reconciles running at once, per controller: a startup sweep can't flood the remote system or the apiserver |
+| Requeue | 300 s / 30 s | Next reconcile after a success (drift check) / after a failure, ±20 % so CRs don't move in lockstep. A failure only a change of the CR can clear waits the long delay: the change triggers a reconcile by itself |
+| Status patch | 3 retries | A status update the apiserver couldn't take (unavailable, 429, 5xx) is retried before the reconcile fails |
+| `LEASE_NAME`, `POD_NAMESPACE` | | The leader lease. Only its holder reconciles; it lasts 15 s, renewed every 5 s, and a leader that may have lost it exits (its pod restarts as a standby) |
+| `WEEBO_SHUTDOWN_DRAIN_SECONDS` | 5 | After SIGTERM, how long the webhook keeps answering while endpoints drain; in-flight requests then get 10 s |
+| `WEBHOOK_TLS_CERT_FILE`, `WEBHOOK_TLS_KEY_FILE` | `/etc/webhook/certs/tls.{crt,key}` | The webhook's certificate, re-read every 60 s: a rotation needs no restart |

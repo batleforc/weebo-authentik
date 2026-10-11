@@ -20,7 +20,6 @@ use api::namespace_policy::{AuthentikNamespacePolicySpec, Effect, NamespaceRule,
 use axum::body::Body;
 use axum::http::Request;
 use kube::api::{Api, ObjectMeta, PostParams};
-use testkit::envtest::EnvTestCluster;
 use tower::ServiceExt;
 
 async fn create_policy(client: &kube::Client, name: &str, rules: Vec<NamespaceRule>) {
@@ -54,6 +53,12 @@ fn review_request(namespace: &str, kind: &str) -> Request<Body> {
             },
             "operation": "CREATE",
             "userInfo": {},
+            // A real apiserver always sends the object on CREATE; one
+            // without it can't be decided on and is refused.
+            "object": {
+                "apiVersion": "authentik.weebo.io/v1alpha1", "kind": kind,
+                "metadata": {"name": "x", "namespace": namespace}, "spec": {},
+            },
         }
     });
     Request::builder()
@@ -65,7 +70,12 @@ fn review_request(namespace: &str, kind: &str) -> Request<Body> {
 }
 
 async fn decision(client: kube::Client, namespace: &str, kind: &str) -> serde_json::Value {
-    let router = webhook::router(WebhookState { client });
+    let router = webhook::router(
+        WebhookState {
+            policies: std::sync::Arc::new(adapters_outbound::KubePolicySource::new(client)),
+        },
+        std::sync::Arc::new(weebo_kit_runtime::Health::default()),
+    );
     let response = router
         .oneshot(review_request(namespace, kind))
         .await
@@ -78,7 +88,7 @@ async fn decision(client: kube::Client, namespace: &str, kind: &str) -> serde_js
 
 #[tokio::test]
 async fn explicitly_allowed_namespace_and_kind_is_allowed() {
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     create_policy(
@@ -98,7 +108,7 @@ async fn explicitly_allowed_namespace_and_kind_is_allowed() {
 
 #[tokio::test]
 async fn namespace_with_no_matching_rule_defaults_to_denied() {
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     create_policy(
@@ -122,7 +132,7 @@ async fn namespace_with_no_matching_rule_defaults_to_denied() {
 
 #[tokio::test]
 async fn explicit_deny_rule_wins_over_an_allow_rule() {
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     create_policy(
@@ -149,7 +159,7 @@ async fn explicit_deny_rule_wins_over_an_allow_rule() {
 
 #[tokio::test]
 async fn no_policies_at_all_allows_every_namespace() {
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     // No AuthentikNamespacePolicy created — with no policy to enforce yet,
@@ -160,7 +170,7 @@ async fn no_policies_at_all_allows_every_namespace() {
 
 #[tokio::test]
 async fn a_policy_that_covers_other_namespaces_still_denies_uncovered_ones() {
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     // A policy exists (covering team-a only) — this must NOT be treated
@@ -182,7 +192,7 @@ async fn a_policy_that_covers_other_namespaces_still_denies_uncovered_ones() {
 
 #[tokio::test]
 async fn unrecognized_kind_fails_closed_against_a_real_cluster() {
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     // No AuthentikNamespacePolicy at all — proves this is the

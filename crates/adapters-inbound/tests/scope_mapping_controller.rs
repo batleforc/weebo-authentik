@@ -8,7 +8,6 @@ use api::AuthentikScopeMapping;
 use api::scope_mapping::AuthentikScopeMappingSpec;
 use kube::api::{Api, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
-use testkit::envtest::EnvTestCluster;
 
 mod support;
 use support::{init_tracing, new_ctx, wait_for};
@@ -50,7 +49,7 @@ fn scope_mapping(cr_name: &str) -> AuthentikScopeMapping {
 async fn scope_mapping_controller_syncs_authentik_id_onto_status() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;
@@ -89,7 +88,7 @@ async fn scope_mapping_controller_syncs_authentik_id_onto_status() {
 async fn scope_mapping_controller_marks_errored_on_authentik_conflict() {
     init_tracing();
 
-    let cluster = EnvTestCluster::start().await;
+    let cluster = testkit::envtest::start().await;
     let client = cluster.client();
 
     let mock = AuthentikMock::start().await;

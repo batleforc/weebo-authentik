@@ -48,15 +48,19 @@ rules:
       - authentikaccesspolicies/finalizers
       - authentiknamespacepolicies/finalizers
     verbs: ["update"]
-  # AuthentikApplication's oauth2 credentials, written by
-  # application::ports::SecretStore (adapters-outbound::K8sSecretStore).
+  # AuthentikApplication's oauth2 credentials, written by the kit's
+  # K8sSecretStore (adapters-outbound::secret_store_factory).
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Leader election (kube-leader-election, crates/operator/src/main.rs) —
+  # Leader election (weebo-kit-runtime's `leader`, crates/operator/src/main.rs) —
   # kept in this same ClusterRole rather than a separate namespaced Role
   # purely for this one resource, consistent with this chart's existing
   # single-ClusterRole shape.
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # Kubernetes Events on every Ready transition.
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create", "patch"]
