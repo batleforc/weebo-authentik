@@ -15,4 +15,8 @@ hadolint = "latest"
 helm = "latest"
 kubectl = "latest"
 kind = "latest"
-yarn = "latest"
+# `task audit`
+"aqua:EmbarkStudios/cargo-deny" = "latest"
+trivy = "latest"
+# actionlint shells out to shellcheck for every `run:` script
+shellcheck = "latest"

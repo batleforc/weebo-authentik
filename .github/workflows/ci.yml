@@ -137,10 +137,11 @@ jobs:
         run: mise exec -- npm ci --prefix docs
 
       # docs/content/docs/crds/*.mdx + docs/public/crd-schemas/*.json
-      # are generated from deploy/crd/*.yaml, never hand-edited — see
-      # .prompt/plan.md, "Definition of done".
+      # are generated from deploy/crd/*.yaml, and docs/content/docs/reference/
+      # from crates/ (reason codes, metrics) and docs/perf/ — never
+      # hand-edited, see .prompt/plan.md, "Definition of done".
       - name: Regenerate CRD docs
-        run: mise exec -- node docs/scripts/gen-crd-docs.mjs
+        run: mise exec -- npm run gen:crds --prefix docs
 
       - name: Fail if committed CRDs or docs are stale
         run: |
@@ -148,7 +149,8 @@ jobs:
             deploy/crd/ \
             deploy/charts/weebo-authentik/crds/ \
             docs/content/docs/crds/ \
-            docs/public/crd-schemas/
+            docs/public/crd-schemas/ \
+            docs/content/docs/reference/
 
   helm-lint:
     runs-on: ubuntu-latest
@@ -163,6 +165,21 @@ jobs:
 
       - name: helm lint + template smoke test
         run: mise exec -- task lint:helm
+
+  # Same gate as cog's pre-commit and pre-bump hooks: no known CVE.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: ./.github/actions/setup-mise
+
+      - name: Install mise-managed tools (cargo-deny, trivy, node)
+        run: mise install
+
+      - name: cargo-deny + trivy + npm audit
+        run: mise exec -- task audit
 
   docker-build:
     runs-on: ubuntu-latest

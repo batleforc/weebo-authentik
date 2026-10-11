@@ -33,9 +33,14 @@ Shared plumbing (reason codes, conditions, secret stores, allow-list
 engine, runtime) comes from
 [weebo-operator-kit](https://github.com/batleforc/weebo-operator-kit)
 (`weebo-kit-*` in `Cargo.toml`); its `docs/plan.md` says what belongs there.
-- `docs/` — Fumadocs site; `docs/content/docs/crds/*.mdx` and
-  `docs/public/crd-schemas/*.json` are **generated**, never hand-edited
-  (see `task recu`).
+- `docs/` — Fumadocs site on `@weebo/operator-docs` (the kit's
+  `packages/operator-docs`: CRD page generator, manifest builder, theme,
+  layout, routes); the site keeps its content, `crd-docs.config.mjs`
+  (examples, guides, order) and `src/lib/crd-choices.ts`.
+  `docs/content/docs/crds/*.mdx`, `docs/public/crd-schemas/*.json` and
+  `docs/content/docs/reference/` (from `ReasonCode`'s doc comments, the
+  metric names and `docs/perf/weebo-authentik.json`) are **generated**,
+  never hand-edited (see `task recu`).
 
 ## Common commands
 

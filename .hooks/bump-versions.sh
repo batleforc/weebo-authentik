@@ -23,10 +23,13 @@ awk -v ver="$VERSION" '
     { print }
 ' Cargo.toml > Cargo.toml.tmp
 mv Cargo.toml.tmp Cargo.toml
+# Workspace crates inherit that version; refresh their Cargo.lock entries
+# (`--workspace` touches nothing else), so the bump commit builds as is.
+cargo update --workspace --offline 2>/dev/null || cargo update --workspace
 
 sed -i \
     -e "s/^version: .*/version: ${VERSION}/" \
     -e "s/^appVersion: .*/appVersion: \"${VERSION}\"/" \
     deploy/charts/weebo-authentik/Chart.yaml
 
-git add Cargo.toml deploy/charts/weebo-authentik/Chart.yaml
+git add Cargo.toml Cargo.lock deploy/charts/weebo-authentik/Chart.yaml

@@ -1,41 +1,57 @@
-from_latest_tag = false
+# Rendered from weebo-operator-kit's templates/cog.toml by `task kit:cog`
+# (the changelog names the repository): edit the template, not this file.
+#
+# Contract with the repository's Taskfile: `lint`, `test`, `audit`, and
+# optionally `recu` (regenerated artifacts) and `test:all` (the release
+# suite, `test` when absent); `.hooks/` holds `bump-versions.sh`,
+# `end-of-line.sh` and `whitespace-fixer.sh`.
+
+from_latest_tag = true
 ignore_merge_commits = false
 disable_changelog = false
 disable_bump_commit = false
 generate_mono_repository_global_tag = true
-branch_whitelist = []
+branch_whitelist = ["main"]
 skip_ci = "[skip ci]"
 skip_untracked = false
-post_bump_hooks = []
-post_package_bump_hooks = []
 tag_prefix = "v"
 
-# Keeps Cargo.toml's [workspace.package] version and the Helm chart's
-# Chart.yaml version/appVersion committed as part of cog's own bump
-# commit, rather than duplicating version-bump logic in
-# .github/workflows/release.yml. See .hooks/bump-versions.sh.
-pre_bump_hooks = ["./.hooks/bump-versions.sh {{version}}"]
-
+# Before the tag: no known CVE in the dependencies, the whole test suite
+# green, then every version in the repository follows the tag (the hook
+# stages what it edits, so it lands in cog's bump commit).
+pre_bump_hooks = [
+    "task audit",
+    "if task --summary test:all >/dev/null 2>&1; then task test:all; else task test; fi",
+    "./.hooks/bump-versions.sh {{version}}",
+]
+post_bump_hooks = []
+post_package_bump_hooks = []
 
 [git_hooks]
 
+# A Conventional Commit message, or no commit.
 [git_hooks.commit-msg]
 script = """#!/bin/sh
 set -e
-cog verify --file $1
-cog check
+cog verify --file "$1"
 """
 
+# Every commit: artifacts regenerated, lint, tests and CVE check pass, then
+# the formatting fixers and the secret scan on what is staged.
 [git_hooks.pre-commit]
 script = """#!/bin/sh
 set -e
-task recu
-git add . # in case recu needed to regenerate files, add need to be done before linting
+if task --summary recu >/dev/null 2>&1; then
+    task recu
+    git add -u # recu may regenerate tracked files, staged before linting
+fi
 task lint
-git add . # in case linting fixed anything
-gitleaks git --pre-commit --redact --staged --verbose
+git add -u # in case linting fixed anything
 .hooks/end-of-line.sh
 .hooks/whitespace-fixer.sh
+task test
+task audit
+gitleaks git --pre-commit --redact --staged --verbose
 """
 
 [commit_types]
@@ -45,7 +61,7 @@ release = { changelog_title = "Releases" }
 path = "CHANGELOG.md"
 template = "remote"
 remote = "github.com"
-repository = "proxyauthK8s"
+repository = "weebo-authentik"
 owner = "batleforc"
 
 [bump_profiles]

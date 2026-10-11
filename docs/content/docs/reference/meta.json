@@ -1,0 +1,10 @@
+{
+  "title": "Operator reference",
+  "pages": [
+    "reason-codes",
+    "events",
+    "metrics",
+    "resource-budget",
+    "..."
+  ]
+}

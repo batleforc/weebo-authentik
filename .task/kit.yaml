@@ -1,0 +1,38 @@
+# weebo-operator-kit's templates/kit.yaml, copied into an operator's task
+# directory and included as `kit:` (`task kit:cog` refreshes the copy).
+# The kit includes this very file, with KIT_DIR set to itself.
+version: "3"
+
+vars:
+  KIT_REPO: batleforc/weebo-operator-kit
+  # The kit tag the workspace builds on (Cargo.toml): the hooks follow the
+  # kit release the code does.
+  KIT_TAG:
+    sh: sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" | head -n 1
+  # A local checkout to render from instead (KIT_DIR=../weebo-operator-kit).
+  KIT_DIR: '{{.KIT_DIR | default ""}}'
+  REPOSITORY:
+    sh: basename "{{.ROOT_DIR}}"
+
+tasks:
+  cog:
+    desc: "Render cog.toml (and this file) from the kit's templates at the kit tag of Cargo.toml (or KIT_DIR=<checkout>), then reinstall the git hooks"
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - |
+        set -eu
+        KIT_DIR="{{.KIT_DIR}}"
+        fetch() {
+          if [ -n "$KIT_DIR" ]; then
+            cat "$KIT_DIR/templates/$1"
+          else
+            curl -fsSL "https://raw.githubusercontent.com/{{.KIT_REPO}}/{{.KIT_TAG}}/templates/$1"
+          fi
+        }
+        fetch cog.toml | sed "s|@REPOSITORY@|{{.REPOSITORY}}|g" > cog.toml
+        # The operator's copy of this file follows the template too.
+        if [ "$(realpath "{{.TASKFILE}}")" != "$(realpath "${KIT_DIR:-/nonexistent}/templates/kit.yaml" 2>/dev/null || true)" ]; then
+          fetch kit.yaml > "{{.TASKFILE}}"
+        fi
+        echo "cog.toml rendered for {{.REPOSITORY}} from weebo-operator-kit {{if .KIT_DIR}}{{.KIT_DIR}}{{else}}{{.KIT_TAG}}{{end}}"
+      - cog install-hook -a -o

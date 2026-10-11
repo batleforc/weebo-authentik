@@ -1,0 +1,48 @@
+---
+title: Reason codes
+description: Every code the operator puts on a condition, an Event or an admission denial.
+---
+
+Every condition, Event and admission denial the operator writes carries one
+of these codes, never free text: alerts, scripts and `kubectl` filters can
+rely on them. The list is generated from the operator's source, so it
+matches the installed version.
+
+- **Blocking**: `Ready` turns `False` with this reason, and every failed
+  reconcile records a `Warning` Event with it ([Events](/docs/reference/events)).
+  An admission webhook denial carries one too (HTTP 403, the code as its
+  reason).
+- **Advisory**: the CR still works. `Reconciled` is the reason of `Ready: True`; the
+  others are a condition of their own (its `type` is the code, its
+  `status` `"True"`) or a lifecycle Event.
+
+Every CR's `Ready` reason also labels the reconcile counter
+([Metrics & health](/docs/reference/metrics)), so a code can be graphed and
+alerted on. To find where one shows up right now:
+
+```bash
+kubectl get events -A --field-selector reason=DefaultBrandConflict
+```
+
+| Code | Severity | Shows as | Meaning |
+| --- | --- | --- | --- |
+| `DefaultBrandConflict` | blocking | `Ready: False`, Event (`Warning`) | Two `AuthentikBrand` CRs both request `spec.default: true`. |
+| `ApplicationRefNotFound` | blocking | `Ready: False`, Event (`Warning`) | `AuthentikAccessPolicy.applicationRef` does not resolve to an `AuthentikApplication` in the policy's own namespace. |
+| `NamespaceNotAllowed` | blocking | `Ready: False`, Event (`Warning`), admission denial | Refused by `AuthentikNamespacePolicy` (webhook and/or reconciler). |
+| `OutpostRefNotFound` | blocking | `Ready: False`, Event (`Warning`) | A proxy provider's `outpostRef` does not resolve to an `AuthentikOutpost`. |
+| `GroupRefNotFound` | blocking | `Ready: False`, Event (`Warning`) | An `AuthentikGroup.spec.parentRef`, `AuthentikUser.spec.groupRefs` entry, or `AuthentikAccessPolicy.spec.groupRef` does not resolve to an `AuthentikGroup`'s Authentik-side name. |
+| `AuthentikObjectAlreadyExists` | blocking | `Ready: False`, Event (`Warning`) | Create was rejected because an object with the same name/slug already exists in Authentik and isn't tracked by this CR. |
+| `NoAccessPolicyBound` | advisory | condition `NoAccessPolicyBound: True`, Event (`Normal`) | An `AuthentikApplication` is active with no `AuthentikAccessPolicy` bound to it — Authentik's native default leaves it open to any authenticated user. Advisory: `Ready` stays `True`. |
+| `Reconciled` | advisory | `Ready: True` | Generic success reason for `Ready: True` — every condition must carry a `ReasonCode`, so this is the one every reconciler uses on the happy path rather than each inventing its own "it worked" code. |
+| `UnsupportedProviderKind` | blocking | `Ready: False`, Event (`Warning`) | `AuthentikApplication.spec.provider.kind` is `saml`/`ldap` — schema-only stubs, never implemented by a reconciler. |
+| `InvalidProviderSpec` | blocking | `Ready: False`, Event (`Warning`) | `AuthentikApplication.spec.provider.kind` is `oauth2`/`proxy` but the matching `spec.provider.oauth2`/`spec.provider.proxy` field isn't set. Schema-valid (kube-core can't express "exactly one of" as a hard constraint), but not a shape any reconciler can act on. |
+| `AuthentikApiError` | blocking | `Ready: False`, Event (`Warning`) | Catch-all for an `AuthentikGateway` call that failed for a reason not covered by a more specific code (network error, unexpected Authentik API response, flow/property-mapping/group name that doesn't resolve). |
+| `InstanceRefNotFound` | blocking | `Ready: False`, Event (`Warning`) | `spec.instanceRef` does not resolve to an `AuthentikInstance` CR. |
+| `AmbiguousDefaultInstance` | blocking | `Ready: False`, Event (`Warning`) | A CRD with no `instanceRef` field needed the single default `AuthentikInstance`, but the cluster has zero or more than one. |
+| `InstanceResolutionFailed` | blocking | `Ready: False`, Event (`Warning`) | Kubernetes-side failure while resolving an `AuthentikInstance` or its token `Secret` (API error, missing secret, missing/non-utf8 key). |
+| `SecretStoreError` | blocking | `Ready: False`, Event (`Warning`) | A `SecretStore` (Kubernetes or Vault backend) write/delete/auth call failed — distinct from `AuthentikApiError` since it's a separate failure surface (a Vault auth/KV error is not an Authentik API error). |
+| `Created` | advisory | Event (`Normal`) | The remote Authentik object was created for this CR (Event only: `status.authentikId` was just recorded). |
+| `Deleted` | advisory | Event (`Normal`) | The finalizer deleted the remote Authentik object of this CR (Event only). |
+| `Released` | advisory | Event (`Normal`) | The finalizer finished — cleanup done, or the CR force-orphaned (Event only). |
+| `KubernetesApiError` | blocking | Event (`Warning`), before any status | A Kubernetes API call of the operator itself failed (reading a CR, patching its status, adding or removing its finalizer) — the reconcile stopped before reaching a status, and is retried. |
+| `DisruptiveProviderKindChangeNotAllowed` | blocking | `Ready: False`, Event (`Warning`) | `AuthentikApplication.spec.provider.kind` changed from what's currently live in Authentik, but the CR lacks the `authentik.weebo.io/allow-disruptive-update` annotation authorizing the delete-and-recreate this requires (rotates `client_secret`, drops outpost bindings — can disrupt active sessions). |
