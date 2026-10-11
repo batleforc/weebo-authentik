@@ -100,6 +100,8 @@ export default defineConfig({
     metricsPrefix: "weebo_authentik",
     // `task perf`'s report (target/perf/weebo-authentik.json), copied here.
     perfReport: "perf/weebo-authentik.json",
-    perfNote: "kit v0.6.0, 2026-10-11",
+    // Refreshed every week by .github/workflows/perf.yml; the report
+    // dates itself.
+    perfScheduled: true,
   },
 });
