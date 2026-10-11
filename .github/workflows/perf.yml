@@ -1,0 +1,19 @@
+name: Resource budget
+
+# Every week, what the operator costs a cluster is measured again (the
+# kit's reusable workflow: `task perf`, the release binary against
+# envtest) and the docs' "Resource budget" page follows, through a pull
+# request comparing the run with the committed one.
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  perf:
+    uses: batleforc/weebo-operator-kit/.github/workflows/perf.yml@v0.8.0
+    permissions:
+      contents: write
+      pull-requests: write
