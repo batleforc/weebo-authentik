@@ -1,77 +1,279 @@
-# Default values for weebo-authentik.
+# Default values for weebo-authentik, the values contract of the kit's
+# library chart (weebo-operator-lib) plus this operator's own. Every key is validated by
+# values.schema.json: a typo fails `helm install`/`upgrade` instead of being
+# silently ignored.
 
-# -- Number of operator replicas. Safe to run >1 (the documented,
-# intended production setup — see .prompt/plan.md, "Securite
-# operationnelle & deploiement"): the webhook stays active on every
-# replica (stateless), while `operator::main`'s leader election
-# (kube-leader-election, a coordination.k8s.io Lease) ensures only one
-# replica's reconcilers are ever active at a time, so the
-# "attempt-create-first" pattern (see .prompt/plan.md, "Modele de status
-# commun") stays race-free regardless of replica count.
+# -- Number of operator replicas. Safe above 1: only the elected leader
+# (a coordination.k8s.io Lease) runs the reconcilers, while the admission
+# webhook serves on every replica. Keep at least 2 in production: with
+# `webhook.failurePolicy: Fail`, no webhook replica means no namespaced CR
+# can be created or updated.
 replicaCount: 2
 
 image:
   repository: ghcr.io/batleforc/weebo-authentik-operator
-  # -- Defaults to .Chart.AppVersion when empty.
+  # -- Defaults to `v` + .Chart.AppVersion (the release image tag) when
+  # empty.
   tag: ""
+  # -- Image digest (`sha256:...`). When set the image is pulled as
+  # `repository@digest` and `tag` is ignored: the strongest pin, matching
+  # the digest cosign signed (docs: "Verify a release").
+  digest: ""
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 
+# -- Overrides the chart name part of resource names.
+nameOverride: ""
+# -- Overrides the full resource name prefix.
+fullnameOverride: ""
+
 serviceAccount:
   create: true
+  # -- Required when create is false: the ClusterRole is bound to it.
   name: ""
+  # -- e.g. nothing for Vault: the operator logs in with this
+  # ServiceAccount's own projected token (Kubernetes auth).
   annotations: {}
 
-webhook:
-  # -- Container port the operator listens on for the admission webhook.
-  containerPort: 8443
-  # -- Service port the ValidatingWebhookConfiguration's clientConfig
-  # targets (Kubernetes' apiserver default for webhook services is 443).
-  servicePort: 443
+crds:
+  # -- Install and upgrade the CRDs with the chart (templates/crds/). They
+  # carry `helm.sh/resource-policy: keep`: `helm uninstall` never deletes
+  # them (that would delete every CR). Set to false when the CRDs are
+  # managed out of band (e.g. the `crds.yaml` bundle of a GitHub release).
+  install: true
 
-# -- cert-manager issues the webhook's TLS certificate; cert-manager
-# itself is always assumed to be installed.
+# -- Reconciles run at once per kind (env WEEBO_RECONCILE_CONCURRENCY).
+reconcileConcurrency: 4
+# -- `text` or `json` log lines (env LOG_FORMAT).
+logFormat: text
+
+leaderElection:
+  # -- Name of the coordination.k8s.io Lease in the release namespace
+  # (env LEASE_NAME). Defaults to `weebo-authentik-operator-leader`, the
+  # name every release used so far: changing it during an upgrade would let
+  # an old and a new replica both lead during the rollout. Set a distinct
+  # name only for a second release in the same namespace.
+  leaseName: ""
+
+webhook:
+  # -- Container port of the admission webhook (HTTPS). The health probes
+  # are served on it as well.
+  containerPort: 8443
+  # -- Service port targeted by the ValidatingWebhookConfiguration.
+  servicePort: 443
+  # -- `Fail` (default) blocks namespaced CRs while the webhook is
+  # unreachable: the allow-list is a security boundary. The reconcilers
+  # re-check it regardless.
+  failurePolicy: Fail
+  # -- Seconds the API server waits for an admission decision (1-30).
+  timeoutSeconds: 5
+  # -- Limits the namespaces whose CRs are sent to the webhook. Excluding a
+  # namespace skips the admission check there, the reconcilers still
+  # enforce the allow-list (the CR goes `Ready=False NamespaceNotAllowed`
+  # instead of being refused up front).
+  namespaceSelector: {}
+  # -- Limits the objects sent to the webhook, by label.
+  objectSelector: {}
+  # -- Extra annotations on the ValidatingWebhookConfiguration.
+  annotations: {}
+  certManager:
+    # -- cert-manager issues and rotates the webhook certificate, and its
+    # CA injector fills the webhook's caBundle. When false, provide
+    # `webhook.tls.secretName` and `webhook.caBundle` yourself.
+    enabled: true
+  tls:
+    # -- Only when certManager.enabled is false: an existing
+    # `kubernetes.io/tls` Secret in the release namespace whose
+    # certificate is valid for `<fullname>.<namespace>.svc`. The operator
+    # reloads it every 60 s, so rotating it in place needs no restart.
+    secretName: ""
+  # -- Only when certManager.enabled is false: base64-encoded PEM of the
+  # CA that signed `webhook.tls.secretName`.
+  caBundle: ""
+
+# -- Used when webhook.certManager.enabled is true.
 certManager:
-  # -- When true (default), the chart provisions its own self-signed
-  # Issuer for the webhook certificate, so no pre-existing
-  # Issuer/ClusterIssuer is needed. Set to false to reference an existing
-  # issuer via issuerRef instead.
+  # -- Provision a self-signed Issuer for the webhook certificate. Set to
+  # false to use an existing issuer through issuerRef.
   createIssuer: true
   issuerRef:
-    # -- Required only when createIssuer is false: name of an existing
-    # Issuer or ClusterIssuer. Ignored when createIssuer is true.
+    # -- Required when createIssuer is false.
     name: ""
     kind: ClusterIssuer
+  # -- Webhook certificate lifetime and renewal (cert-manager durations).
+  duration: 2160h
+  renewBefore: 360h
 
+metrics:
+  prometheus:
+    # -- Serve Prometheus metrics in plain HTTP on `port` (`GET /metrics`,
+    # env WEEBO_METRICS_ADDR), exposed by the `<fullname>-metrics`
+    # Service. Independent from the OTLP export (extraEnv
+    # OTEL_EXPORTER_OTLP_ENDPOINT).
+    enabled: true
+    port: 9090
+
+# -- A prometheus-operator ServiceMonitor scraping the metrics Service
+# (needs the monitoring.coreos.com CRDs and metrics.prometheus.enabled).
+serviceMonitor:
+  enabled: false
+  # -- Extra labels, e.g. the `release` label your Prometheus selects on.
+  labels: {}
+  interval: 30s
+  scrapeTimeout: 10s
+  metricRelabelings: []
+  relabelings: []
+
+# -- A prometheus-operator PrometheusRule with the alerts of the docs'
+# "Monitoring" page (needs the monitoring.coreos.com CRDs).
+prometheusRule:
+  enabled: false
+  labels: {}
+  # -- Ship the built-in alerts. Turn off to only use additionalRules.
+  defaultRules: true
+  # -- Extra alerting/recording rules appended to the group.
+  additionalRules: []
+  # -- Share of failed reconciles (over 15 min, per kind) that fires
+  # the <Chart>ReconcileErrors alert.
+  reconcileErrorRatio: 0.1
+
+probes:
+  # -- Gives the webhook server time to load its certificate before the
+  # other probes start: up to periodSeconds * failureThreshold seconds.
+  startup:
+    periodSeconds: 2
+    timeoutSeconds: 3
+    failureThreshold: 60
+  # -- `/readyz`: the webhook can answer; failing removes the replica from
+  # the webhook Service.
+  readiness:
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  # -- `/livez`: 503 when the leader's controllers stop heartbeating, so a
+  # wedged leader is restarted and another replica takes over.
+  liveness:
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+shutdown:
+  # -- Seconds the webhook keeps serving after SIGTERM while the endpoint
+  # removal propagates (env WEEBO_SHUTDOWN_DRAIN_SECONDS).
+  drainSeconds: 5
+  # -- When > 0, a native `preStop: sleep` (Kubernetes 1.30+, no shell
+  # needed, distroless has none) delays SIGTERM by that many seconds.
+  # Usually unnecessary on top of drainSeconds.
+  preStopSleepSeconds: 0
+  # -- The leader finishes in-flight reconciles before exiting: longer
+  # than the slowest reconcile.
+  terminationGracePeriodSeconds: 60
+
+# -- Only rendered when replicaCount > 1: with a single replica,
+# minAvailable 1 would block every node drain.
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
 
-# RBAC for the operator's own ServiceAccount (cluster-wide, always
-# created — the reconcilers watch every CRD kind across the whole
-# cluster) is not configurable; see templates/clusterrole.yaml.
 rbac:
-  # -- Optional, narrower, namespaced Role/RoleBinding EXAMPLE mirroring
-  # .prompt/plan.md's "Role/RoleBinding namespaced ... donnant seulement
-  # les verbes sur AuthentikApplication/AuthentikAccessPolicy". Off by
-  # default: the chart has no way to know which real users/groups to
-  # bind it to, so this is meant as a documented starting point (see
-  # NOTES.txt) rather than something auto-applied to real subjects.
+  # -- Optional namespaced Role(+Binding) EXAMPLE letting a team manage
+  # the namespaced kinds in its own namespace (see NOTES.txt). The
+  # namespace allow-list, when the operator has one, still applies.
   namespacedExample:
     enabled: false
     namespace: ""
     subjects: []
 
-resources: {}
+# -- Starting point for a few hundred CRs; size from the observed usage
+# (docs: "High availability & sizing"). No CPU limit on purpose:
+# throttling slows admission answers.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+priorityClassName: ""
+
+# -- Spread the replicas across nodes (soft: ScheduleAnyway) unless
+# topologySpreadConstraints is set.
+defaultTopologySpread: true
+# -- Replaces the default spread when non-empty. The pod selector labels
+# can be omitted from labelSelector: they are added when missing.
+topologySpreadConstraints: []
+
+# The image runs as distroless's nonroot UID (Containerfile).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
 
 nodeSelector: {}
 tolerations: []
+# -- e.g. a hard podAntiAffinity on kubernetes.io/hostname; the default
+# soft spread is usually enough.
 affinity: {}
 
 podAnnotations: {}
 podLabels: {}
 
-# -- Extra environment variables for the operator container, e.g.
-# OTEL_EXPORTER_OTLP_ENDPOINT (see crates/operator/src/telemetry.rs).
+# -- Optional NetworkPolicy for the operator pods. Ingress: the webhook
+# port (from the API server) and the metrics port. Egress is only
+# restricted when `egress.enabled`; then DNS, the API server, Authentik
+# and Vault must be allowed explicitly (docs: "Security model").
+networkPolicy:
+  enabled: false
+  # -- Peers allowed to reach the webhook port. Empty allows every source:
+  # the API server's source address is cluster specific (host network,
+  # managed control plane), restrict it when you know it.
+  webhookFrom: []
+  # -- Peers allowed to scrape the metrics port. Empty allows every source.
+  metricsFrom: []
+  egress:
+    enabled: false
+    dns:
+      # -- Allow DNS to the cluster resolver.
+      enabled: true
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    apiServer:
+      # -- Required when egress.enabled: the API server endpoints, e.g.
+      # `[{ipBlock: {cidr: 10.0.0.1/32}}]` (see `kubectl get endpoints
+      # kubernetes`).
+      to: []
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 6443
+          protocol: TCP
+    # -- Egress rules (`to` + `ports`) to every Authentik a
+    # AuthentikInstance points at.
+    authentik: []
+    # -- Egress rules to Vault, when a secretStore uses it.
+    vault: []
+    # -- Any other egress rule (OTLP collector, ...).
+    extra: []
+
+# -- Extra environment variables, e.g. OTEL_EXPORTER_OTLP_ENDPOINT or
+# RUST_LOG.
 extraEnv: []

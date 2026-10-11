@@ -1,14 +1,20 @@
 # weebo-operator-kit's templates/kit.yaml, copied into an operator's task
 # directory and included as `kit:` (`task kit:cog` refreshes the copy).
 # The kit includes this very file, with KIT_DIR set to itself.
+#
+# Moving an operator to a new kit release: `task kit:sync TAG=vX.Y.Z`.
 version: "3"
 
 vars:
   KIT_REPO: batleforc/weebo-operator-kit
-  # The kit tag the workspace builds on (Cargo.toml): the hooks follow the
-  # kit release the code does.
+  # The kit tag the workspace builds on (Cargo.toml), or TAG: the hooks,
+  # the shared tasks, the workflows and the library chart follow the kit
+  # release the code does.
   KIT_TAG:
-    sh: sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" | head -n 1
+    sh: |
+      if [ -n "{{.TAG | default ""}}" ]; then echo "{{.TAG}}"; else
+        sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" | head -n 1
+      fi
   # A local checkout to render from instead (KIT_DIR=../weebo-operator-kit).
   KIT_DIR: '{{.KIT_DIR | default ""}}'
   REPOSITORY:
@@ -36,3 +42,24 @@ tasks:
         fi
         echo "cog.toml rendered for {{.REPOSITORY}} from weebo-operator-kit {{if .KIT_DIR}}{{.KIT_DIR}}{{else}}{{.KIT_TAG}}{{end}}"
       - cog install-hook -a -o
+
+  sync:
+    desc: "Pin the repository on the kit release KIT_TAG (TAG=vX.Y.Z, else Cargo.toml's): Cargo.toml, the remote tasks/ includes and their checksums, the reusable workflows, the library chart (and Chart.lock), then cog.toml"
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - |
+        set -eu
+        KIT_DIR="{{.KIT_DIR}}"
+        if [ -n "$KIT_DIR" ]; then
+          sh "$KIT_DIR/templates/pin-kit.sh" . "{{.KIT_TAG}}" "$KIT_DIR"
+        else
+          curl -fsSL "https://raw.githubusercontent.com/{{.KIT_REPO}}/{{.KIT_TAG}}/templates/pin-kit.sh" | sh -s -- . "{{.KIT_TAG}}"
+        fi
+        for chart in deploy/charts/*/Chart.yaml; do
+          [ -f "$chart" ] || continue
+          grep -q 'name: weebo-operator-lib' "$chart" && mise exec -- helm dependency update "$(dirname "$chart")"
+        done
+      - task: cog
+      # Cargo.lock follows the kit crates' new tag (a changed git source is
+      # re-resolved; nothing else moves).
+      - mise exec -- cargo metadata --format-version 1 > /dev/null

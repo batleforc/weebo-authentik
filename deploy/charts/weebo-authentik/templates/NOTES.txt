@@ -1,0 +1,30 @@
+{{ include "weebo-operator.notes" . }}
+
+1. Connect an Authentik with an API token:
+
+     kubectl -n {{ .Release.Namespace }} create secret generic authentik-admin --from-literal=token=<token>
+
+     apiVersion: authentik.weebo.io/v1alpha1
+     kind: AuthentikInstance
+     metadata:
+       name: main
+     spec:
+       url: https://authentik.example.com
+       tokenSecretRef:
+         name: authentik-admin
+         namespace: {{ .Release.Namespace }}
+         key: token
+
+2. Restrict namespaces: AuthentikApplication and AuthentikAccessPolicy are
+   checked against the AuthentikNamespacePolicy allow-list on admission.
+   rbac.namespacedExample renders a Role (+ RoleBinding to
+   rbac.namespacedExample.subjects) letting a team manage those two kinds
+   in its namespace.
+
+3. ArgoCD health: copy the `health.lua` key of the ConfigMap
+   {{ include "weebo-operator.fullname" . }}-argocd-health into `argocd-cm` as
+   `resource.customizations.health.authentik.weebo.io_<Kind>` for each kind
+   (AuthentikInstance, AuthentikGroup, AuthentikFlow, AuthentikOutpost,
+   AuthentikScopeMapping, AuthentikUser, AuthentikBrand,
+   AuthentikApplication, AuthentikAccessPolicy, AuthentikNamespacePolicy).
+   Without it ArgoCD shows them as Progressing forever.
