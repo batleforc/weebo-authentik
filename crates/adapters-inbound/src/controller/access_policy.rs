@@ -6,10 +6,8 @@ use application::use_cases::reconcile_access_policy::{
     application_ref_not_found, reconcile_access_policy,
 };
 use kube::api::Api;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::runtime::watcher;
 use kube::{Client, ResourceExt};
 
 use super::{Ctx, Error, FINALIZER, error_policy};
@@ -17,20 +15,25 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikAccessPolicy> = Api::all(client);
     let health = ctx.health.clone();
-    let results = Controller::new(api, watcher::Config::default())
+    let results = super::controller(api)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikAccessPolicy", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikAccessPolicy>, ctx: Arc<Ctx>) -> Result<Action, Error> {
+    if super::import_pending(obj.as_ref()) {
+        return Ok(Action::await_change());
+    }
     let ns = obj.namespace().unwrap_or_default();
     let api: Api<AuthentikAccessPolicy> = Api::namespaced(ctx.client.clone(), &ns);
 
     finalizer(&api, FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(policy) => apply(&api, &policy, &ctx, &ns).await,
-            FinalizerEvent::Cleanup(policy) => cleanup(&api, &policy, &ctx).await,
+            FinalizerEvent::Cleanup(policy) => {
+                super::finalize(policy.as_ref(), &ctx, cleanup(&api, &policy, &ctx)).await
+            }
         }
     })
     .await

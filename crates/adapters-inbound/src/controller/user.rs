@@ -5,29 +5,32 @@ use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_user::reconcile_user;
 use kube::Client;
 use kube::api::Api;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::runtime::watcher;
 
 use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikUser> = Api::all(client);
     let health = ctx.health.clone();
-    let results = Controller::new(api, watcher::Config::default())
+    let results = super::controller(api)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikUser", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikUser>, ctx: Arc<Ctx>) -> Result<Action, Error> {
+    if super::import_pending(obj.as_ref()) {
+        return Ok(Action::await_change());
+    }
     let api: Api<AuthentikUser> = Api::all(ctx.client.clone());
 
     finalizer(&api, FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(user) => apply(&api, &user, &ctx).await,
-            FinalizerEvent::Cleanup(user) => cleanup(&api, &user, &ctx).await,
+            FinalizerEvent::Cleanup(user) => {
+                super::finalize(user.as_ref(), &ctx, cleanup(&api, &user, &ctx)).await
+            }
         }
     })
     .await

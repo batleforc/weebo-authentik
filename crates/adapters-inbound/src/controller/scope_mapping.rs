@@ -4,10 +4,8 @@ use api::AuthentikScopeMapping;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_scope_mapping::reconcile_scope_mapping;
 use kube::api::Api;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::runtime::watcher;
 use kube::{Client, ResourceExt};
 
 use super::{Ctx, Error, FINALIZER, error_policy};
@@ -15,19 +13,24 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikScopeMapping> = Api::all(client);
     let health = ctx.health.clone();
-    let results = Controller::new(api, watcher::Config::default())
+    let results = super::controller(api)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikScopeMapping", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikScopeMapping>, ctx: Arc<Ctx>) -> Result<Action, Error> {
+    if super::import_pending(obj.as_ref()) {
+        return Ok(Action::await_change());
+    }
     let api: Api<AuthentikScopeMapping> = Api::all(ctx.client.clone());
 
     finalizer(&api, FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(mapping) => apply(&api, &mapping, &ctx).await,
-            FinalizerEvent::Cleanup(mapping) => cleanup(&api, &mapping, &ctx).await,
+            FinalizerEvent::Cleanup(mapping) => {
+                super::finalize(mapping.as_ref(), &ctx, cleanup(&api, &mapping, &ctx)).await
+            }
         }
     })
     .await

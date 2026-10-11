@@ -49,10 +49,25 @@ template fails to render without it.
 
 `replicaCount` defaults to `2`. The webhook is active on every replica
 (stateless); the operator's reconcilers use a `coordination.k8s.io`
-`Lease` (`kube-leader-election`) so only the elected leader reconciles
-at a time. A replica that loses the lease exits immediately rather than
-attempting a graceful handoff — Kubernetes restarts it, and another
-replica takes over.
+`Lease` (weebo-operator-kit's leader election) so only the elected leader
+reconciles at a time. A replica that loses the lease exits immediately —
+Kubernetes restarts it, and another replica takes over; on a rollout
+(SIGTERM) the leader finishes its in-flight reconciles and hands the lease
+over at once. Each controller runs at most `WEEBO_RECONCILE_CONCURRENCY`
+reconciles at a time (default 4).
+
+## Deleting a CR whose cleanup can't succeed
+
+Deleting a CR deletes its Authentik object first (the finalizer). When
+that can't succeed any more — its `AuthentikInstance` or token is already
+gone — the CR stays in `Terminating`, with a `Warning` Event saying why.
+Release it without touching Authentik (the object is left behind):
+
+```bash
+kubectl annotate authentikgroup <name> authentik.weebo.io/force-orphan=true
+```
+
+A `Released` Event records it.
 
 ## Next steps
 

@@ -20,8 +20,11 @@ generates — that is the whole point of the tool.
 <Callout type="warn">
 **`kubectl apply -f` silently drops `status`.** Kubernetes strips the
 `status` subresource on create/update, so applying the generated files is
-only half the job — you must patch each object's `status` subresource
-separately (step 4). If you skip it, the first reconcile sees no
+only half the job. Let the importer do it (`--apply`, step 4): each CR is
+created paused (`authentik.weebo.io/import-pending`), its
+`status.authentikId` seeded, then released to the operator. If you apply
+the files yourself instead, patch each object's `status` subresource
+separately. If you skip it, the first reconcile sees no
 `authentikId`, tries **attempt-create-first**, and collides with the very
 object you meant to adopt (a `AuthentikObjectAlreadyExists` error). The
 collision is *non-destructive* — attempt-create-first never overwrites or
@@ -122,37 +125,34 @@ The webhook enforces a namespace allow-list for
 Cluster-scoped kinds (Group/User/Brand/Outpost/Instance) are **not**
 gated by the webhook, so they can be applied at any time.
 
-### 4. Apply the CRs, then patch their status
+### 4. Adopt the CRs
 
-Apply the specs, then re-attach each `status.authentikId` from the
-generated files (which still contain it, even though `apply` ignored it).
-Apply cluster-scoped kinds first, then the namespaced ones:
+Re-run the importer with `--apply` (same arguments, current kube context):
+it writes the files again, then adopts each CR — groups first, namespaced
+kinds last — creating it paused (`authentik.weebo.io/import-pending`, the
+controllers leave it alone), seeding its `status.authentikId`, and only
+then releasing it. The operator therefore never sees a CR without the id
+of the object it stands for: no `AuthentikObjectAlreadyExists`, no
+duplicate.
 
 ```bash
-DIR=import-output/team-a
-kubectl apply -f "$DIR"
-
-# Re-attach status.authentikId to every object the importer generated.
-for f in "$DIR"/*.yaml; do
-  kind=$(yq '.kind' "$f")
-  name=$(yq '.metadata.name' "$f")
-  ns=$(yq '.metadata.namespace // ""' "$f")
-  aid=$(yq '.status.authentikId // ""' "$f")
-  [ -z "$aid" ] || [ "$aid" = "null" ] && continue
-  nsflag=""; [ -n "$ns" ] && [ "$ns" != "null" ] && nsflag="-n $ns"
-  kubectl patch $nsflag "$kind" "$name" \
-    --subresource=status --type merge \
-    -p "{\"status\":{\"authentikId\":\"$aid\"}}"
-done
+importer --authentik-url https://login.example.com --instance-ref main \
+  --namespace team-a --out import-output/team-a --apply
+# Wrote CRDs to import-output/team-a and adopted them: 42 adopted, 0 already bound, 0 failed.
 ```
 
+It is safe to re-run: a CR already bound to its object is skipped, one
+left paused by an interrupted run is finished. A CR that already exists
+in the cluster but is bound to nothing yet is refused — the operator may
+be creating its object right now; delete it, or pass `--force` to take it
+over.
+
 <Callout type="info">
-Between the `apply` and the `patch`, a reconcile may fire on an
-`AuthentikApplication` and briefly report `AuthentikObjectAlreadyExists`.
-That's the harmless, non-destructive collision described above — once the
-status is patched, the next reconcile adopts cleanly. To keep the noise
-down, migrate one namespace at a time and run the patch loop immediately
-after the apply.
+Without `--apply`, `kubectl apply -f` the files, then re-attach each id
+with `kubectl patch <kind> <name> --subresource=status --type merge -p
+'{"status":{"authentikId":"<id>"}}'` before the first reconcile — a
+reconcile in between reports a harmless, non-destructive
+`AuthentikObjectAlreadyExists` until the id is there.
 </Callout>
 
 ### 5. Verify adoption

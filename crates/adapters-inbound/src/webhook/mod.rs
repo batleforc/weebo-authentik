@@ -2,140 +2,84 @@
 //! `application::use_cases::evaluate_admission` (the kit's allow-list
 //! engine, through `domain::allow_list`).
 
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use api::AuthentikNamespacePolicy;
 use api::namespace_policy::{Effect as ApiEffect, ResourceKind as ApiResourceKind};
 use application::use_cases::evaluate_admission::{
     AdmissionRequest as EvaluateAdmissionRequest, evaluate_admission,
 };
-use axum::extract::State;
-use axum::routing::post;
-use axum::{Json, Router};
+use axum::Router;
 use domain::allow_list::{self, Effect, NamespaceRule, ResourceKind};
 use domain::error::ReasonCode;
 use kube::core::DynamicObject;
-use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use kube::{Api, Client};
-use opentelemetry::metrics::Counter;
-use opentelemetry::{KeyValue, global};
 use weebo_kit_runtime::Health;
-
-/// OTLP-exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (see
-/// `operator::telemetry::init`) — a safe no-op otherwise, same rationale
-/// as `controller::RECONCILE_TOTAL`.
-static WEBHOOK_DECISIONS_TOTAL: LazyLock<Counter<u64>> = LazyLock::new(|| {
-    global::meter("weebo-authentik-operator")
-        .u64_counter("weebo_authentik_webhook_decisions_total")
-        .with_description("Admission webhook decisions, by CRD kind and result (allow/deny)")
-        .build()
-});
-
-fn record_decision(kind: &str, allowed: bool) {
-    WEBHOOK_DECISIONS_TOTAL.add(
-        1,
-        &[
-            KeyValue::new("kind", kind.to_string()),
-            KeyValue::new("result", if allowed { "allow" } else { "deny" }),
-        ],
-    );
-}
+use weebo_kit_runtime::admission::{Admission, Denial};
 
 #[derive(Clone)]
 pub struct WebhookState {
     pub client: Client,
 }
 
-/// `/validate`, plus the kit's `/readyz`, `/livez` and `/healthz` probes
-/// on the same TLS port.
+/// `POST /validate` (the kit's: a `DELETE`, or an `UPDATE` leaving `spec`
+/// alone — the operator removing its finalizer — always passes), plus the
+/// probes. Decisions are counted as `weebo_authentik_webhook_decisions_total`.
 pub fn router(state: WebhookState, health: Arc<Health>) -> Router {
-    Router::new()
-        .route("/validate", post(validate))
-        .with_state(state)
-        .merge(weebo_kit_runtime::health::routes(health))
+    weebo_kit_runtime::admission::router(
+        Arc::new(state),
+        health,
+        "weebo-authentik-operator",
+        "weebo_authentik",
+    )
 }
 
-async fn validate(
-    State(state): State<WebhookState>,
-    Json(review): Json<AdmissionReview<DynamicObject>>,
-) -> Json<AdmissionReview<DynamicObject>> {
-    let req: AdmissionRequest<DynamicObject> = match review.try_into() {
-        Ok(req) => req,
-        // No `request` to build a proper response from at all — mirrors
-        // `AdmissionResponse::invalid`'s own documented use case.
-        Err(_) => {
-            record_decision("<missing request>", false);
-            return Json(
-                AdmissionResponse::invalid("AdmissionReview is missing its request").into_review(),
-            );
-        }
-    };
+#[async_trait::async_trait]
+impl Admission for WebhookState {
+    type Reason = ReasonCode;
 
-    let kind_str = req.kind.kind.clone();
-    let Some(kind) = parse_kind(&kind_str) else {
+    async fn admit(
+        &self,
+        kind: &str,
+        namespace: &str,
+        _object: &DynamicObject,
+    ) -> Result<(), Denial<ReasonCode>> {
         // The ValidatingWebhookConfiguration should only ever route
         // AuthentikApplication/AuthentikAccessPolicy here — an
         // unrecognized kind fails closed rather than assuming it's fine.
-        record_decision(&kind_str, false);
-        return Json(deny(
-            &req,
-            ReasonCode::NamespaceNotAllowed,
-            &format!("unrecognized kind for this webhook: {kind_str}"),
-        ));
-    };
-
-    let namespace = req.namespace.clone().unwrap_or_default();
-
-    let (rules, policies_exist) = match fetch_rules(&state.client).await {
-        Ok(rules) => rules,
-        Err(err) => {
+        let Some(kind) = parse_kind(kind) else {
+            return Err(Denial::new(
+                ReasonCode::NamespaceNotAllowed,
+                format!("unrecognized kind for this webhook: {kind}"),
+            ));
+        };
+        let (rules, policies_exist) = fetch_rules(&self.client).await.map_err(|err| {
             tracing::error!(error = %err, "failed to list AuthentikNamespacePolicy");
-            // The ValidatingWebhookConfiguration's failurePolicy: Fail
-            // already blocks the request cluster-wide if this webhook
-            // 5xxs or times out; this explicit denial is a second,
-            // in-band signal for the same fail-closed intent.
-            record_decision(&kind_str, false);
-            return Json(deny(
-                &req,
+            // failurePolicy: Fail already blocks the request if this
+            // webhook errors; this denial is the same fail-closed intent.
+            Denial::new(
                 ReasonCode::NamespaceNotAllowed,
                 "AuthentikNamespacePolicy lookup failed",
-            ));
+            )
+        })?;
+        let result = evaluate_admission(
+            &EvaluateAdmissionRequest { namespace, kind },
+            &rules,
+            policies_exist,
+        );
+        if result.allowed {
+            Ok(())
+        } else {
+            Err(Denial::new(
+                result.reason.unwrap_or(ReasonCode::NamespaceNotAllowed),
+                result.message.unwrap_or_else(|| "denied".to_string()),
+            ))
         }
-    };
-
-    let result = evaluate_admission(
-        &EvaluateAdmissionRequest {
-            namespace: &namespace,
-            kind,
-        },
-        &rules,
-        policies_exist,
-    );
-    record_decision(&kind_str, result.allowed);
-
-    if result.allowed {
-        Json(AdmissionResponse::from(&req).into_review())
-    } else {
-        Json(deny(
-            &req,
-            result.reason.unwrap_or(ReasonCode::NamespaceNotAllowed),
-            result.message.as_deref().unwrap_or("denied"),
-        ))
     }
-}
 
-/// `AdmissionResponse::deny` only sets `.result.message` — `code`/`reason`
-/// are set separately here to keep the same `status.code: 403` +
-/// `status.reason: <ReasonCode>` shape this webhook has always returned.
-fn deny(
-    req: &AdmissionRequest<DynamicObject>,
-    reason: ReasonCode,
-    message: &str,
-) -> AdmissionReview<DynamicObject> {
-    let mut response = AdmissionResponse::from(req).deny(message);
-    response.result.code = 403;
-    response.result.reason = reason.as_str().to_string();
-    response.into_review()
+    fn undecidable(&self) -> ReasonCode {
+        ReasonCode::NamespaceNotAllowed
+    }
 }
 
 fn parse_kind(kind: &str) -> Option<ResourceKind> {
@@ -182,6 +126,8 @@ fn to_domain_kind(kind: ApiResourceKind) -> ResourceKind {
 
 #[cfg(test)]
 mod tests {
+    use kube::core::admission::AdmissionReview;
+
     use super::*;
 
     /// `validate`'s unrecognized-`kind` branch returns before ever touching
@@ -217,6 +163,10 @@ mod tests {
                 },
                 "operation": "CREATE",
                 "userInfo": {},
+                "object": {
+                    "apiVersion": "authentik.weebo.io/v1alpha1", "kind": kind,
+                    "metadata": {"name": "x", "namespace": "default"}, "spec": {},
+                },
             }
         }))
         .expect("fixture must deserialize into AdmissionReview<DynamicObject>")
@@ -231,7 +181,8 @@ mod tests {
 
         let review = review_with_kind("SomeUnrelatedKind");
 
-        let Json(response) = validate(State(state_with_unreachable_client()), Json(review)).await;
+        let response =
+            weebo_kit_runtime::admission::handle(&state_with_unreachable_client(), review).await;
 
         let admission_response = response.response.expect("deny path always sets response");
         assert!(!admission_response.allowed);

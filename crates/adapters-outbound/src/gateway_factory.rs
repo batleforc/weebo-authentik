@@ -7,7 +7,7 @@ use kube::Client;
 use kube::runtime::reflector::Store;
 
 use crate::authentik_http::AuthentikHttpGateway;
-use crate::instance_resolver::InstanceResolver;
+use crate::instance_resolver::{self, InstanceResolver};
 use crate::secret_ref::read_secret_key;
 
 /// Resolves an `AuthentikGateway` for a given `AuthentikInstance` CR.
@@ -28,7 +28,7 @@ pub struct AuthentikGatewayFactory {
 impl AuthentikGatewayFactory {
     pub fn new(client: Client) -> Self {
         Self {
-            instances: InstanceResolver::new(client.clone()),
+            instances: instance_resolver::live(client.clone()),
             client,
         }
     }
@@ -38,7 +38,7 @@ impl AuthentikGatewayFactory {
     /// `operator::main`, which owns the reflector that keeps `store` fresh.
     pub fn with_instance_store(client: Client, store: Store<AuthentikInstance>) -> Self {
         Self {
-            instances: InstanceResolver::with_store(client.clone(), store),
+            instances: instance_resolver::with_store(client.clone(), store),
             client,
         }
     }
@@ -161,15 +161,11 @@ impl GatewayFactory for AuthentikGatewayFactory {
             .await
             .map_err(GatewayFactoryError::ResolutionFailed)?;
 
-        match instances.len() {
-            1 => self.build_gateway(&instances[0]).await,
-            0 => Err(GatewayFactoryError::AmbiguousDefault(
-                "no AuthentikInstance CR exists".to_string(),
-            )),
-            n => Err(GatewayFactoryError::AmbiguousDefault(format!(
-                "{n} AuthentikInstance CRs exist, expected exactly one for a default"
-            ))),
-        }
+        // The kit's selection; no instance at all is ambiguous too here
+        // (`AmbiguousDefaultInstance`), as it always was.
+        let instance = weebo_kit_adapters::select(&instances, None)
+            .map_err(|e| GatewayFactoryError::AmbiguousDefault(e.to_string()))?;
+        self.build_gateway(instance).await
     }
 }
 

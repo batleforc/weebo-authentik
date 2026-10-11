@@ -7,10 +7,8 @@ use application::use_cases::reconcile_brand::{
     BrandAction, BrandReconcileInput, plan_brand_action, reconcile_brand,
 };
 use kube::api::Api;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::runtime::watcher;
 use kube::{Client, ResourceExt};
 
 use super::{Ctx, Error, FINALIZER, error_policy};
@@ -18,19 +16,24 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikBrand> = Api::all(client);
     let health = ctx.health.clone();
-    let results = Controller::new(api, watcher::Config::default())
+    let results = super::controller(api)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikBrand", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikBrand>, ctx: Arc<Ctx>) -> Result<Action, Error> {
+    if super::import_pending(obj.as_ref()) {
+        return Ok(Action::await_change());
+    }
     let api: Api<AuthentikBrand> = Api::all(ctx.client.clone());
 
     finalizer(&api, FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(brand) => apply(&api, &brand, &ctx).await,
-            FinalizerEvent::Cleanup(brand) => cleanup(&brand, &ctx).await,
+            FinalizerEvent::Cleanup(brand) => {
+                super::finalize(brand.as_ref(), &ctx, cleanup(&brand, &ctx)).await
+            }
         }
     })
     .await

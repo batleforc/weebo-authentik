@@ -4,10 +4,8 @@ use api::AuthentikGroup;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_group::reconcile_group;
 use kube::api::Api;
-use kube::runtime::Controller;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::runtime::watcher;
 use kube::{Client, ResourceExt};
 
 use super::{Ctx, Error, FINALIZER, error_policy};
@@ -15,19 +13,24 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api: Api<AuthentikGroup> = Api::all(client);
     let health = ctx.health.clone();
-    let results = Controller::new(api, watcher::Config::default())
+    let results = super::controller(api)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikGroup", health, results).await;
 }
 
 async fn reconcile(obj: Arc<AuthentikGroup>, ctx: Arc<Ctx>) -> Result<Action, Error> {
+    if super::import_pending(obj.as_ref()) {
+        return Ok(Action::await_change());
+    }
     let api: Api<AuthentikGroup> = Api::all(ctx.client.clone());
 
     finalizer(&api, FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(group) => apply(&api, &group, &ctx).await,
-            FinalizerEvent::Cleanup(group) => cleanup(&api, &group, &ctx).await,
+            FinalizerEvent::Cleanup(group) => {
+                super::finalize(group.as_ref(), &ctx, cleanup(&api, &group, &ctx)).await
+            }
         }
     })
     .await

@@ -20,11 +20,7 @@ use weebo_kit_application::emit;
 pub const ALLOW_DISRUPTIVE_UPDATE_ANNOTATION: &str = "authentik.weebo.io/allow-disruptive-update";
 
 fn allows_disruptive_update(app: &AuthentikApplication) -> bool {
-    app.metadata
-        .annotations
-        .as_ref()
-        .and_then(|a| a.get(ALLOW_DISRUPTIVE_UPDATE_ANNOTATION))
-        .is_some_and(|v| v == "true")
+    api::ANNOTATIONS.allows_disruptive_update(&app.metadata)
 }
 
 /// Authentik's internal model name for a provider of this kind, as
@@ -417,6 +413,14 @@ mod tests {
     }
 
     // --- classify_provider_kind_change: the pure gate decision ---
+
+    #[test]
+    fn the_annotation_is_the_kits() {
+        assert_eq!(
+            api::ANNOTATIONS.key(weebo_kit_api::annotations::ALLOW_DISRUPTIVE_UPDATE),
+            ALLOW_DISRUPTIVE_UPDATE_ANNOTATION
+        );
+    }
 
     #[test]
     fn no_existing_provider_is_not_a_kind_change() {

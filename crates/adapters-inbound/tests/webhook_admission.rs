@@ -53,6 +53,12 @@ fn review_request(namespace: &str, kind: &str) -> Request<Body> {
             },
             "operation": "CREATE",
             "userInfo": {},
+            // A real apiserver always sends the object on CREATE; one
+            // without it can't be decided on and is refused.
+            "object": {
+                "apiVersion": "authentik.weebo.io/v1alpha1", "kind": kind,
+                "metadata": {"name": "x", "namespace": namespace}, "spec": {},
+            },
         }
     });
     Request::builder()

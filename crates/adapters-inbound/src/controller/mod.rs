@@ -13,20 +13,17 @@ use application::ports::{GatewayFactory, SecretStoreFactory};
 use application::use_cases::ReconcileOutcome;
 use domain::Failure;
 use domain::error::ReasonCode;
-use futures::{Stream, StreamExt};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
-use k8s_openapi::jiff::Timestamp;
-use kube::api::{Api, Patch, PatchParams};
-use kube::runtime::controller::{self as runtime_controller, Action};
+use kube::api::Api;
+use kube::runtime::controller::Action;
 use kube::runtime::events::Recorder;
-use kube::runtime::reflector::ObjectRef;
-use kube::runtime::watcher;
-use kube::{Client, Resource, ResourceExt};
+use kube::{Client, Resource};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use weebo_kit_runtime::Health;
 use weebo_kit_runtime::events;
 use weebo_kit_runtime::metrics::ReconcileMetrics;
+use weebo_kit_runtime::status::StatusUpdate;
 
 /// Resolves once the process is asked to stop: every controller then stops
 /// taking new work, lets its in-flight reconciles finish, and its `run`
@@ -66,29 +63,12 @@ pub struct Ctx {
     pub health: Arc<Health>,
 }
 
-/// Drains a controller's result stream until shutdown, reporting watch
-/// failures to `health` — a watch erroring in a loop eventually fails
-/// `/livez`. Reconcile failures are logged; they show in the CR's status.
-pub async fn drive<K, E, S>(kind: &'static str, health: Arc<Health>, results: S)
-where
-    K: Resource,
-    E: std::error::Error + Send + Sync + 'static,
-    S: Stream<Item = Result<(ObjectRef<K>, Action), runtime_controller::Error<E, watcher::Error>>>,
-{
-    results
-        .for_each(|res| {
-            match res {
-                Ok(_) => health.ok(kind),
-                Err(runtime_controller::Error::QueueError(err)) => {
-                    tracing::warn!(kind, error = %err, "watch error");
-                    health.failed(kind, err.to_string());
-                }
-                Err(err) => tracing::error!(kind, error = %err, "reconcile failed"),
-            }
-            futures::future::ready(())
-        })
-        .await;
-}
+/// The kit's controller skeleton: a watch filtered to what reconciling
+/// acts on (spec, annotations, labels, finalizers, deletion — never the
+/// CR's own status patches), bounded concurrency
+/// (`WEEBO_RECONCILE_CONCURRENCY`), the result stream drained into the
+/// liveness.
+pub use weebo_kit_runtime::controller::{controller, drive};
 
 /// Shared reconcile-error type for every controller. Not every variant is
 /// constructed by every controller (e.g. `instance`/`namespace_policy` never
@@ -131,20 +111,19 @@ impl Error {
 
 /// Every reconcile that errors out — before reaching a status patch, or in
 /// a finalizer cleanup — is announced by a `Warning` Event on its CR (the
-/// kit folds repeats into one series), then retried in 30s.
+/// kit folds repeats into one series), then retried in ~30s (jittered).
 pub fn error_policy<K>(obj: Arc<K>, err: &Error, ctx: Arc<Ctx>) -> Action
 where
     K: Resource<DynamicType = ()>,
 {
     let (reason, action) = err.reason();
-    events::spawn_error(
+    weebo_kit_runtime::controller::retry_after_error(
         &ctx.recorder,
         obj.object_ref(&()),
         reason,
         action,
-        err.to_string(),
-    );
-    Action::requeue(std::time::Duration::from_secs(30))
+        err,
+    )
 }
 
 /// Requeue delay to return from a successful `apply()`, chosen from the
@@ -157,12 +136,13 @@ where
 /// convergence for up to 5 minutes (and times out the e2e golden-path
 /// waits, which poll for ~150s); a short backoff, matching `error_policy`'s
 /// hard-error cadence, lets the dependency resolve in seconds. Mirrors a
-/// hard `Err`'s `error_policy` requeue, kept as one number.
+/// hard `Err`'s `error_policy` requeue, kept as one number. Both jittered
+/// (the kit's), so CRs created together don't stay in lockstep.
 pub fn requeue_after(outcome: &ReconcileOutcome) -> Action {
-    match outcome {
-        ReconcileOutcome::Synced { .. } => Action::requeue(std::time::Duration::from_secs(300)),
-        ReconcileOutcome::Errored { .. } => Action::requeue(std::time::Duration::from_secs(30)),
-    }
+    weebo_kit_runtime::controller::requeue_after(
+        matches!(outcome, ReconcileOutcome::Synced { .. }),
+        None,
+    )
 }
 
 /// The `status` of every CRD here is an `AuthentikStatus`; this gives the
@@ -203,11 +183,44 @@ pub fn conditions(
     generation: Option<i64>,
     now: &Time,
 ) -> Vec<Condition> {
-    let ready = match outcome {
+    let ready = ready_of(outcome, synced_message);
+    weebo_kit_runtime::conditions::conditions(previous, &ready, &[], generation, now)
+}
+
+/// `Ready`'s side of an outcome: `Ok(synced_message)` or the failure.
+fn ready_of(outcome: &ReconcileOutcome, synced_message: &str) -> Result<String, Failure> {
+    match outcome {
         ReconcileOutcome::Synced { .. } => Ok(synced_message.to_string()),
         ReconcileOutcome::Errored { reason, message } => Err(Failure::new(*reason, message)),
-    };
-    weebo_kit_runtime::conditions::conditions(previous, &ready, &[], generation, now)
+    }
+}
+
+/// A finalizer's cleanup — unless the CR carries
+/// `authentik.weebo.io/force-orphan: "true"`, the way out for a CR whose
+/// cleanup can't succeed any more (its instance or token gone) — then a
+/// `Released` Event (the kit's).
+pub async fn finalize<K>(
+    obj: &K,
+    ctx: &Ctx,
+    cleanup: impl std::future::Future<Output = Result<Action, Error>>,
+) -> Result<Action, Error>
+where
+    K: Resource<DynamicType = ()>,
+{
+    weebo_kit_runtime::controller::finalize(
+        obj,
+        &ctx.recorder,
+        &api::ANNOTATIONS,
+        ReasonCode::Released,
+        async { cleanup.await.map(|_| ()) },
+    )
+    .await
+}
+
+/// Paused by the importer (`authentik.weebo.io/import-pending`): left
+/// alone until its status is seeded. A deletion is always processed.
+pub fn import_pending<K: Resource>(obj: &K) -> bool {
+    api::ANNOTATIONS.import_pending(obj.meta())
 }
 
 /// Shared `ReconcileOutcome` -> `status` translation — call this instead of
@@ -239,35 +252,32 @@ where
         .authentik_status()
         .map(|s| s.conditions.as_slice())
         .unwrap_or_default();
-    let generation = obj.meta().generation;
-    let conds = conditions(
-        previous,
-        &outcome,
-        synced_message,
-        generation,
-        &Time(Timestamp::now()),
-    );
-    let mut status = serde_json::json!({ "conditions": conds });
-    if let ReconcileOutcome::Synced { authentik_id } = &outcome {
-        status["observedGeneration"] = generation.into();
-        if let Some(id) = authentik_id {
-            status["authentikId"] = id.clone().into();
-        }
+    let ready = ready_of(&outcome, synced_message);
+    let mut fields = serde_json::Map::new();
+    if let ReconcileOutcome::Synced {
+        authentik_id: Some(id),
+    } = &outcome
+    {
+        fields.insert("authentikId".into(), id.clone().into());
     }
-    // `force` is Server-Side-Apply-only (`Patch::Apply`) — a real
-    // apiserver rejects it paired with `Patch::Merge`. `field_manager`
-    // alone is fine for any patch type.
-    api.patch_status(
-        &obj.name_any(),
-        &PatchParams::apply(FIELD_MANAGER),
-        &Patch::Merge(serde_json::json!({ "status": status })),
+    // The kit's: one merge patch (conditions, `observedGeneration` on
+    // success), retried while the apiserver is unavailable, then a
+    // `Warning` on every failed reconcile and a `Normal` for every
+    // condition change. One more Event for the remote object's creation.
+    weebo_kit_runtime::status::publish(
+        api,
+        recorder,
+        FIELD_MANAGER,
+        obj,
+        previous,
+        StatusUpdate {
+            ready: &ready,
+            advisories: &[],
+            fields,
+        },
     )
     .await?;
-
-    // A `Warning` on every failed reconcile, a `Normal` for every
-    // condition change, and one for the remote object's creation.
     let object = obj.object_ref(&());
-    events::announce_outcome(recorder, &object, previous, &conds).await;
     let recorded = obj
         .authentik_status()
         .and_then(|s| s.authentik_id.as_deref());

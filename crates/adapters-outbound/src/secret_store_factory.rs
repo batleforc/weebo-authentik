@@ -17,7 +17,7 @@ use weebo_kit_adapters::{
     K8sSecretStore, RoutingSecretStore, VaultConfig, VaultLogins, VaultSecretStore,
 };
 
-use crate::instance_resolver::InstanceResolver;
+use crate::instance_resolver::{self, InstanceResolver};
 use crate::secret_ref::read_secret_key;
 
 /// Field manager of the `Secret`s this operator emits — the one earlier
@@ -46,13 +46,13 @@ pub struct AuthentikSecretStoreFactory {
 
 impl AuthentikSecretStoreFactory {
     pub fn new(client: Client) -> Self {
-        Self::build(client.clone(), InstanceResolver::new(client))
+        Self::build(client.clone(), instance_resolver::live(client))
     }
 
     /// Resolve `AuthentikInstance` CRs from a shared reflector `Store`
     /// instead of a per-call apiserver GET — wired by `operator::main`.
     pub fn with_instance_store(client: Client, store: Store<AuthentikInstance>) -> Self {
-        Self::build(client.clone(), InstanceResolver::with_store(client, store))
+        Self::build(client.clone(), instance_resolver::with_store(client, store))
     }
 
     fn build(client: Client, instances: InstanceResolver) -> Self {

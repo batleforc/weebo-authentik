@@ -20,6 +20,7 @@
 //! this import was meant to adopt.
 
 mod applications;
+mod apply;
 mod brands;
 mod common;
 mod flows;
@@ -82,6 +83,17 @@ struct Args {
     /// intended only for throwaway/self-signed instances.
     #[arg(long, env = "AUTHENTIK_INSECURE_SKIP_VERIFY")]
     insecure_skip_verify: bool,
+    /// Adopt the written CRs in the current kube context: each is created
+    /// paused, its `status.authentikId` seeded, then released to the
+    /// operator — which then updates the object instead of creating a
+    /// duplicate. Re-runnable: CRs already bound to their object are
+    /// skipped.
+    #[arg(long)]
+    apply: bool,
+    /// With `--apply`: also take over CRs already in the cluster that are
+    /// bound to nothing yet (the operator may be creating their object).
+    #[arg(long, requires = "apply")]
+    force: bool,
 }
 
 #[tokio::main]
@@ -153,15 +165,33 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
-    eprintln!(
-        "\nWrote CRDs to {}.\n\
-         IMPORTANT: `kubectl apply -f` does not persist status.authentikId \
-         (Kubernetes strips status on create/update) — patch each object's \
-         status subresource separately before the operator's first \
-         reconcile, or it will attempt-create-first and collide with the \
-         object this import was meant to adopt.",
-        args.out.display()
-    );
+    if args.apply {
+        let client = kube::Client::try_default()
+            .await
+            .context("connecting to the cluster for --apply")?;
+        let summary = apply::apply_dir(&client, &args.out, args.force).await?;
+        eprintln!(
+            "\nWrote CRDs to {} and adopted them: {} adopted, {} already bound, {} failed.",
+            args.out.display(),
+            summary.adopted,
+            summary.skipped,
+            summary.failed
+        );
+        anyhow::ensure!(
+            summary.failed == 0,
+            "{} CR(s) could not be adopted",
+            summary.failed
+        );
+    } else {
+        eprintln!(
+            "\nWrote CRDs to {}.\n\
+             IMPORTANT: `kubectl apply -f` does not persist status.authentikId \
+             (Kubernetes strips status on create/update): re-run with --apply \
+             to adopt them, or the operator will attempt-create-first and \
+             collide with the objects this import was meant to adopt.",
+            args.out.display()
+        );
+    }
 
     Ok(())
 }
