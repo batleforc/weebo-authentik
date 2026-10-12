@@ -15,7 +15,7 @@ windows.
 ## Budget
 
 The limits are the kit's small-cluster budget (a few operators on a
-2-4 GiB node). The last run committed with the docs (`perf/weebo-authentik.json`, on 2026-10-11 with weebo-kit-perf 0.8.0) measured
+2-4 GiB node). The last run committed with the docs (`perf/weebo-authentik.json`, on 2026-10-12 with weebo-kit-perf 0.9.0) measured
 200 `authentikgroups` per load; each value is the worst phase for that limit.
 
 | Limit | Budget | Measured |  |
@@ -25,13 +25,13 @@ The limits are the kit's small-cluster budget (a few operators on a
 | Memory at rest (median RSS of every idle window) | 64 MiB | 28.9 MiB | ok |
 | Peak memory over the whole run | 192 MiB | 28.9 MiB | ok |
 | CPU at rest (mean of every idle window) | 10 m | 0.34 m | ok |
-| CPU time per object of a load | 50 ms | 10.8 ms | ok |
-| apiserver requests at rest | 60 req/min | 39.9 req/min | ok |
+| CPU time per object of a load | 50 ms | 10.1 ms | ok |
+| apiserver requests at rest | 60 req/min | 37.9 req/min | ok |
 | apiserver requests per object of a load | 20 req | 6.00 req | ok |
-| Time for 100 objects of a load to converge | 60 s | 1.03 s | ok |
-| Reconcile p95, any phase | 2 s | 0.03 s | ok |
-| Memory not given back: final vs baseline idle window | 10 % | 7.16 % | ok |
-| File descriptors not given back | 16 | -2 | ok |
+| Time for 100 objects of a load to converge | 60 s | 0.91 s | ok |
+| Reconcile p95, any phase | 2 s | 0.02 s | ok |
+| Memory not given back: final vs baseline idle window | 10 % | 7.54 % | ok |
+| File descriptors not given back | 16 | 0 | ok |
 | Threads not given back | 4 | 0 | ok |
 
 ## Measuring it again
