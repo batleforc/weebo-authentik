@@ -1,13 +1,13 @@
 version: "3"
 
 includes:
-  authentik: ./.task/authentik.yaml
+  authentik: ./.tasks/authentik.yaml
   tests:
-    taskfile: ./.task/test.yaml
+    taskfile: ./.tasks/test.yaml
     flatten: true
-  mise: ./.task/mise.yaml
+  mise: ./.tasks/mise.yaml
   # cog.toml, rendered from weebo-operator-kit's template (task kit:cog).
-  kit: ./.task/kit.yaml
+  kit: ./.tasks/kit.yaml
   # weebo-operator-kit's shared tasks, pinned to the kit tag of Cargo.toml
   # and to their sha256: `task kit:sync` rewrites both. `task --offline`
   # runs from Task's cache.

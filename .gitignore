@@ -24,5 +24,6 @@ node_modules/
 # The kit's library chart, fetched by `task helm:deps` (Chart.lock pins it)
 deploy/charts/*/charts/
 
-# Task's cache of the remote includes (weebo-operator-kit's tasks/)
-.task/remote/
+# Task's own cache (remote includes, checksums); the operator's task files
+# live in .tasks/
+.task/
