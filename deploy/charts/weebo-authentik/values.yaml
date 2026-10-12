@@ -65,6 +65,12 @@ watch:
   # admin installs the CRDs).
   clusterKinds: true
 
+references:
+  # -- A CR may reference a CR of another namespace (env
+  # WEEBO_CROSS_NAMESPACE_REFS) — only one that shares itself with it
+  # (its `spec.sharedWith`). Ignored with `watch.namespace`.
+  crossNamespace: false
+
 # -- Reconciles run at once per kind (env WEEBO_RECONCILE_CONCURRENCY).
 reconcileConcurrency: 4
 # -- `text` or `json` log lines (env LOG_FORMAT).

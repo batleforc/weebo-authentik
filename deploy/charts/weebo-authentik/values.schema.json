@@ -709,6 +709,15 @@
           "type": "boolean"
         }
       }
+    },
+    "references": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "crossNamespace": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }
