@@ -2,6 +2,22 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.16.0](https://github.com/batleforc/weebo-authentik/compare/3f5ac213a47a547986f80d779ba92316fac297c8..v0.16.0) - 2026-10-12
+#### Features
+- ![BREAKING](https://img.shields.io/badge/BREAKING-red) watch scope, AuthentikLocalInstance and instanceRef object (kit v0.10.1) (#7) - ([81aea41](https://github.com/batleforc/weebo-authentik/commit/81aea4154ef2770768525c0dd8f11f75716d0154)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
+- ![BREAKING](https://img.shields.io/badge/BREAKING-red) build on weebo-operator-kit v0.9.0 (library chart, shared tasks, reusable CI) (#5) - ([75d4aa4](https://github.com/batleforc/weebo-authentik/commit/75d4aa4607db345d743ee87e1aeba273a73cdcff)) - Maxime
+- ![BREAKING](https://img.shields.io/badge/BREAKING-red) build on weebo-operator-kit v0.7.0 (#2) - ([97b3869](https://github.com/batleforc/weebo-authentik/commit/97b3869edab15eb3f05cf64c949baf778a7241e2)) - Maxime, Claude Opus 5.5
+- rework docs (#1) - ([07b8875](https://github.com/batleforc/weebo-authentik/commit/07b887526e23f0d019c7934db62ffe3ecbbeb906)) - Maxime
+- well follow the good practice for a default - ([2fc63fb](https://github.com/batleforc/weebo-authentik/commit/2fc63fb0c0b19450e4f243dfd818d30bd1308cbb)) - Max Batleforc
+#### Documentation
+- (**perf**) resource budget measured on 2026-10-11 (#4) - ([2679548](https://github.com/batleforc/weebo-authentik/commit/2679548e8f112dd3ab58e93ad8dbd1fb28491d69)) - github-actions[bot], github-actions[bot]
+#### Continuous Integration
+- (**perf**) measure the resource budget every week (kit v0.8.0) (#3) - ([1aa672f](https://github.com/batleforc/weebo-authentik/commit/1aa672f7cbc3f81832fffd078106b4ef0177f094)) - Maxime, Claude Opus 5.5
+#### Miscellaneous Chores
+- bump - ([3f5ac21](https://github.com/batleforc/weebo-authentik/commit/3f5ac213a47a547986f80d779ba92316fac297c8)) - Max Batleforc
+
+- - -
+
 ## [v0.15.0](https://github.com/batleforc/proxyauthK8s/compare/5c6a1a8b38dd565612a1a9e038f1575562b3f1a0..v0.15.0) - 2026-09-20
 #### Features
 - Mise en place clientType public/confidential has confidential the default - ([5c6a1a8](https://github.com/batleforc/proxyauthK8s/commit/5c6a1a8b38dd565612a1a9e038f1575562b3f1a0)) - Max Batleforc
