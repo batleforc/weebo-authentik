@@ -48,6 +48,7 @@ pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
     let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));
     Arc::new(Ctx {
         client: client.clone(),
+        instances: gateway_factory.clone(),
         gateway_factory,
         secrets_factory,
         policies: Arc::new(KubePolicySource::new(client.clone())),
@@ -60,6 +61,7 @@ pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
         ),
         shutdown: adapters_inbound::controller::Shutdown::never(),
         health: Arc::new(weebo_kit_runtime::Health::default()),
+        scope: weebo_kit_runtime::WatchScope::cluster(),
     })
 }
 

@@ -43,6 +43,34 @@ crds:
   # managed out of band (e.g. the `crds.yaml` bundle of a GitHub release).
   install: true
 
+# What the operator watches. Nothing set: every object of the cluster.
+watch:
+  # -- Only the namespaced kinds of this namespace (env
+  # WEEBO_WATCH_NAMESPACE): they move from the ClusterRole to a Role
+  # there; the cluster-scoped kinds stay watched cluster-wide. The
+  # webhook's namespaceSelector defaults to it.
+  namespace: ""
+  # -- Only the objects this LabelSelector (`matchLabels`,
+  # `matchExpressions`) matches, every kind included (env
+  # WEEBO_WATCH_LABEL_SELECTOR): what is outside is invisible to the
+  # operator. Splits the work between releases, not a security boundary
+  # (RBAC does not filter by label). Adds the `scope.<group>` webhook,
+  # which refuses taking a managed object out of the selector; the
+  # webhook's objectSelector defaults to it.
+  labelSelector: {}
+  # -- `false`: full namespaced (env WEEBO_WATCH_CLUSTER_KINDS) — no
+  # cluster-scoped kind watched, no ClusterRole, no
+  # ValidatingWebhookConfiguration; objects use the LocalInstances of
+  # `namespace`. Needs `namespace` and `crds.install: false` (a cluster
+  # admin installs the CRDs).
+  clusterKinds: true
+
+references:
+  # -- A CR may reference a CR of another namespace (env
+  # WEEBO_CROSS_NAMESPACE_REFS) — only one that shares itself with it
+  # (its `spec.sharedWith`). Ignored with `watch.namespace`.
+  crossNamespace: false
+
 # -- Reconciles run at once per kind (env WEEBO_RECONCILE_CONCURRENCY).
 reconcileConcurrency: 4
 # -- `text` or `json` log lines (env LOG_FORMAT).
@@ -57,6 +85,11 @@ leaderElection:
   leaseName: ""
 
 webhook:
+  # -- Render the ValidatingWebhookConfiguration (a cluster-scoped object).
+  # When false, the reconcilers alone enforce the rules: a refused CR goes
+  # `Ready=False` instead of being refused up front. The HTTPS server
+  # (probes) and its certificate stay.
+  enabled: true
   # -- Container port of the admission webhook (HTTPS). The health probes
   # are served on it as well.
   containerPort: 8443

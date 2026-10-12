@@ -22,7 +22,8 @@ metadata:
   name: my-application
   namespace: team-a
 spec:
-  instanceRef: main
+  instanceRef:
+    name: main
   name: Harbor
   slug: harbor
   provider:
@@ -39,7 +40,7 @@ spec:
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `instanceRef` | `string` | yes |  | Name of an `AuthentikInstance` CR. |
+| `instanceRef` | `object` | yes |  | The `AuthentikInstance` or `AuthentikLocalInstance` this application lives on. |
 | `metaIcon` | `string` | no |  |  |
 | `name` | `string` | yes |  |  |
 | `provider` | `object` | yes |  | `oauth2`/`proxy` are implemented in v1 (both are in real use in the Terraform module being replaced — `longhorn.tf` uses `proxy`). `saml`/`ldap` are schema-only stubs: accepted by the schema so a future addition isn't a breaking change, but rejected by the reconciler with an explicit error, never silently ignored. See `.prompt/plan.md` decision 2.  Deliberately **not** a Rust sum type (`enum Foo { Oauth2(..), Proxy(..) }`) even though that's what it conceptually is: kube-core's CRD schema generation cannot merge an internally-tagged enum whose variants carry different literal discriminator values — each variant's `kind` property gets a different `enum: [...]` schema and `CustomResourceExt::crd()` panics ("Property 'kind' ... must be identical"). This flat-struct-plus-discriminator shape is the standard kube.rs workaround; "exactly one of `oauth2`/`proxy` set, matching `kind`" is validated by the reconciler, not the schema. |

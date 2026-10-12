@@ -23,6 +23,11 @@ fn main() -> anyhow::Result<()> {
         "authentikinstance",
         api::AuthentikInstance::crd(),
     )?;
+    write_crd(
+        &args.out,
+        "authentiklocalinstance",
+        api::AuthentikLocalInstance::crd(),
+    )?;
     write_crd(&args.out, "authentikgroup", api::AuthentikGroup::crd())?;
     write_crd(&args.out, "authentikflow", api::AuthentikFlow::crd())?;
     write_crd(&args.out, "authentikoutpost", api::AuthentikOutpost::crd())?;

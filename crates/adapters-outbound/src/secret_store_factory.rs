@@ -7,17 +7,15 @@
 
 use std::sync::Arc;
 
-use api::AuthentikInstance;
-use api::instance::VaultSecretStoreSpec;
-use application::ports::{SecretStore, SecretStoreError, SecretStoreFactory};
+use api::instance::{SecretStoreBackend, VaultSecretStoreSpec};
+use application::ports::{BoundInstance, SecretStore, SecretStoreError, SecretStoreFactory};
 use futures::FutureExt;
-use kube::runtime::reflector::Store;
 use kube::{Client, ResourceExt};
 use weebo_kit_adapters::{
-    K8sSecretStore, RoutingSecretStore, VaultConfig, VaultLogins, VaultSecretStore,
+    K8sSecretStore, Resolved, RoutingSecretStore, VaultConfig, VaultLogins, VaultSecretStore,
 };
 
-use crate::instance_resolver::{self, InstanceResolver};
+use crate::instance_resolver::AuthentikInstances;
 use crate::secret_ref::read_secret_key;
 
 /// Field manager of the `Secret`s this operator emits — the one earlier
@@ -39,23 +37,13 @@ pub fn kubernetes_secret_store(client: Client) -> K8sSecretStore {
 
 pub struct AuthentikSecretStoreFactory {
     client: Client,
-    instances: InstanceResolver,
+    instances: Arc<AuthentikInstances>,
     kubernetes: Arc<K8sSecretStore>,
     vault: Arc<VaultLogins>,
 }
 
 impl AuthentikSecretStoreFactory {
-    pub fn new(client: Client) -> Self {
-        Self::build(client.clone(), instance_resolver::live(client))
-    }
-
-    /// Resolve `AuthentikInstance` CRs from a shared reflector `Store`
-    /// instead of a per-call apiserver GET — wired by `operator::main`.
-    pub fn with_instance_store(client: Client, store: Store<AuthentikInstance>) -> Self {
-        Self::build(client.clone(), instance_resolver::with_store(client, store))
-    }
-
-    fn build(client: Client, instances: InstanceResolver) -> Self {
+    pub fn new(client: Client, instances: Arc<AuthentikInstances>) -> Self {
         Self {
             instances,
             kubernetes: Arc::new(kubernetes_secret_store(client.clone())),
@@ -100,18 +88,28 @@ async fn vault_for(
 impl SecretStoreFactory for AuthentikSecretStoreFactory {
     async fn store_for(
         &self,
-        instance_ref: Option<&str>,
+        bound: &BoundInstance,
     ) -> Result<Arc<dyn SecretStore>, SecretStoreError> {
-        // `AuthentikApplication`, the only kind emitting secrets, always
-        // names its instance.
-        let name = instance_ref
-            .ok_or_else(|| SecretStoreError("an instanceRef is required".to_string()))?;
-        let instance = self
+        let instance = match self
             .instances
-            .get(name)
+            .get(bound)
             .await
             .map_err(SecretStoreError)?
-            .ok_or_else(|| SecretStoreError(format!("AuthentikInstance {name:?} not found")))?;
+            .ok_or_else(|| SecretStoreError(format!("{bound} not found")))?
+        {
+            Resolved::Cluster(instance) => instance,
+            // A namespace's own instance writes Kubernetes Secrets only: the
+            // operator's Vault identity is every namespace's.
+            Resolved::Local(_) => {
+                return Ok(Arc::new(RoutingSecretStore::new(
+                    self.kubernetes.clone(),
+                    Err(format!(
+                        "{bound} writes Kubernetes Secrets only: Vault targets need an AuthentikInstance"
+                    )),
+                    SecretStoreBackend::Kubernetes,
+                )));
+            }
+        };
         let store_spec = &instance.spec.secret_store;
         let Some(vault) = store_spec.vault.clone() else {
             return Ok(Arc::new(RoutingSecretStore::new(

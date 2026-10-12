@@ -25,8 +25,33 @@ spec:
               `AuthentikNamespacePolicy`.
             properties:
               instanceRef:
-                description: Name of an `AuthentikInstance` CR.
-                type: string
+                description: |-
+                  The `AuthentikInstance` or `AuthentikLocalInstance` this application
+                  lives on.
+                properties:
+                  kind:
+                    description: The kind of instance a reference designates.
+                    enum:
+                    - Instance
+                    - LocalInstance
+                    nullable: true
+                    type: string
+                  name:
+                    description: '`metadata.name` of the instance.'
+                    type: string
+                  namespace:
+                    description: |-
+                      Namespace of a `LocalInstance`. Defaults to this object's own;
+                      required on a cluster-scoped object. Another namespace's local
+                      instance must share itself with this one (its `sharedWith`).
+                    nullable: true
+                    type: string
+                required:
+                - name
+                type: object
+                x-kubernetes-validations:
+                - message: namespace only applies to kind LocalInstance
+                  rule: '!has(self.namespace) || !has(self.kind) || self.kind == ''LocalInstance'''
               metaIcon:
                 nullable: true
                 type: string
@@ -261,6 +286,30 @@ spec:
                   - type
                   type: object
                 type: array
+              instance:
+                description: |-
+                  The instance this object was resolved to and stays bound to
+                  (`AuthentikApplication`, and the `AuthentikAccessPolicy`s through
+                  their application): a `spec.instanceRef` by name only never
+                  silently moves to another instance created later under that name.
+                nullable: true
+                properties:
+                  kind:
+                    description: '`Instance` or `LocalInstance`.'
+                    enum:
+                    - Instance
+                    - LocalInstance
+                    type: string
+                  name:
+                    type: string
+                  namespace:
+                    description: The local instance's namespace; absent for a cluster-scoped one.
+                    nullable: true
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
               observedGeneration:
                 format: int64
                 nullable: true

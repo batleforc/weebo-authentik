@@ -10,6 +10,7 @@ export default defineConfig({
   // Sidebar order follows the order you'd create things in, not the alphabet.
   order: [
     "AuthentikInstance",
+    "AuthentikLocalInstance",
     "AuthentikNamespacePolicy",
     "AuthentikGroup",
     "AuthentikUser",
@@ -23,6 +24,7 @@ export default defineConfig({
   // The guide that explains each kind, linked from its reference page.
   guides: {
     AuthentikInstance: ["Connect an AuthentikInstance", "/docs/guides/connect-instance"],
+    AuthentikLocalInstance: ["Connect an AuthentikInstance", "/docs/guides/connect-instance"],
     AuthentikNamespacePolicy: ["The allow-list", "/docs/guides/allow-list"],
     AuthentikGroup: ["First application walkthrough", "/docs/guides/first-application#1-create-a-group"],
     AuthentikApplication: [
@@ -42,6 +44,10 @@ export default defineConfig({
       url: "https://login.example.com",
       tokenSecretRef: { name: "authentik-api-token", namespace: "weebo-authentik", key: "token" },
     },
+    AuthentikLocalInstance: {
+      url: "https://login.example.com",
+      tokenSecretRef: { name: "authentik-api-token", key: "token" },
+    },
     AuthentikNamespacePolicy: {
       rules: [
         {
@@ -59,7 +65,7 @@ export default defineConfig({
       groupRefs: ["weebo_user"],
     },
     AuthentikApplication: {
-      instanceRef: "main",
+      instanceRef: { name: "main" },
       name: "Harbor",
       slug: "harbor",
       provider: {

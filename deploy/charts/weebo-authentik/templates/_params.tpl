@@ -6,10 +6,11 @@ renders that is not a value.
 {{- define "operator.params" -}}
 group: authentik.weebo.io
 versions: [v1alpha1]
-# Every reconciler watches its kind cluster-wide, whether that kind is
-# cluster- or namespace-scoped.
+# Every kind a reconciler watches (cluster-wide, or the namespaced ones in
+# watch.namespace only).
 kinds:
   - authentikinstances
+  - authentiklocalinstances
   - authentikgroups
   - authentikflows
   - authentikoutposts
@@ -19,12 +20,17 @@ kinds:
   - authentikapplications
   - authentikaccesspolicies
   - authentiknamespacepolicies
-# The namespaced kinds: checked by the AuthentikNamespacePolicy allow-list
-# on admission, and what a team may manage (rbac.namespacedExample).
-admitted: &namespaced
+# Checked by the AuthentikNamespacePolicy allow-list on admission (unless
+# bound to an AuthentikLocalInstance).
+admitted:
   - authentikapplications
   - authentikaccesspolicies
-namespacedKinds: *namespaced
+# The namespaced kinds: what a team may manage (rbac.namespacedExample),
+# and the watch Role's (watch.namespace).
+namespacedKinds:
+  - authentiklocalinstances
+  - authentikapplications
+  - authentikaccesspolicies
 env: []
 egress:
   - comment: Authentik instances.

@@ -1,28 +1,28 @@
 version: "3"
 
 includes:
-  authentik: ./.task/authentik.yaml
+  authentik: ./.tasks/authentik.yaml
   tests:
-    taskfile: ./.task/test.yaml
+    taskfile: ./.tasks/test.yaml
     flatten: true
-  mise: ./.task/mise.yaml
+  mise: ./.tasks/mise.yaml
   # cog.toml, rendered from weebo-operator-kit's template (task kit:cog).
-  kit: ./.task/kit.yaml
+  kit: ./.tasks/kit.yaml
   # weebo-operator-kit's shared tasks, pinned to the kit tag of Cargo.toml
   # and to their sha256: `task kit:sync` rewrites both. `task --offline`
   # runs from Task's cache.
   rust:
-    taskfile: https://raw.githubusercontent.com/batleforc/weebo-operator-kit/v0.9.0/tasks/rust.yaml
+    taskfile: https://raw.githubusercontent.com/batleforc/weebo-operator-kit/v0.10.1/tasks/rust.yaml
     checksum: 75360142235715643265ae41de1f531dda6562a2472e8d9af21ad65f7d753d63
   repo:
-    taskfile: https://raw.githubusercontent.com/batleforc/weebo-operator-kit/v0.9.0/tasks/repo.yaml
+    taskfile: https://raw.githubusercontent.com/batleforc/weebo-operator-kit/v0.10.1/tasks/repo.yaml
     checksum: 162d15bf9c41f494efcb6d73e089ac685d23bc98269a41daf62db26534f52f72
     vars:
       CONTAINERFILES: Dockerfile
       NPM_DIR: docs
   helm:
-    taskfile: https://raw.githubusercontent.com/batleforc/weebo-operator-kit/v0.9.0/tasks/helm.yaml
-    checksum: 6c19c4aaf796049f50c6a7ce608ac32bb653d7b6030c3baf64794b8d16251de6
+    taskfile: https://raw.githubusercontent.com/batleforc/weebo-operator-kit/v0.10.1/tasks/helm.yaml
+    checksum: e3d0c9ef0c9d5ae970396a38214bba4dabd6cb2c141613db3844f360c08dab56
     vars:
       CHART: deploy/charts/weebo-authentik
 

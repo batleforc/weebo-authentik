@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use api::AuthentikApplication;
 use api::application::ProviderKind;
-use application::use_cases::errored_from_factory_error;
-use application::use_cases::errored_from_secret_store_error;
-use application::use_cases::evaluate_admission::enforce;
 use application::use_cases::reconcile_application::{delete_credentials, reconcile_application};
+use application::use_cases::{
+    errored_from_factory_error, errored_from_instance_error, errored_from_secret_store_error,
+};
 use domain::allow_list::ResourceKind;
 use kube::api::Api;
 use kube::runtime::controller::Action;
@@ -15,9 +15,9 @@ use kube::{Client, ResourceExt};
 use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
-    let api: Api<AuthentikApplication> = Api::all(client.clone());
+    let api = ctx.scope.api::<AuthentikApplication>(client.clone());
     let health = ctx.health.clone();
-    let results = super::on_policy_change(super::controller(api), client)
+    let results = super::on_policy_change(super::controller(api, &ctx.scope), client, &ctx.scope)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikApplication", health, results).await;
@@ -51,25 +51,20 @@ async fn apply(
     let authentik_id = app.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let namespace = app.namespace().unwrap_or_default();
-    let admission = enforce(
-        ctx.policies.as_ref(),
+    let bound = super::application_instance(ctx, app).await;
+    let refusal = super::policy_refusal(
+        ctx,
         &namespace,
         ResourceKind::AuthentikApplication,
+        bound.as_ref().ok(),
     )
     .await?;
-    let outcome = match admission.refusal() {
+    let outcome = match (refusal, &bound) {
         // Re-checked here too: a policy may have changed since admission.
-        Some(refused) => refused,
-        None => match ctx
-            .gateway_factory
-            .gateway_for(&app.spec.instance_ref)
-            .await
-        {
-            Ok(gateway) => match ctx
-                .secrets_factory
-                .store_for(Some(&app.spec.instance_ref))
-                .await
-            {
+        (Some(refused), _) => refused,
+        (None, Err(e)) => errored_from_instance_error(e.clone()),
+        (None, Ok(bound)) => match ctx.gateway_factory.gateway_for(bound).await {
+            Ok(gateway) => match ctx.secrets_factory.store_for(bound).await {
                 Ok(secrets) => {
                     reconcile_application(
                         app,
@@ -86,7 +81,15 @@ async fn apply(
     };
     super::record_reconcile("AuthentikApplication", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &ctx.recorder, app, outcome, "application synced").await?;
+    super::patch_reconcile_outcome_on(
+        api,
+        &ctx.recorder,
+        app,
+        outcome,
+        "application synced",
+        bound.as_ref().ok(),
+    )
+    .await?;
 
     Ok(action)
 }
@@ -99,9 +102,16 @@ async fn cleanup(
     // The finalizer isn't removed until this returns Ok, so a failed
     // cleanup keeps retrying — never silently drops the finalizer.
     if let Some(id) = app.status.as_ref().and_then(|s| s.authentik_id.as_deref()) {
+        // The instance it was bound to, not whatever its ref designates now.
+        let bound = match app.status.as_ref().and_then(|s| s.instance.clone()) {
+            Some(bound) => bound,
+            None => super::application_instance(ctx, app)
+                .await
+                .map_err(|e| Error::Gateway(e.to_string()))?,
+        };
         let gateway = ctx
             .gateway_factory
-            .gateway_for(&app.spec.instance_ref)
+            .gateway_for(&bound)
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
         // Read the provider relationship before deleting the application.
@@ -134,7 +144,7 @@ async fn cleanup(
         if matches!(app.spec.provider.kind, ProviderKind::Oauth2) {
             let secrets = ctx
                 .secrets_factory
-                .store_for(Some(&app.spec.instance_ref))
+                .store_for(&bound)
                 .await
                 .map_err(|e| Error::SecretStore(e.to_string()))?;
             delete_credentials(app, secrets.as_ref())

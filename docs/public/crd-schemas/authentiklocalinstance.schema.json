@@ -1,0 +1,125 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikLocalInstance",
+  "scope": "Namespaced",
+  "description": "Connection to a real Authentik server, owned by a namespace: its token\nis that namespace's, and only the `AuthentikApplication`s of this\nnamespace use it unless `sharedWith` says otherwise. What an operator\nlimited to one namespace uses. Credentials of the applications bound to\nit are written as Kubernetes `Secret`s only: the operator's Vault\nidentity is shared by every namespace, so a namespace's own instance\ncan't route to Vault.",
+  "properties": {
+    "sharedWith": {
+      "description": "Other namespaces (or cluster-scoped objects) allowed to use this\ninstance — and its token. Unset: this namespace only.",
+      "nullable": true,
+      "properties": {
+        "clusterScoped": {
+          "description": "Cluster-scoped objects may use this instance.",
+          "type": "boolean"
+        },
+        "namespaceSelector": {
+          "description": "Namespaces whose labels match this selector may use this instance.",
+          "nullable": true,
+          "properties": {
+            "matchExpressions": {
+              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+              "items": {
+                "description": "A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.",
+                "properties": {
+                  "key": {
+                    "description": "key is the label key that the selector applies to.",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "description": "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.",
+                    "type": "string"
+                  },
+                  "values": {
+                    "description": "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "key",
+                  "operator"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "matchLabels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is \"key\", the operator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "namespaces": {
+          "description": "Namespaces whose objects may use this instance.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "tls": {
+      "default": {
+        "insecureSkipVerify": false
+      },
+      "description": "TLS verification for the API connection above; the CA `Secret` lives\nin this namespace.",
+      "properties": {
+        "caSecretRef": {
+          "description": "Optional custom CA certificate (a PEM bundle under `key`) to verify\nthe instance's TLS with, read from a `Secret` of the instance's own\nnamespace. Added on top of the platform trust store.",
+          "nullable": true,
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "name"
+          ],
+          "type": "object"
+        },
+        "insecureSkipVerify": {
+          "default": false,
+          "description": "Skip certificate verification entirely — insecure, intended only for\nthrowaway/self-signed instances. Prefer `caSecretRef` below.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "tokenSecretRef": {
+      "description": "The API token the operator authenticates with, in a `Secret` of this\nnamespace. Read on every reconcile: rotating it needs no restart.",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "name"
+      ],
+      "type": "object"
+    },
+    "url": {
+      "description": "Base **web** URL of the Authentik instance, e.g.\n`https://login.example.com` — not the `/api/v3` REST endpoint, which\nis derived from it.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tokenSecretRef",
+    "url"
+  ],
+  "type": "object"
+}

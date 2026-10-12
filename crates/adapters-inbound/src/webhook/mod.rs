@@ -1,36 +1,105 @@
 //! Admission webhook: adapts an incoming `AdmissionReview` into a call to
 //! `application::use_cases::evaluate_admission::enforce` (the kit's
 //! allow-list engine, through `domain::allow_list`) — the same check the
-//! reconcilers repeat.
+//! reconcilers repeat. A CR bound to an `AuthentikLocalInstance` isn't
+//! governed by the policy (its namespace's own token bounds it). Plus
+//! `/scope`, the kit's `ScopeGuard`.
 
 use std::sync::Arc;
 
 use api::namespace_policy::NamespaceRule;
-use application::ports::PolicySource;
+use api::{AuthentikAccessPolicy, AuthentikApplication};
+use application::ports::{BoundInstance, InstanceDirectory, PolicySource};
 use application::use_cases::evaluate_admission::enforce;
 use axum::Router;
 use domain::allow_list::ResourceKind;
 use domain::error::ReasonCode;
+use kube::Client;
+use kube::api::Api;
 use kube::core::DynamicObject;
-use weebo_kit_runtime::Health;
-use weebo_kit_runtime::admission::{Admission, Denial};
+use weebo_kit_runtime::admission::{Admission, Denial, ScopeGuard, scope_router, typed};
+use weebo_kit_runtime::{Health, WatchScope};
+
+use crate::controller::FINALIZER;
 
 #[derive(Clone)]
 pub struct WebhookState {
     /// Every `AuthentikNamespacePolicy`, read on each request.
     pub policies: Arc<dyn PolicySource<NamespaceRule>>,
+    /// Resolves the instance of the reviewed CR; `None`: every CR is
+    /// governed by the policy.
+    pub instances: Option<InstanceLookup>,
+}
+
+/// What the webhook needs to find a CR's instance.
+#[derive(Clone)]
+pub struct InstanceLookup {
+    pub client: Client,
+    pub directory: Arc<dyn InstanceDirectory>,
 }
 
 /// `POST /validate` (the kit's: a `DELETE`, or an `UPDATE` leaving `spec`
-/// alone — the operator removing its finalizer — always passes), plus the
+/// alone — the operator removing its finalizer — always passes), `POST
+/// /scope` (no CR leaves `scope`'s label selector by accident), plus the
 /// probes. Decisions are counted as `weebo_authentik_webhook_decisions_total`.
-pub fn router(state: WebhookState, health: Arc<Health>) -> Router {
+pub fn router(state: WebhookState, health: Arc<Health>, scope: WatchScope) -> Router {
+    let guard = ScopeGuard {
+        scope,
+        finalizer: FINALIZER,
+        annotations: api::ANNOTATIONS,
+        reason: ReasonCode::LeavesWatchScope,
+    };
     weebo_kit_runtime::admission::router(
         Arc::new(state),
         health,
         "weebo-authentik-operator",
         "weebo_authentik",
     )
+    .merge(scope_router(Arc::new(guard)))
+}
+
+impl WebhookState {
+    /// The reviewed CR is bound to an `AuthentikLocalInstance`. Anything
+    /// that can't be resolved counts as governed: the policy decides.
+    async fn bound_locally(
+        &self,
+        kind: ResourceKind,
+        namespace: &str,
+        object: &DynamicObject,
+    ) -> bool {
+        let Some(lookup) = &self.instances else {
+            return false;
+        };
+        let application = match kind {
+            ResourceKind::AuthentikApplication => typed::<AuthentikApplication>(object).ok(),
+            ResourceKind::AuthentikAccessPolicy => {
+                let Ok(policy) = typed::<AuthentikAccessPolicy>(object) else {
+                    return false;
+                };
+                Api::<AuthentikApplication>::namespaced(lookup.client.clone(), namespace)
+                    .get_opt(&policy.spec.application_ref)
+                    .await
+                    .ok()
+                    .flatten()
+            }
+        };
+        let Some(application) = application else {
+            return false;
+        };
+        let recorded = application
+            .status
+            .as_ref()
+            .and_then(|s| s.instance.as_ref());
+        let bound: Option<BoundInstance> = match recorded {
+            Some(bound) => Some(bound.clone()),
+            None => lookup
+                .directory
+                .resolve(Some(namespace), Some(&application.spec.instance_ref), None)
+                .await
+                .ok(),
+        };
+        bound.is_some_and(|b| !b.governed_by_policy())
+    }
 }
 
 #[async_trait::async_trait]
@@ -41,7 +110,7 @@ impl Admission for WebhookState {
         &self,
         kind: &str,
         namespace: &str,
-        _object: &DynamicObject,
+        object: &DynamicObject,
     ) -> Result<(), Denial<ReasonCode>> {
         // The ValidatingWebhookConfiguration should only ever route
         // AuthentikApplication/AuthentikAccessPolicy here — an
@@ -52,6 +121,9 @@ impl Admission for WebhookState {
                 format!("unrecognized kind for this webhook: {kind}"),
             ));
         };
+        if self.bound_locally(kind, namespace, object).await {
+            return Ok(());
+        }
         let result = enforce(self.policies.as_ref(), namespace, kind)
             .await
             .map_err(|err| {
@@ -108,6 +180,7 @@ mod tests {
     fn state_with_unreachable_policies() -> WebhookState {
         WebhookState {
             policies: Arc::new(Unreachable),
+            instances: None,
         }
     }
 

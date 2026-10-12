@@ -10,7 +10,10 @@ use std::time::Instant;
 use api::AuthentikStatus;
 use api::namespace_policy::NamespaceRule;
 use api::status::Condition;
-use application::ports::{ClusterError, GatewayFactory, PolicySource, SecretStoreFactory};
+use application::ports::{
+    BoundInstance, ClusterError, GatewayFactory, InstanceDirectory, PolicySource,
+    SecretStoreFactory,
+};
 use application::use_cases::ReconcileOutcome;
 use domain::Failure;
 use domain::error::ReasonCode;
@@ -21,10 +24,10 @@ use kube::runtime::events::Recorder;
 use kube::{Client, Resource};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use weebo_kit_runtime::Health;
 use weebo_kit_runtime::events;
 use weebo_kit_runtime::metrics::ReconcileMetrics;
 use weebo_kit_runtime::status::StatusUpdate;
+use weebo_kit_runtime::{Health, WatchScope};
 
 /// Resolves once the process is asked to stop: every controller then stops
 /// taking new work, lets its in-flight reconciles finish, and its `run`
@@ -42,6 +45,7 @@ pub mod brand;
 pub mod flow;
 pub mod group;
 pub mod instance;
+pub mod local_instance;
 pub mod namespace_policy;
 pub mod outpost;
 pub mod scope_mapping;
@@ -57,6 +61,9 @@ pub struct Ctx {
     pub client: Client,
     pub gateway_factory: Arc<dyn GatewayFactory>,
     pub secrets_factory: Arc<dyn SecretStoreFactory>,
+    /// Which instance an `AuthentikApplication` lives on (the kit's
+    /// `Instances`, on the watch scope).
+    pub instances: Arc<dyn InstanceDirectory>,
     /// Every `AuthentikNamespacePolicy`: the reconcilers of the kinds they
     /// govern re-check them, a policy may have changed since admission.
     pub policies: Arc<dyn PolicySource<NamespaceRule>>,
@@ -65,6 +72,10 @@ pub struct Ctx {
     pub shutdown: Shutdown,
     /// Liveness: controllers report their watch errors here.
     pub health: Arc<Health>,
+    /// What the controllers watch (`WEEBO_WATCH_NAMESPACE`,
+    /// `WEEBO_WATCH_LABEL_SELECTOR`, `WEEBO_WATCH_CLUSTER_KINDS`): every
+    /// watch goes through it.
+    pub scope: WatchScope,
 }
 
 /// The kit's controller skeleton: a watch filtered to what reconciling
@@ -137,18 +148,24 @@ where
 
 /// Re-checks every CR of `K` when an `AuthentikNamespacePolicy` changes:
 /// a new policy may forbid them (or allow one denied so far). Policies
-/// change rarely, and the check is a local list.
+/// change rarely, and the check is a local list. Without cluster-scoped
+/// kinds (full namespaced) there is no policy to watch: every CR is bound
+/// to a local instance, which the policy doesn't govern.
 pub fn on_policy_change<K>(
     controller: kube::runtime::Controller<K>,
     client: Client,
+    scope: &WatchScope,
 ) -> kube::runtime::Controller<K>
 where
     K: Resource<DynamicType = ()> + Clone + Debug + DeserializeOwned + Send + Sync + 'static,
 {
+    if !scope.cluster_kinds() {
+        return controller;
+    }
     let governed = controller.store();
     controller.watches(
-        Api::<api::AuthentikNamespacePolicy>::all(client),
-        kube::runtime::watcher::Config::default(),
+        scope.api::<api::AuthentikNamespacePolicy>(client),
+        scope.watcher_config(),
         move |_| {
             governed
                 .state()
@@ -157,6 +174,43 @@ where
                 .collect::<Vec<_>>()
         },
     )
+}
+
+/// The namespace policy's refusal of a CR of `kind` in `namespace`, bound
+/// to `instance` — `None` when it may go on. Only a CR bound to an
+/// `AuthentikInstance` (or not bound yet) is governed: a local instance's
+/// own token bounds what its CRs can do. Without cluster-scoped kinds
+/// there is no policy at all.
+pub async fn policy_refusal(
+    ctx: &Ctx,
+    namespace: &str,
+    kind: domain::allow_list::ResourceKind,
+    instance: Option<&BoundInstance>,
+) -> Result<Option<ReconcileOutcome>, Error> {
+    if !ctx.scope.cluster_kinds() || instance.is_some_and(|i| !i.governed_by_policy()) {
+        return Ok(None);
+    }
+    let admission =
+        application::use_cases::evaluate_admission::enforce(ctx.policies.as_ref(), namespace, kind)
+            .await?;
+    Ok(admission.refusal())
+}
+
+/// The instance an `AuthentikApplication` lives on: its `instanceRef`
+/// resolved (the kit's rules), kept to what its status recorded.
+pub async fn application_instance(
+    ctx: &Ctx,
+    app: &api::AuthentikApplication,
+) -> Result<BoundInstance, application::ports::InstanceError> {
+    use kube::ResourceExt;
+    let recorded = app.authentik_status().and_then(|s| s.instance.as_ref());
+    ctx.instances
+        .resolve(
+            app.namespace().as_deref(),
+            Some(&app.spec.instance_ref),
+            recorded,
+        )
+        .await
 }
 
 /// Requeue delay to return from a successful `apply()`, chosen from the
@@ -195,6 +249,7 @@ macro_rules! impl_has_status {
 }
 impl_has_status!(
     api::AuthentikInstance,
+    api::AuthentikLocalInstance,
     api::AuthentikGroup,
     api::AuthentikFlow,
     api::AuthentikUser,
@@ -281,6 +336,23 @@ pub async fn patch_reconcile_outcome<K>(
 where
     K: Resource<DynamicType = ()> + HasStatus + Clone + Debug + DeserializeOwned + Serialize,
 {
+    patch_reconcile_outcome_on(api, recorder, obj, outcome, synced_message, None).await
+}
+
+/// [`patch_reconcile_outcome`], recording `instance` — the one the CR was
+/// resolved to — in `status.instance`. `None` leaves it as it was (a
+/// refused resolution never erases the recorded binding).
+pub async fn patch_reconcile_outcome_on<K>(
+    api: &Api<K>,
+    recorder: &Recorder,
+    obj: &K,
+    outcome: ReconcileOutcome,
+    synced_message: &str,
+    instance: Option<&BoundInstance>,
+) -> Result<(), kube::Error>
+where
+    K: Resource<DynamicType = ()> + HasStatus + Clone + Debug + DeserializeOwned + Serialize,
+{
     let previous = obj
         .authentik_status()
         .map(|s| s.conditions.as_slice())
@@ -292,6 +364,10 @@ where
     } = &outcome
     {
         fields.insert("authentikId".into(), id.clone().into());
+    }
+    if let Some(instance) = instance {
+        let instance = serde_json::to_value(instance).expect("a BoundInstance serializes");
+        fields.insert("instance".into(), instance);
     }
     // The kit's: one merge patch (conditions, `observedGeneration` on
     // success), retried while the apiserver is unavailable, then a

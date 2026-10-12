@@ -176,7 +176,8 @@ jobs:
             name: e2e-smoke-app
             namespace: default
           spec:
-            instanceRef: e2e
+            instanceRef:
+              name: e2e
             name: e2e-smoke-app
             slug: e2e-smoke-app
             provider:
@@ -240,7 +241,8 @@ jobs:
             name: should-be-denied
             namespace: e2e-unlisted
           spec:
-            instanceRef: e2e
+            instanceRef:
+              name: e2e
             name: should-be-denied
             slug: should-be-denied
             provider:

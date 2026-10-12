@@ -212,7 +212,7 @@ pub async fn import_applications(
                 ..Default::default()
             },
             spec: AuthentikApplicationSpec {
-                instance_ref: instance_ref.to_string(),
+                instance_ref: api::application::InstanceRef::named(instance_ref),
                 name: app.name.clone(),
                 slug: app.slug.clone(),
                 meta_icon: app.meta_icon.clone(),

@@ -20,7 +20,7 @@ impl StaticSecretStoreFactory {
 impl SecretStoreFactory for StaticSecretStoreFactory {
     async fn store_for(
         &self,
-        _instance_ref: Option<&str>,
+        _instance: &application::ports::BoundInstance,
     ) -> Result<Arc<dyn SecretStore>, SecretStoreError> {
         Ok(self.store.clone())
     }

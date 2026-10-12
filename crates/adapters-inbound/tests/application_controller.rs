@@ -101,7 +101,7 @@ async fn oauth2_application_syncs_id_and_writes_the_credentials_secret() {
                 ..Default::default()
             },
             spec: AuthentikApplicationSpec {
-                instance_ref: "prod".to_string(),
+                instance_ref: api::application::InstanceRef::named("prod"),
                 name: "Harbor".to_string(),
                 slug: "harbor".to_string(),
                 meta_icon: None,
@@ -238,7 +238,7 @@ async fn proxy_application_syncs_id_attaches_outpost_and_writes_no_secret() {
                 ..Default::default()
             },
             spec: AuthentikApplicationSpec {
-                instance_ref: "prod".to_string(),
+                instance_ref: api::application::InstanceRef::named("prod"),
                 name: "Longhorn".to_string(),
                 slug: "longhorn".to_string(),
                 meta_icon: None,

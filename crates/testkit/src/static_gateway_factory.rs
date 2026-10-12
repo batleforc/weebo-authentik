@@ -7,7 +7,11 @@
 
 use std::sync::Arc;
 
-use application::ports::{AuthentikGateway, GatewayFactory, GatewayFactoryError};
+use api::application::{InstanceKind, InstanceRef};
+use application::ports::{
+    AuthentikGateway, BoundInstance, GatewayFactory, GatewayFactoryError, InstanceDirectory,
+    InstanceError, ResolveError,
+};
 
 pub struct StaticGatewayFactory {
     gateway: Arc<dyn AuthentikGateway>,
@@ -23,12 +27,33 @@ impl StaticGatewayFactory {
 impl GatewayFactory for StaticGatewayFactory {
     async fn gateway_for(
         &self,
-        _instance_ref: &str,
+        _instance: &BoundInstance,
     ) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError> {
         Ok(self.gateway.clone())
     }
 
     async fn default_gateway(&self) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError> {
         Ok(self.gateway.clone())
+    }
+}
+
+/// Every `instanceRef` resolves: to an `AuthentikLocalInstance` when it
+/// says so, to an `AuthentikInstance` of that name otherwise — no instance
+/// CR is needed.
+#[async_trait::async_trait]
+impl InstanceDirectory for StaticGatewayFactory {
+    async fn resolve(
+        &self,
+        cr_namespace: Option<&str>,
+        instance_ref: Option<&InstanceRef>,
+        _recorded: Option<&BoundInstance>,
+    ) -> Result<BoundInstance, InstanceError> {
+        let Some(r) = instance_ref else {
+            return Err(ResolveError::NoInstance.into());
+        };
+        Ok(match (r.kind, r.namespace.as_deref().or(cr_namespace)) {
+            (Some(InstanceKind::LocalInstance), Some(ns)) => BoundInstance::local(ns, &r.name),
+            _ => BoundInstance::cluster(&r.name),
+        })
     }
 }

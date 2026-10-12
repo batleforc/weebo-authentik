@@ -5,8 +5,37 @@
   "description": "Mirrors `authentik_application` + its `protocol_provider`. Namespaced —\nowned by whichever team/namespace created it, governed by\n`AuthentikNamespacePolicy`.",
   "properties": {
     "instanceRef": {
-      "description": "Name of an `AuthentikInstance` CR.",
-      "type": "string"
+      "description": "The `AuthentikInstance` or `AuthentikLocalInstance` this application\nlives on.",
+      "properties": {
+        "kind": {
+          "description": "The kind of instance a reference designates.",
+          "enum": [
+            "Instance",
+            "LocalInstance"
+          ],
+          "nullable": true,
+          "type": "string"
+        },
+        "name": {
+          "description": "`metadata.name` of the instance.",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Namespace of a `LocalInstance`. Defaults to this object's own;\nrequired on a cluster-scoped object. Another namespace's local\ninstance must share itself with this one (its `sharedWith`).",
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object",
+      "x-kubernetes-validations": [
+        {
+          "message": "namespace only applies to kind LocalInstance",
+          "rule": "!has(self.namespace) || !has(self.kind) || self.kind == 'LocalInstance'"
+        }
+      ]
     },
     "metaIcon": {
       "nullable": true,

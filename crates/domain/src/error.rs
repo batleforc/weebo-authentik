@@ -48,8 +48,22 @@ weebo_kit_domain::reason_codes! {
         /// Authentik API response, flow/property-mapping/group name that
         /// doesn't resolve). See `application::ports::GatewayError::Api`.
         AuthentikApiError,
-        /// `spec.instanceRef` does not resolve to an `AuthentikInstance` CR.
+        /// `spec.instanceRef` does not resolve to an `AuthentikInstance` nor
+        /// an `AuthentikLocalInstance` the operator sees (or can't be
+        /// satisfied as written).
         InstanceRefNotFound,
+        /// The instance named is out of reach: an `AuthentikLocalInstance` of
+        /// another namespace that doesn't share itself with this one, or
+        /// outside the namespace the operator is limited to.
+        InstanceNotAllowed,
+        /// `spec.instanceRef` by name now designates another instance than
+        /// the one recorded in `status.instance`: not followed until
+        /// `spec.instanceRef.kind` says which.
+        InstanceBindingChanged,
+        /// An update would take a CR still carrying the finalizer out of the
+        /// operator's label selector (`watch.labelSelector`): refused at
+        /// admission.
+        LeavesWatchScope,
         /// A CRD with no `instanceRef` field needed the single default
         /// `AuthentikInstance`, but the cluster has zero or more than one.
         AmbiguousDefaultInstance,
@@ -117,7 +131,7 @@ mod tests {
     #[test]
     fn every_code_is_pascal_case() {
         weebo_kit_domain::reason::assert_pascal_case(ReasonCode::ALL);
-        assert_eq!(ReasonCode::ALL.len(), 20);
+        assert_eq!(ReasonCode::ALL.len(), 23);
     }
 
     #[test]

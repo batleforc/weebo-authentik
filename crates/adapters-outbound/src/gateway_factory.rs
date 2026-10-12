@@ -1,53 +1,47 @@
 use std::sync::Arc;
 
-use api::AuthentikInstance;
-use api::instance::TlsOptions;
-use application::ports::{AuthentikGateway, GatewayFactory, GatewayFactoryError};
-use kube::Client;
-use kube::runtime::reflector::Store;
+use api::instance::{SecretKeyRef, TlsOptions};
+use application::ports::{AuthentikGateway, BoundInstance, GatewayFactory, GatewayFactoryError};
+use kube::{Client, ResourceExt};
+use weebo_kit_adapters::Resolved;
 
 use crate::authentik_http::AuthentikHttpGateway;
-use crate::instance_resolver::{self, InstanceResolver};
+use crate::instance_resolver::AuthentikInstances;
 use crate::secret_ref::read_secret_key;
 
-/// Resolves an `AuthentikGateway` for a given `AuthentikInstance` CR.
+/// Resolves an `AuthentikGateway` for a resolved instance — an
+/// `AuthentikInstance` or an `AuthentikLocalInstance`.
 ///
-/// The `AuthentikInstance` itself is read through an `InstanceResolver` —
-/// served from a live reflector `Store` when one is wired in (see
-/// `with_instance_store`), or a live apiserver call otherwise. The
-/// `tokenSecretRef` `Secret` is still read fresh on every call so token
-/// rotation is picked up immediately, and the built HTTP gateway is not
-/// cached — which is also what makes an edited `spec.tls` (or a rotated CA
-/// in its `caSecretRef` Secret) take effect on the next reconcile rather
-/// than on the next operator restart.
+/// The instance itself is read through the kit's `Instances` — served from
+/// live reflector `Store`s when `operator::main` wires them in, or a live
+/// apiserver call otherwise. The `tokenSecretRef` `Secret` is still read
+/// fresh on every call so token rotation is picked up immediately, and the
+/// built HTTP gateway is not cached — which is also what makes an edited
+/// `spec.tls` (or a rotated CA in its `caSecretRef` Secret) take effect on
+/// the next reconcile rather than on the next operator restart. A local
+/// instance's token and CA live in its own namespace.
 pub struct AuthentikGatewayFactory {
     client: Client,
-    instances: InstanceResolver,
+    instances: Arc<AuthentikInstances>,
+}
+
+/// What a gateway is built from, whichever the instance kind.
+struct Connection {
+    url: String,
+    token_secret_ref: SecretKeyRef,
+    tls: TlsOptions,
 }
 
 impl AuthentikGatewayFactory {
-    pub fn new(client: Client) -> Self {
-        Self {
-            instances: instance_resolver::live(client.clone()),
-            client,
-        }
-    }
-
-    /// Resolve `AuthentikInstance` CRs from a shared reflector `Store`
-    /// instead of a per-call apiserver GET/LIST — wired by
-    /// `operator::main`, which owns the reflector that keeps `store` fresh.
-    pub fn with_instance_store(client: Client, store: Store<AuthentikInstance>) -> Self {
-        Self {
-            instances: instance_resolver::with_store(client.clone(), store),
-            client,
-        }
+    pub fn new(client: Client, instances: Arc<AuthentikInstances>) -> Self {
+        Self { client, instances }
     }
 
     async fn build_gateway(
         &self,
-        instance: &AuthentikInstance,
+        instance: Connection,
     ) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError> {
-        let secret_ref = &instance.spec.token_secret_ref;
+        let secret_ref = &instance.token_secret_ref;
         let token_bytes = read_secret_key(&self.client, secret_ref, "secret")
             .await
             .map_err(GatewayFactoryError::ResolutionFailed)?;
@@ -62,13 +56,13 @@ impl AuthentikGatewayFactory {
         // ingress) is read from its Secret via the API and handed to the HTTP
         // client — no mounted volume needed, which is what makes this usable
         // from a chart that exposes no `extraVolumes`.
-        let ca_pem = self.read_tls_ca(&instance.spec.tls).await?;
-        let http_client = build_http_client(&instance.spec.tls, ca_pem.as_deref())?;
+        let ca_pem = self.read_tls_ca(&instance.tls).await?;
+        let http_client = build_http_client(&instance.tls, ca_pem.as_deref())?;
 
         // `spec.url` is the WEB base; the REST base path is derived from it.
         // Handing the same string to both is what used to put `/api/v3`
         // inside every oauth2 app's OIDC issuer.
-        let (api_base_path, web_base_url) = api::instance::split_urls(&instance.spec.url);
+        let (api_base_path, web_base_url) = api::instance::split_urls(&instance.url);
         Ok(Arc::new(AuthentikHttpGateway::with_client(
             api_base_path,
             web_base_url,
@@ -139,25 +133,44 @@ fn build_http_client(
     })
 }
 
+fn cluster_connection(instance: &api::AuthentikInstance) -> Connection {
+    Connection {
+        url: instance.spec.url.clone(),
+        token_secret_ref: instance.spec.token_secret_ref.clone(),
+        tls: instance.spec.tls.clone(),
+    }
+}
+
 #[async_trait::async_trait]
 impl GatewayFactory for AuthentikGatewayFactory {
     async fn gateway_for(
         &self,
-        instance_ref: &str,
+        bound: &BoundInstance,
     ) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError> {
-        let instance = self
+        let connection = match self
             .instances
-            .get(instance_ref)
+            .get(bound)
             .await
             .map_err(GatewayFactoryError::ResolutionFailed)?
-            .ok_or_else(|| GatewayFactoryError::InstanceNotFound(instance_ref.to_string()))?;
-        self.build_gateway(&instance).await
+            .ok_or_else(|| GatewayFactoryError::InstanceNotFound(bound.to_string()))?
+        {
+            Resolved::Cluster(instance) => cluster_connection(&instance),
+            Resolved::Local(local) => {
+                let namespace = local.namespace().unwrap_or_default();
+                Connection {
+                    url: local.spec.url.clone(),
+                    token_secret_ref: local.spec.token_secret_ref.in_namespace(&namespace),
+                    tls: local.spec.tls.in_namespace(&namespace),
+                }
+            }
+        };
+        self.build_gateway(connection).await
     }
 
     async fn default_gateway(&self) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError> {
         let instances = self
             .instances
-            .list()
+            .cluster_instances()
             .await
             .map_err(GatewayFactoryError::ResolutionFailed)?;
 
@@ -165,7 +178,7 @@ impl GatewayFactory for AuthentikGatewayFactory {
         // (`AmbiguousDefaultInstance`), as it always was.
         let instance = weebo_kit_adapters::select(&instances, None)
             .map_err(|e| GatewayFactoryError::AmbiguousDefault(e.to_string()))?;
-        self.build_gateway(instance).await
+        self.build_gateway(cluster_connection(instance)).await
     }
 }
 
