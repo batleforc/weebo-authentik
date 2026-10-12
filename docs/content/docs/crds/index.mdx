@@ -10,6 +10,7 @@ the CRDs themselves, so they always match the installed version.
 | Kind | Scope | Description |
 | --- | --- | --- |
 | [`AuthentikInstance`](/docs/crds/authentikinstance) | Cluster | Connection to a real Authentik server. |
+| [`AuthentikLocalInstance`](/docs/crds/authentiklocalinstance) | Namespaced | Connection to a real Authentik server, owned by a namespace: its token is that namespace's, and only the `AuthentikApplication`s of this namespace use it unless `sharedWith` says otherwise. |
 | [`AuthentikNamespacePolicy`](/docs/crds/authentiknamespacepolicy) | Cluster | Namespace allow-list enforced by the admission webhook (and double-checked by reconcilers). |
 | [`AuthentikGroup`](/docs/crds/authentikgroup) | Cluster | Mirrors `authentik_group`. |
 | [`AuthentikUser`](/docs/crds/authentikuser) | Cluster | Mirrors `authentik_user`. |

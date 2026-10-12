@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "authentikinstance",
+    "authentiklocalinstance",
     "authentiknamespacepolicy",
     "authentikgroup",
     "authentikuser",

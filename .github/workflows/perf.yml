@@ -13,7 +13,7 @@ permissions: {}
 
 jobs:
   perf:
-    uses: batleforc/weebo-operator-kit/.github/workflows/perf.yml@v0.9.0
+    uses: batleforc/weebo-operator-kit/.github/workflows/perf.yml@v0.10.1
     permissions:
       contents: write
       pull-requests: write

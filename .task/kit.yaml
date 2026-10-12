@@ -7,14 +7,6 @@ version: "3"
 
 vars:
   KIT_REPO: batleforc/weebo-operator-kit
-  # The kit tag the workspace builds on (Cargo.toml), or TAG: the hooks,
-  # the shared tasks, the workflows and the library chart follow the kit
-  # release the code does.
-  KIT_TAG:
-    sh: |
-      if [ -n "{{.TAG | default ""}}" ]; then echo "{{.TAG}}"; else
-        sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" | head -n 1
-      fi
   # A local checkout to render from instead (KIT_DIR=../weebo-operator-kit).
   KIT_DIR: '{{.KIT_DIR | default ""}}'
   REPOSITORY:
@@ -24,6 +16,17 @@ tasks:
   cog:
     desc: "Render cog.toml (and this file) from the kit's templates at the kit tag of Cargo.toml (or KIT_DIR=<checkout>), then reinstall the git hooks"
     dir: "{{.ROOT_DIR}}"
+    vars:
+      # The kit tag the workspace builds on (Cargo.toml), or TAG: the
+      # hooks, the shared tasks, the workflows and the library chart
+      # follow the kit release the code does. A task-level variable: the
+      # file-level ones of an included Taskfile don't see the command
+      # line's (`task kit:sync TAG=vX.Y.Z`).
+      KIT_TAG:
+        sh: |
+          if [ -n "{{.TAG | default ""}}" ]; then echo "{{.TAG}}"; else
+            sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" | head -n 1
+          fi
     cmds:
       - |
         set -eu
@@ -46,6 +49,17 @@ tasks:
   sync:
     desc: "Pin the repository on the kit release KIT_TAG (TAG=vX.Y.Z, else Cargo.toml's): Cargo.toml, the remote tasks/ includes and their checksums, the reusable workflows, the library chart (and Chart.lock), then cog.toml"
     dir: "{{.ROOT_DIR}}"
+    vars:
+      # The kit tag the workspace builds on (Cargo.toml), or TAG: the
+      # hooks, the shared tasks, the workflows and the library chart
+      # follow the kit release the code does. A task-level variable: the
+      # file-level ones of an included Taskfile don't see the command
+      # line's (`task kit:sync TAG=vX.Y.Z`).
+      KIT_TAG:
+        sh: |
+          if [ -n "{{.TAG | default ""}}" ]; then echo "{{.TAG}}"; else
+            sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" | head -n 1
+          fi
     cmds:
       - |
         set -eu
@@ -60,6 +74,7 @@ tasks:
           grep -q 'name: weebo-operator-lib' "$chart" && mise exec -- helm dependency update "$(dirname "$chart")"
         done
       - task: cog
+        vars: { TAG: "{{.KIT_TAG}}" }
       # Cargo.lock follows the kit crates' new tag (a changed git source is
       # re-resolved; nothing else moves).
       - mise exec -- cargo metadata --format-version 1 > /dev/null

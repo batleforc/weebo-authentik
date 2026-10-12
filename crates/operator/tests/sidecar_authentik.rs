@@ -303,6 +303,7 @@ fn new_ctx(client: kube::Client) -> Arc<Ctx> {
     let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));
     Arc::new(Ctx {
         client: client.clone(),
+        instances: gateway_factory.clone(),
         gateway_factory,
         secrets_factory,
         policies: Arc::new(adapters_outbound::KubePolicySource::new(client.clone())),
@@ -315,6 +316,7 @@ fn new_ctx(client: kube::Client) -> Arc<Ctx> {
         ),
         shutdown: adapters_inbound::controller::Shutdown::never(),
         health: Arc::new(weebo_kit_runtime::Health::default()),
+        scope: weebo_kit_runtime::WatchScope::cluster(),
     })
 }
 

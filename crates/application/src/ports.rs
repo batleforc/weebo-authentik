@@ -292,11 +292,18 @@ pub use weebo_kit_application::ports::{
 /// `PolicySource<api::namespace_policy::NamespaceRule>`.
 pub use weebo_kit_application::ports::{ClusterError, PolicySource};
 
+/// Which instance a CR lives on — an `AuthentikInstance` or an
+/// `AuthentikLocalInstance` — resolved by the kit's rules
+/// (`weebo_kit_application::instances`).
+pub use weebo_kit_application::instances::{
+    BoundInstance, InstanceDirectory, InstanceError, ResolveError,
+};
+
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayFactoryError {
-    /// `instanceRef` does not resolve to an `AuthentikInstance` CR. Maps
-    /// to `domain::error::ReasonCode::InstanceRefNotFound`.
-    #[error("AuthentikInstance {0:?} not found")]
+    /// The instance resolved for a CR is gone. Maps to
+    /// `domain::error::ReasonCode::InstanceRefNotFound`.
+    #[error("{0} not found")]
     InstanceNotFound(String),
     /// A CRD with no `instanceRef` field asked for the single default
     /// instance, but the cluster has zero or more than one
@@ -311,16 +318,13 @@ pub enum GatewayFactoryError {
     ResolutionFailed(String),
 }
 
-/// Produces an `AuthentikGateway` for a given `AuthentikInstance` CR.
-/// The concrete adapter (`AuthentikGatewayFactory`) resolves the
-/// `AuthentikInstance` through a shared reflector `Store` (live-updated, so
-/// config edits are reflected without a per-call apiserver read) and still
-/// reads the `tokenSecretRef` token fresh on every call so rotation is
-/// picked up immediately. See `.prompt/plan.md`;
-/// `AuthentikApplication.spec.instanceRef` is the only CRD field that names
-/// an instance explicitly today, so every other CRD
-/// (`AuthentikGroup`/`AuthentikUser`/`AuthentikOutpost`/`AuthentikBrand`)
-/// goes through `default_gateway` instead.
+/// Produces an `AuthentikGateway` for a resolved instance — an
+/// `AuthentikInstance` or an `AuthentikLocalInstance` (see
+/// [`InstanceDirectory`]). The concrete adapter (`AuthentikGatewayFactory`)
+/// reads the instance from a shared reflector `Store` and the
+/// `tokenSecretRef` token fresh on every call, so rotation is picked up
+/// immediately. The cluster-scoped kinds, which have no `instanceRef`,
+/// go through `default_gateway` (the only `AuthentikInstance`).
 ///
 /// `#[async_trait]` for the same `dyn`-compatibility reason as
 /// `AuthentikGateway`.
@@ -328,7 +332,7 @@ pub enum GatewayFactoryError {
 pub trait GatewayFactory: Send + Sync {
     async fn gateway_for(
         &self,
-        instance_ref: &str,
+        instance: &BoundInstance,
     ) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError>;
     /// Used by CRDs with no `instanceRef` field: resolves to the single
     /// `AuthentikInstance` CR in the cluster, or `AmbiguousDefault` if

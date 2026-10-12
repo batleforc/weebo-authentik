@@ -1,17 +1,10 @@
-//! Resolves `AuthentikInstance` CRs for the gateway/secret-store
-//! factories: the kit's resolver, served from a live reflector `Store`
-//! when `operator::main` wires one in, from the API otherwise (tests).
+//! The operator's instances, both kinds — `AuthentikInstance`
+//! (cluster-scoped) and `AuthentikLocalInstance` (namespaced) — through the
+//! kit's `Instances`: read from the binary's reflector `Store`s, or from the
+//! API on every call (tests), on the operator's watch scope. It is also the
+//! `InstanceDirectory` resolving a CR's `instanceRef`.
 
-use api::AuthentikInstance;
-use kube::Client;
-use kube::runtime::reflector::Store;
+use api::{AuthentikInstance, AuthentikLocalInstance};
 
-pub(crate) type InstanceResolver = weebo_kit_adapters::InstanceResolver<AuthentikInstance>;
-
-pub(crate) fn live(client: Client) -> InstanceResolver {
-    InstanceResolver::new(client, None)
-}
-
-pub(crate) fn with_store(client: Client, store: Store<AuthentikInstance>) -> InstanceResolver {
-    InstanceResolver::new(client, Some(store))
-}
+pub type AuthentikInstances =
+    weebo_kit_adapters::Instances<AuthentikInstance, AuthentikLocalInstance>;

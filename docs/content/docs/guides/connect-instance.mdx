@@ -187,7 +187,8 @@ metadata:
   name: frontend
   namespace: team-a
 spec:
-  instanceRef: main
+  instanceRef:
+    name: main
   name: Frontend
   slug: frontend
   provider:
@@ -227,6 +228,54 @@ Notes:
   earlier releases are adopted.
 - `secretTargets` is only meaningful for `provider.kind: oauth2` — proxy
   providers carry no client secret, so it is ignored for them.
+
+## A namespace's own instance
+
+An `AuthentikLocalInstance` is an `AuthentikInstance` owned by a namespace:
+its token (and TLS CA) live in a `Secret` of that namespace, and only the
+`AuthentikApplication`s of that namespace use it, unless its `sharedWith`
+lists other namespaces (`namespaces`, `namespaceSelector`) or accepts
+cluster-scoped objects. Applications bound to it are not governed by the
+`AuthentikNamespacePolicy` — the namespace's own token bounds what they
+can do — and write their credentials as Kubernetes `Secret`s only (Vault
+targets need an `AuthentikInstance`: the operator's Vault identity is
+shared by every namespace).
+
+```yaml
+apiVersion: authentik.weebo.io/v1alpha1
+kind: AuthentikLocalInstance
+metadata:
+  name: main
+  namespace: team-a
+spec:
+  url: https://login.team-a.example.com
+  tokenSecretRef:
+    name: authentik-api-token
+    key: token
+```
+
+`spec.instanceRef` finds the instance by name: an operator watching the
+whole cluster tries the `AuthentikInstance` first, then the
+`AuthentikLocalInstance` of the application's namespace; one limited to a
+namespace (`watch.namespace`) only uses its local instances. `kind`
+(`Instance` or `LocalInstance`) and `namespace` (another namespace's
+local instance) pin one. Once resolved, the instance is recorded in
+`status.instance` and kept: a cluster `AuthentikInstance` created later
+under the same name doesn't take the application over
+(`InstanceBindingChanged` until `kind` says which).
+
+```yaml
+spec:
+  instanceRef:
+    name: main
+    kind: LocalInstance
+```
+
+Upgrading from a release where `instanceRef` was a bare name: stop the
+operator, apply the new CRDs, run `weebo-authentik-operator
+migrate-instance-ref` (`--dry-run` first), start the operator — and
+rewrite `instanceRef: main` as `instanceRef: {name: main}` in your
+manifests.
 
 ## Multiple instances
 

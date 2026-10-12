@@ -73,8 +73,10 @@ async fn decision(client: kube::Client, namespace: &str, kind: &str) -> serde_js
     let router = webhook::router(
         WebhookState {
             policies: std::sync::Arc::new(adapters_outbound::KubePolicySource::new(client)),
+            instances: None,
         },
         std::sync::Arc::new(weebo_kit_runtime::Health::default()),
+        weebo_kit_runtime::WatchScope::cluster(),
     );
     let response = router
         .oneshot(review_request(namespace, kind))

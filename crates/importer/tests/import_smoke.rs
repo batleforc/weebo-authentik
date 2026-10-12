@@ -196,7 +196,7 @@ async fn import_generates_valid_crds_with_authentik_id() {
     )
     .unwrap();
     assert_eq!(app_cr.spec.slug, "harbor");
-    assert_eq!(app_cr.spec.instance_ref, "my-instance");
+    assert_eq!(app_cr.spec.instance_ref.name, "my-instance");
     assert_eq!(app_cr.metadata.namespace.as_deref(), Some("team-a"));
     assert_eq!(
         app_cr.status.as_ref().and_then(|s| s.authentik_id.clone()),

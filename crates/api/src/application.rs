@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::status::AuthentikStatus;
-pub use weebo_kit_api::SecretTarget;
+pub use weebo_kit_api::{InstanceKind, InstanceRef, SecretTarget};
 
 /// Mirrors `authentik_application` + its `protocol_provider`. Namespaced —
 /// owned by whichever team/namespace created it, governed by
@@ -19,8 +19,9 @@ pub use weebo_kit_api::SecretTarget;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct AuthentikApplicationSpec {
-    /// Name of an `AuthentikInstance` CR.
-    pub instance_ref: String,
+    /// The `AuthentikInstance` or `AuthentikLocalInstance` this application
+    /// lives on.
+    pub instance_ref: InstanceRef,
     pub name: String,
     pub slug: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

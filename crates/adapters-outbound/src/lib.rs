@@ -7,5 +7,6 @@ pub mod secret_store_factory;
 
 pub use authentik_http::AuthentikHttpGateway;
 pub use gateway_factory::AuthentikGatewayFactory;
+pub use instance_resolver::AuthentikInstances;
 pub use namespace_policies::KubePolicySource;
 pub use secret_store_factory::{AuthentikSecretStoreFactory, kubernetes_secret_store};

@@ -70,6 +70,29 @@ pub fn errored_from_factory_error(err: crate::ports::GatewayFactoryError) -> Rec
     }
 }
 
+/// An `instanceRef` that couldn't be resolved (the kit's rules) — public
+/// for the same reason as `errored_from_factory_error`.
+pub fn errored_from_instance_error(err: crate::ports::InstanceError) -> ReconcileOutcome {
+    use crate::ports::{InstanceError, ResolveError};
+    let reason = match &err {
+        InstanceError::Kubernetes(_) => ReasonCode::InstanceResolutionFailed,
+        InstanceError::Resolve(e) => match e {
+            ResolveError::NotFound { .. }
+            | ResolveError::NoInstance
+            | ResolveError::InvalidRef(_) => ReasonCode::InstanceRefNotFound,
+            ResolveError::Ambiguous { .. } => ReasonCode::AmbiguousDefaultInstance,
+            ResolveError::OutsideScope(_) | ResolveError::NotShared { .. } => {
+                ReasonCode::InstanceNotAllowed
+            }
+            ResolveError::BindingChanged { .. } => ReasonCode::InstanceBindingChanged,
+        },
+    };
+    ReconcileOutcome::Errored {
+        reason,
+        message: err.to_string(),
+    }
+}
+
 /// A secret store that couldn't be resolved for an application (its
 /// instance's Vault misconfigured…). Public for the same reason as
 /// `errored_from_factory_error`: resolution happens in the controllers.

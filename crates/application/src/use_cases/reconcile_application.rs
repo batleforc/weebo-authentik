@@ -391,7 +391,7 @@ mod tests {
                 ..Default::default()
             },
             spec: AuthentikApplicationSpec {
-                instance_ref: "prod".to_string(),
+                instance_ref: api::application::InstanceRef::named("prod"),
                 name: "Harbor".to_string(),
                 slug: "harbor".to_string(),
                 meta_icon: None,

@@ -11,6 +11,7 @@ adapters-outbound = { workspace = true }
 adapters-inbound = { workspace = true }
 kube = { workspace = true }
 api = { workspace = true }
+weebo-kit-adapters = { workspace = true }
 weebo-kit-runtime = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true }
@@ -18,6 +19,7 @@ tracing = { workspace = true }
 opentelemetry = { workspace = true }
 rustls = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]

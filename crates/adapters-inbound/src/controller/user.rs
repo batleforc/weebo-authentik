@@ -11,9 +11,9 @@ use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
 use super::{Ctx, Error, FINALIZER, error_policy};
 
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
-    let api: Api<AuthentikUser> = Api::all(client);
+    let api = ctx.scope.api::<AuthentikUser>(client.clone());
     let health = ctx.health.clone();
-    let results = super::controller(api)
+    let results = super::controller(api, &ctx.scope)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikUser", health, results).await;

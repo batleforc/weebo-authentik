@@ -5,6 +5,11 @@
     "scope": "Cluster"
   },
   {
+    "kind": "AuthentikLocalInstance",
+    "singular": "authentiklocalinstance",
+    "scope": "Namespaced"
+  },
+  {
     "kind": "AuthentikNamespacePolicy",
     "singular": "authentiknamespacepolicy",
     "scope": "Cluster"
