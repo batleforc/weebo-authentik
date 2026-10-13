@@ -67,10 +67,12 @@ async fn apply(
     .await?;
     let unrecorded = |outcome| ApplicationReconciled {
         outcome,
+        authentik_id: None,
         provider_id: None,
     };
     let ApplicationReconciled {
         outcome,
+        authentik_id: written_id,
         provider_id,
     } = match (refusal, &bound) {
         // Re-checked here too: a policy may have changed since admission.
@@ -92,11 +94,15 @@ async fn apply(
             Err(e) => unrecorded(errored_from_factory_error(e)),
         },
     };
-    // Only a synced application records its provider; a failure leaves the
-    // recorded one as it was.
+    // What exists in Authentik is recorded even when a later step failed:
+    // the next attempt patches it instead of colliding with it. Nothing
+    // written leaves the recorded ids as they were.
     let mut fields = serde_json::Map::new();
     if let Some(provider_id) = provider_id {
         fields.insert("providerId".into(), provider_id.into());
+    }
+    if let Some(id) = written_id {
+        fields.insert("authentikId".into(), id.into());
     }
     super::record_reconcile("AuthentikApplication", started, &outcome);
     let action = super::requeue_after(&outcome);
@@ -121,7 +127,10 @@ async fn cleanup(
 ) -> Result<Action, Error> {
     // The finalizer isn't removed until this returns Ok, so a failed
     // cleanup keeps retrying — never silently drops the finalizer.
-    if let Some(id) = app.status.as_ref().and_then(|s| s.authentik_id.as_deref()) {
+    let authentik_id = app.status.as_ref().and_then(|s| s.authentik_id.as_deref());
+    // Recorded alone when the application itself was never created.
+    let recorded_provider = recorded_provider_id(app);
+    if authentik_id.is_some() || recorded_provider.is_some() {
         // The instance it was bound to, not whatever its ref designates now.
         let bound = match app.status.as_ref().and_then(|s| s.instance.clone()) {
             Some(bound) => bound,
@@ -134,48 +143,56 @@ async fn cleanup(
             .gateway_for(&bound)
             .await
             .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
-        // Read the provider relationship before deleting the application.
-        // Already deleted out of band: the provider recorded in the status
-        // (of the spec's kind) is deleted, then the credentials.
-        match gateway.get_application(id).await {
-            Ok(remote) => {
-                if let (Some(provider_id), Some(provider_kind)) = (
-                    remote.provider_id,
-                    remote
-                        .provider_meta_model_name
-                        .as_deref()
-                        .and_then(|name| match name {
-                            "authentik_providers_oauth2.oauth2provider" => {
-                                Some(ProviderKind::Oauth2)
-                            }
-                            "authentik_providers_proxy.proxyprovider" => Some(ProviderKind::Proxy),
-                            _ => None,
-                        }),
-                ) {
-                    gateway
-                        .delete_provider(provider_id, provider_kind)
-                        .await
-                        .map_err(|e| Error::Gateway(e.to_string()))?;
-                }
+        // The recorded provider, whatever its kind: the spec may name
+        // another kind since it was created.
+        let delete_recorded_provider = async {
+            if let Some(provider_id) = recorded_provider {
                 gateway
-                    .delete_application(id)
+                    .delete_any_provider(provider_id)
                     .await
                     .map_err(|e| Error::Gateway(e.to_string()))?;
             }
-            Err(GatewayError::Gone(_)) => {
-                if let Some(provider_id) = recorded_provider_id(app)
-                    && matches!(
-                        app.spec.provider.kind,
-                        ProviderKind::Oauth2 | ProviderKind::Proxy
-                    )
-                {
+            Ok::<(), Error>(())
+        };
+        match authentik_id {
+            // Read the provider relationship before deleting the
+            // application.
+            Some(id) => match gateway.get_application(id).await {
+                Ok(remote) => {
+                    match (
+                        remote.provider_id,
+                        remote
+                            .provider_meta_model_name
+                            .as_deref()
+                            .and_then(|name| match name {
+                                "authentik_providers_oauth2.oauth2provider" => {
+                                    Some(ProviderKind::Oauth2)
+                                }
+                                "authentik_providers_proxy.proxyprovider" => {
+                                    Some(ProviderKind::Proxy)
+                                }
+                                _ => None,
+                            }),
+                    ) {
+                        (Some(provider_id), Some(provider_kind)) => gateway
+                            .delete_provider(provider_id, provider_kind)
+                            .await
+                            .map_err(|e| Error::Gateway(e.to_string()))?,
+                        // An application pointing at no provider: the one
+                        // recorded, if any.
+                        (None, _) => delete_recorded_provider.await?,
+                        _ => {}
+                    }
                     gateway
-                        .delete_provider(provider_id, app.spec.provider.kind.clone())
+                        .delete_application(id)
                         .await
                         .map_err(|e| Error::Gateway(e.to_string()))?;
                 }
-            }
-            Err(e) => return Err(Error::Gateway(e.to_string())),
+                // Already deleted out of band: the provider it left behind.
+                Err(GatewayError::Gone(_)) => delete_recorded_provider.await?,
+                Err(e) => return Err(Error::Gateway(e.to_string())),
+            },
+            None => delete_recorded_provider.await?,
         }
 
         if matches!(app.spec.provider.kind, ProviderKind::Oauth2) {

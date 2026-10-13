@@ -82,6 +82,11 @@ pub trait AuthentikGateway: Send + Sync {
         authentik_id: i32,
         kind: ProviderKind,
     ) -> Result<(), GatewayError>;
+    /// Deletes a provider by id whatever its kind (Authentik's
+    /// `/providers/all/` endpoint): the provider recorded in an
+    /// application's status may be of a kind its spec no longer names.
+    /// Already deleted is success.
+    async fn delete_any_provider(&self, authentik_id: i32) -> Result<(), GatewayError>;
 
     /// `group.spec.parent_ref`, if set, is resolved to an Authentik group
     /// by matching `name` via the Authentik API — there is no

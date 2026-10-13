@@ -584,6 +584,11 @@ where
     {
         fields.insert("authentikId".into(), id.clone().into());
     }
+    // Also recorded by a failed reconcile that created the object first.
+    let written_id = fields
+        .get("authentikId")
+        .and_then(|id| id.as_str())
+        .map(str::to_string);
     if let Some(instance) = instance {
         let instance = serde_json::to_value(instance).expect("a BoundInstance serializes");
         fields.insert("instance".into(), instance);
@@ -609,9 +614,7 @@ where
     let recorded = obj
         .authentik_status()
         .and_then(|s| s.authentik_id.as_deref());
-    if let ReconcileOutcome::Synced {
-        authentik_id: Some(id),
-    } = &outcome
+    if let Some(id) = &written_id
         && recorded.is_none()
     {
         events::announce_change(

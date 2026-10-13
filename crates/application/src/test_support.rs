@@ -30,6 +30,7 @@ pub struct FakeGateway {
     pub upsert_policy_binding_result: Option<Result<String, GatewayError>>,
     pub get_application_result: Option<Result<RemoteApplication, GatewayError>>,
     pub delete_provider_result: Option<Result<(), GatewayError>>,
+    pub delete_any_provider_result: Option<Result<(), GatewayError>>,
     pub upsert_oauth2_provider_result: Option<Result<Oauth2ProviderUpsertResult, GatewayError>>,
     pub upsert_proxy_provider_result: Option<Result<String, GatewayError>>,
     pub attach_outpost_result: Option<Result<(), GatewayError>>,
@@ -38,6 +39,8 @@ pub struct FakeGateway {
     pub set_brand_default_calls: Mutex<Vec<(String, bool)>>,
     /// Every `delete_provider` call's provider id, in order.
     pub deleted_providers: Mutex<Vec<i32>>,
+    /// Every `delete_any_provider` call's provider id, in order.
+    pub deleted_any_providers: Mutex<Vec<i32>>,
     /// Consumed first, in order, by `upsert_policy_binding` — for a test
     /// scripting a sequence (a `Gone` then the recreate) — before falling
     /// back to `upsert_policy_binding_result`.
@@ -122,6 +125,15 @@ impl AuthentikGateway for FakeGateway {
         self.delete_provider_result
             .clone()
             .expect("test did not script a delete_provider response on FakeGateway")
+    }
+    async fn delete_any_provider(&self, authentik_id: i32) -> Result<(), GatewayError> {
+        self.deleted_any_providers
+            .lock()
+            .unwrap()
+            .push(authentik_id);
+        self.delete_any_provider_result
+            .clone()
+            .expect("test did not script a delete_any_provider response on FakeGateway")
     }
 
     async fn create_group(&self, _group: &AuthentikGroup) -> Result<String, GatewayError> {

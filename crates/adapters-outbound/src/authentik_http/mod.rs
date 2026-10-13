@@ -118,6 +118,10 @@ impl AuthentikGateway for AuthentikHttpGateway {
         self.delete_provider_impl(authentik_id, kind).await
     }
 
+    async fn delete_any_provider(&self, authentik_id: i32) -> Result<(), GatewayError> {
+        self.delete_any_provider_impl(authentik_id).await
+    }
+
     async fn create_group(&self, group: &AuthentikGroup) -> Result<String, GatewayError> {
         self.create_group_impl(group).await
     }
