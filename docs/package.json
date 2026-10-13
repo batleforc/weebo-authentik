@@ -12,7 +12,7 @@
     "gen:crds": "weebo-crd-docs"
   },
   "dependencies": {
-    "@weebo/operator-docs": "https://github.com/batleforc/weebo-operator-kit/releases/download/v0.14.0/weebo-operator-docs-0.14.0.tgz",
+    "@weebo/operator-docs": "https://github.com/batleforc/weebo-operator-kit/releases/download/v0.14.1/weebo-operator-docs-0.14.1.tgz",
     "fumadocs-core": "16.16.2",
     "fumadocs-mdx": "15.4.6",
     "fumadocs-ui": "16.16.2",
