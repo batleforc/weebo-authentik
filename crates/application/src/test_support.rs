@@ -42,6 +42,12 @@ pub struct FakeGateway {
     /// scripting a sequence (a `Gone` then the recreate) — before falling
     /// back to `upsert_policy_binding_result`.
     pub upsert_policy_binding_sequence: Mutex<VecDeque<Result<String, GatewayError>>>,
+    /// Every provider upsert's (oauth2 or proxy) `authentik_id`, in order:
+    /// `None` creates, `Some` patches.
+    pub upserted_providers: Mutex<Vec<Option<String>>>,
+    /// Consumed first, in order, by `upsert_proxy_provider` — a `Gone` then
+    /// the recreate — before falling back to `upsert_proxy_provider_result`.
+    pub upsert_proxy_provider_sequence: Mutex<VecDeque<Result<String, GatewayError>>>,
 }
 
 impl FakeGateway {
@@ -232,21 +238,37 @@ impl AuthentikGateway for FakeGateway {
 
     async fn upsert_oauth2_provider(
         &self,
-        _authentik_id: Option<&str>,
+        authentik_id: Option<&str>,
         _name: &str,
         _slug: &str,
         _spec: &Oauth2ProviderSpec,
     ) -> Result<Oauth2ProviderUpsertResult, GatewayError> {
+        self.upserted_providers
+            .lock()
+            .unwrap()
+            .push(authentik_id.map(str::to_string));
         self.upsert_oauth2_provider_result
             .clone()
             .expect("test did not script an upsert_oauth2_provider response on FakeGateway")
     }
     async fn upsert_proxy_provider(
         &self,
-        _authentik_id: Option<&str>,
+        authentik_id: Option<&str>,
         _name: &str,
         _spec: &ProxyProviderSpec,
     ) -> Result<String, GatewayError> {
+        self.upserted_providers
+            .lock()
+            .unwrap()
+            .push(authentik_id.map(str::to_string));
+        if let Some(next) = self
+            .upsert_proxy_provider_sequence
+            .lock()
+            .unwrap()
+            .pop_front()
+        {
+            return next;
+        }
         self.upsert_proxy_provider_result
             .clone()
             .expect("test did not script an upsert_proxy_provider response on FakeGateway")

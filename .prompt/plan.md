@@ -257,6 +257,11 @@ status:
   observedGeneration: int64
   authentikId: string | null   # PK côté Authentik ; présent = cette CR
                                  # possède réellement l'objet distant
+  instance: BoundInstance       # l'instance à laquelle la CR est liée
+  providerId: string | null     # AuthentikApplication seulement : PK du
+                                 # provider de l'application, réutilisé si
+                                 # l'application est supprimée hors
+                                 # opérateur, supprimé avec la CR
   conditions:
     - type: Ready
       status: "True" | "False" | "Unknown"

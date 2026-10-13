@@ -1,8 +1,8 @@
 name: Publish
 
 # A pushed release tag `vX.Y.Z` (a bump made locally with `cog bump`, which
-# synced Cargo.toml and Chart.yaml through .hooks/bump-versions.sh):
-# weebo-operator-kit's publish workflow — the operator image of each
+# synced Cargo.toml and Chart.yaml through .hooks/bump-versions.sh): the
+# kind e2e (e2e.yml) on that tag, then weebo-operator-kit's publish workflow — the operator image of each
 # variant (Red Hat Hummingbird, and a statically linked one as `-static`),
 # scanned by Grype (accepted findings: .grype.yaml), smoke-run, signed; the
 # chart (OCI); the GitHub Release. The static variant is optional: a
@@ -16,12 +16,32 @@ on:
         description: Release tag (vX.Y.Z) to (re)publish.
         required: true
         type: string
+      run-e2e:
+        description: Run the kind e2e gate first.
+        required: false
+        type: boolean
+        default: true
 
 permissions: {}
 
 jobs:
+  e2e:
+    # A tag push has no inputs: run-e2e is null there, and null == false
+    # in expressions, so it must be tested on the event.
+    if: ${{ github.event_name == 'push' || inputs.run-e2e }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/e2e.yml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
+
   publish:
-    uses: batleforc/weebo-operator-kit/.github/workflows/publish.yml@v0.14.0
+    # Nothing reaches the registry unless the e2e passed (it may be skipped
+    # only through the run-e2e input).
+    needs: e2e
+    if: >-
+      ${{ !cancelled() && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') }}
+    uses: batleforc/weebo-operator-kit/.github/workflows/publish.yml@v0.14.1
     permissions:
       contents: write
       packages: write

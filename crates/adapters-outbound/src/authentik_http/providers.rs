@@ -6,7 +6,7 @@ use authentik_client::apis::{crypto_api, propertymappings_api, providers_api};
 use authentik_client::models;
 
 use super::AuthentikHttpGateway;
-use super::shared::{map_err, parse_i32};
+use super::shared::{map_err, map_own_err, parse_i32};
 
 impl AuthentikHttpGateway {
     /// Certificate key pairs are always a lookup of an existing
@@ -192,7 +192,7 @@ impl AuthentikHttpGateway {
                 };
                 providers_api::providers_oauth2_partial_update(&self.configuration, id, Some(req))
                     .await
-                    .map_err(map_err)?
+                    .map_err(map_own_err)?
             }
         };
 
@@ -278,7 +278,7 @@ impl AuthentikHttpGateway {
                 };
                 providers_api::providers_proxy_partial_update(&self.configuration, id, Some(req))
                     .await
-                    .map_err(map_err)?
+                    .map_err(map_own_err)?
                     .pk
             }
         };
