@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.17.1](https://github.com/batleforc/weebo-authentik/compare/c461c5138bf1a4e02f26d0b5c4d014d98ef40eff..v0.17.1) - 2026-10-13
+#### Bug Fixes
+- no orphan provider, e2e gates publishing, kit v0.14.1 (#12) - ([c461c51](https://github.com/batleforc/weebo-authentik/commit/c461c5138bf1a4e02f26d0b5c4d014d98ef40eff)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.17.0](https://github.com/batleforc/weebo-authentik/compare/82ddcb6d42a164dbbfddcc5a9297ad5c893f26fe..v0.17.0) - 2026-10-13
 #### Bug Fixes
 - ![BREAKING](https://img.shields.io/badge/BREAKING-red) review fixes of 2026-10-13, weebo-operator-kit v0.14.0 (#11) - ([f850911](https://github.com/batleforc/weebo-authentik/commit/f8509117255f89476ab7740a6ccfeda7b43ee621)) - Maxime, Claude Opus 5.5
