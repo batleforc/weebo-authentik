@@ -1,15 +1,25 @@
 name: E2E
 
 # Layer 4 of .prompt/plan.md's test strategy — real kind cluster + real,
-# throwaway Authentik instance. Periodic/manual only, deliberately never on
-# every PR (would slow down the fast feedback loop layers 1-3 already
-# give). This is the one workflow that can't be exercised in this repo's
-# own dev sandbox (no docker/root there, see CLAUDE.md) — expect this file
-# to need iteration against real GitHub Actions runs.
+# throwaway Authentik instance, for both operator images. Weekly, on
+# demand, and as the gate of publish.yml (workflow_call): nothing is pushed
+# unless the main image's run passes (the static one, optional in a
+# release, doesn't gate it). Deliberately never on every PR (would slow
+# down the fast feedback loop layers 1-3 already give). This is the one
+# workflow that can't be exercised in this repo's own dev sandbox (no
+# docker/root there, see CLAUDE.md) — expect this file to need iteration
+# against real GitHub Actions runs.
 on:
   schedule:
     - cron: "0 4 * * 1" # weekly, Monday 04:00 UTC
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref (tag) to test; defaults to the triggering ref.
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -21,10 +31,25 @@ env:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
+    # The static image is optional in a release (publish.yml): its e2e
+    # failing is reported, not a gate.
+    continue-on-error: ${{ !matrix.required }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - file: Containerfile
+            required: true
+          - file: Containerfile.static
+            required: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
 
       - name: Install mise
         uses: ./.github/actions/setup-mise
@@ -68,8 +93,10 @@ jobs:
           echo "url=http://${ip}:9000/api/v3" >> "$GITHUB_OUTPUT"
 
       - name: Build operator image and load it into kind
+        env:
+          CONTAINERFILE: ${{ matrix.file }}
         run: |
-          docker build -t "$OPERATOR_IMAGE" -f Containerfile .
+          docker build -t "$OPERATOR_IMAGE" -f "$CONTAINERFILE" .
           mise exec -- kind load docker-image "$OPERATOR_IMAGE" --name "$KIND_CLUSTER"
 
       - name: Install cert-manager
