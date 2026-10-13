@@ -418,8 +418,9 @@ async fn deleting_an_application_deletes_its_provider_then_the_application() {
     );
 }
 
-/// Deleted by hand in Authentik: the CR is still released (nothing left to
-/// delete there), not stuck in Terminating behind a 404.
+/// Deleted by hand in Authentik: the CR is still released, not stuck in
+/// Terminating behind a 404, and the provider recorded in its status
+/// (`providerId`), left behind by the application, is deleted with it.
 #[tokio::test]
 async fn an_application_deleted_out_of_band_is_still_released() {
     init_tracing();
@@ -430,6 +431,7 @@ async fn an_application_deleted_out_of_band_is_still_released() {
     mount_proxy_sync(&mock).await;
     mock.mock_get_application("longhorn", 404, serde_json::json!({"detail": "Not found."}))
         .await;
+    mock.mock_delete("/providers/proxy/43/", 204).await;
 
     let ctx = new_ctx(client.clone(), &mock);
     tokio::spawn(controller::app::run(client.clone(), ctx));
@@ -439,10 +441,21 @@ async fn an_application_deleted_out_of_band_is_still_released() {
         .await
         .expect("AuthentikApplication CR create must succeed");
     wait_for_authentik_id(&apps, "longhorn").await;
+    let provider_id = wait_for(&apps, "longhorn", |app| {
+        app.status
+            .as_ref()
+            .and_then(|s| s.provider_id.as_deref())
+            .map(str::to_string)
+    })
+    .await;
+    assert_eq!(provider_id, "43");
 
     apps.delete("longhorn", &DeleteParams::default())
         .await
         .expect("deleting the application must be accepted");
     wait_for_absence(&apps, "longhorn").await;
-    assert!(deletes(&mock).await.is_empty());
+    assert_eq!(
+        deletes(&mock).await,
+        vec!["/api/v3/providers/proxy/43/".to_string()]
+    );
 }

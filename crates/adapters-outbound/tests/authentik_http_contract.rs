@@ -679,6 +679,27 @@ async fn mock_oauth2_create_path(mock: &AuthentikMock) {
     .await;
 }
 
+/// The provider recorded in the status, deleted out of band: patching it
+/// is `Gone` (the reconciler then creates one), not a reference that
+/// doesn't resolve.
+#[tokio::test]
+async fn upsert_oauth2_provider_of_a_deleted_provider_maps_to_gone() {
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await;
+    mock.mock_patch(
+        "/providers/oauth2/9/",
+        404,
+        serde_json::json!({"detail": "No OAuth2Provider matches the given query."}),
+    )
+    .await;
+
+    let err = gateway(&mock)
+        .upsert_oauth2_provider(Some("9"), "angos", "angos", &oauth2_spec(vec![]))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, GatewayError::Gone(_)));
+}
+
 fn oauth2_spec(grant_types: Vec<String>) -> Oauth2ProviderSpec {
     Oauth2ProviderSpec {
         client_type: api::application::Oauth2ClientType::Confidential,

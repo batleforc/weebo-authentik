@@ -3,7 +3,10 @@ use std::sync::Arc;
 use api::AuthentikApplication;
 use api::application::ProviderKind;
 use application::ports::GatewayError;
-use application::use_cases::reconcile_application::{delete_credentials, reconcile_application};
+use application::use_cases::reconcile_application::{
+    ApplicationReconciled, delete_credentials, reconcile_application_recording,
+    recorded_provider_id,
+};
 use application::use_cases::{
     errored_from_factory_error, errored_from_instance_error, errored_from_secret_store_error,
 };
@@ -62,14 +65,21 @@ async fn apply(
         bound.as_ref().ok(),
     )
     .await?;
-    let outcome = match (refusal, &bound) {
+    let unrecorded = |outcome| ApplicationReconciled {
+        outcome,
+        provider_id: None,
+    };
+    let ApplicationReconciled {
+        outcome,
+        provider_id,
+    } = match (refusal, &bound) {
         // Re-checked here too: a policy may have changed since admission.
-        (Some(refused), _) => refused,
-        (None, Err(e)) => errored_from_instance_error(e.clone()),
+        (Some(refused), _) => unrecorded(refused),
+        (None, Err(e)) => unrecorded(errored_from_instance_error(e.clone())),
         (None, Ok(bound)) => match ctx.gateway_factory.gateway_for(bound).await {
             Ok(gateway) => match ctx.secrets_factory.store_for(bound).await {
                 Ok(secrets) => {
-                    reconcile_application(
+                    reconcile_application_recording(
                         app,
                         authentik_id.as_deref(),
                         gateway.as_ref(),
@@ -77,20 +87,27 @@ async fn apply(
                     )
                     .await
                 }
-                Err(e) => errored_from_secret_store_error(e),
+                Err(e) => unrecorded(errored_from_secret_store_error(e)),
             },
-            Err(e) => errored_from_factory_error(e),
+            Err(e) => unrecorded(errored_from_factory_error(e)),
         },
     };
+    // Only a synced application records its provider; a failure leaves the
+    // recorded one as it was.
+    let mut fields = serde_json::Map::new();
+    if let Some(provider_id) = provider_id {
+        fields.insert("providerId".into(), provider_id.into());
+    }
     super::record_reconcile("AuthentikApplication", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome_on(
+    super::patch_reconcile_outcome_with(
         api,
         &ctx.recorder,
         app,
         outcome,
         "application synced",
         bound.as_ref().ok(),
+        fields,
     )
     .await?;
 
@@ -118,8 +135,8 @@ async fn cleanup(
             .await
             .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
         // Read the provider relationship before deleting the application.
-        // The status stores only the application's slug. Already deleted
-        // out of band: nothing left to delete there but the credentials.
+        // Already deleted out of band: the provider recorded in the status
+        // (of the spec's kind) is deleted, then the credentials.
         match gateway.get_application(id).await {
             Ok(remote) => {
                 if let (Some(provider_id), Some(provider_kind)) = (
@@ -145,7 +162,19 @@ async fn cleanup(
                     .await
                     .map_err(|e| Error::Gateway(e.to_string()))?;
             }
-            Err(GatewayError::Gone(_)) => {}
+            Err(GatewayError::Gone(_)) => {
+                if let Some(provider_id) = recorded_provider_id(app)
+                    && matches!(
+                        app.spec.provider.kind,
+                        ProviderKind::Oauth2 | ProviderKind::Proxy
+                    )
+                {
+                    gateway
+                        .delete_provider(provider_id, app.spec.provider.kind.clone())
+                        .await
+                        .map_err(|e| Error::Gateway(e.to_string()))?;
+                }
+            }
             Err(e) => return Err(Error::Gateway(e.to_string())),
         }
 

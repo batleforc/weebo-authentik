@@ -22,6 +22,12 @@ pub struct AuthentikStatus {
     /// silently moves to another instance created later under that name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instance: Option<BoundInstance>,
+    /// Set on `AuthentikApplication` only: the pk of the provider its
+    /// application points at. Kept so that provider is reused, or deleted
+    /// with the CR, even after the application itself was deleted out of
+    /// band in Authentik.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     #[serde(default)]
     pub conditions: Vec<Condition>,
 }

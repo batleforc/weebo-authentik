@@ -236,6 +236,14 @@ spec:
                 format: int64
                 nullable: true
                 type: integer
+              providerId:
+                description: |-
+                  Set on `AuthentikApplication` only: the pk of the provider its
+                  application points at. Kept so that provider is reused, or deleted
+                  with the CR, even after the application itself was deleted out of
+                  band in Authentik.
+                nullable: true
+                type: string
             type: object
         required:
         - spec

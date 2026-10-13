@@ -547,12 +547,37 @@ pub async fn patch_reconcile_outcome_on<K>(
 where
     K: Resource<DynamicType = ()> + HasStatus + Clone + Debug + DeserializeOwned + Serialize,
 {
+    patch_reconcile_outcome_with(
+        api,
+        recorder,
+        obj,
+        outcome,
+        synced_message,
+        instance,
+        serde_json::Map::new(),
+    )
+    .await
+}
+
+/// [`patch_reconcile_outcome_on`], also merging the kind's own status
+/// `fields` (e.g. an application's `providerId`).
+pub async fn patch_reconcile_outcome_with<K>(
+    api: &Api<K>,
+    recorder: &Recorder,
+    obj: &K,
+    outcome: ReconcileOutcome,
+    synced_message: &str,
+    instance: Option<&BoundInstance>,
+    mut fields: serde_json::Map<String, serde_json::Value>,
+) -> Result<(), kube::Error>
+where
+    K: Resource<DynamicType = ()> + HasStatus + Clone + Debug + DeserializeOwned + Serialize,
+{
     let previous = obj
         .authentik_status()
         .map(|s| s.conditions.as_slice())
         .unwrap_or_default();
     let ready = ready_of(&outcome, synced_message);
-    let mut fields = serde_json::Map::new();
     if let ReconcileOutcome::Synced {
         authentik_id: Some(id),
     } = &outcome

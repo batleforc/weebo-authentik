@@ -198,7 +198,9 @@ pub trait AuthentikGateway: Send + Sync {
     /// payload shape differs per `ProviderSpec` variant. `authentik_id`
     /// (the provider's pk) is `None` on first reconcile, `Some` to patch
     /// in place — the use-case decides which by reading the current
-    /// `provider` FK off `get_application`. `name` is the Authentik-side
+    /// `provider` FK off `get_application` (or, the application being
+    /// gone, the provider recorded in the status). Patching a provider
+    /// that no longer exists is [`GatewayError::Gone`]. `name` is the Authentik-side
     /// provider name, which `ProviderSpec` itself carries no field for
     /// (only the owning `AuthentikApplication` has a name/slug) — the
     /// use-case passes the application's name through.
