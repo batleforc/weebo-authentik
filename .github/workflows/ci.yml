@@ -12,7 +12,7 @@ jobs:
   # with the runner's unused toolchains removed first (this envtest-backed
   # workspace has run out of disk without it).
   checks:
-    uses: batleforc/weebo-operator-kit/.github/workflows/checks.yml@v0.10.1
+    uses: batleforc/weebo-operator-kit/.github/workflows/checks.yml@v0.12.0
     permissions:
       contents: read
     with:
@@ -56,17 +56,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        file: [Containerfile, Containerfile.static]
     steps:
       - uses: actions/checkout@v4
 
-      # Build-only, no push/registry credentials assumed — proves the
-      # Dockerfile actually builds (never exercised locally, see
-      # CLAUDE.md: no container engine in this repo's dev sandbox).
-      # Publishing is a separate, deliberate step once a registry/tagging
-      # policy is decided, not bundled into this check.
+      # Build-only, no push/registry credentials assumed — proves each
+      # Containerfile actually builds. Publishing is the release's
+      # (publish.yml, the kit's workflow).
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: ${{ matrix.file }}
           push: false
 
   docs-build:

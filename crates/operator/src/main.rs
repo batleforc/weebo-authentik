@@ -28,6 +28,11 @@ const DEFAULT_LEASE_NAME: &str = "weebo-authentik-operator-leader";
 async fn main() -> anyhow::Result<()> {
     let telemetry = telemetry::init("weebo-authentik-operator")?;
     let result = match std::env::args().nth(1).as_deref() {
+        // What the image's smoke run calls: no cluster needed.
+        Some("--version") => {
+            println!("weebo-authentik-operator {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
         Some("migrate-instance-ref") => migrate_instance_ref().await,
         Some(other) => Err(anyhow::anyhow!("unknown command {other:?}")),
         None => run(&telemetry).await,
