@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.17.2](https://github.com/batleforc/weebo-authentik/compare/622e6d561ab407bbc1619cffd4a830428ab17fb7..v0.17.2) - 2026-10-13
+#### Bug Fixes
+- (**application**) record remote objects early; delete a provider of any kind (#13) - ([622e6d5](https://github.com/batleforc/weebo-authentik/commit/622e6d561ab407bbc1619cffd4a830428ab17fb7)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.17.1](https://github.com/batleforc/weebo-authentik/compare/c461c5138bf1a4e02f26d0b5c4d014d98ef40eff..v0.17.1) - 2026-10-13
 #### Bug Fixes
 - no orphan provider, e2e gates publishing, kit v0.14.1 (#12) - ([c461c51](https://github.com/batleforc/weebo-authentik/commit/c461c5138bf1a4e02f26d0b5c4d014d98ef40eff)) - Maxime, Claude Opus 5.5
