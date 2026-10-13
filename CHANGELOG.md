@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.17.0](https://github.com/batleforc/weebo-authentik/compare/82ddcb6d42a164dbbfddcc5a9297ad5c893f26fe..v0.17.0) - 2026-10-13
+#### Bug Fixes
+- ![BREAKING](https://img.shields.io/badge/BREAKING-red) review fixes of 2026-10-13, weebo-operator-kit v0.14.0 (#11) - ([f850911](https://github.com/batleforc/weebo-authentik/commit/f8509117255f89476ab7740a6ccfeda7b43ee621)) - Maxime, Claude Opus 5.5
+#### Miscellaneous Chores
+- (**kit**) weebo-operator-kit v0.13.0, amd64-only images (#10) - ([82ddcb6](https://github.com/batleforc/weebo-authentik/commit/82ddcb6d42a164dbbfddcc5a9297ad5c893f26fe)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.16.2](https://github.com/batleforc/weebo-authentik/compare/3b270793939573c19dec89457593d5fc7adb26a8..v0.16.2) - 2026-10-13
 #### Miscellaneous Chores
 - (**kit**) weebo-operator-kit v0.12.1 (#9) - ([3b27079](https://github.com/batleforc/weebo-authentik/commit/3b270793939573c19dec89457593d5fc7adb26a8)) - Maxime, Claude Opus 5.5
