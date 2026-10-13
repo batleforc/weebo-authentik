@@ -1,9 +1,11 @@
 //! `AuthentikLocalInstance`: like an `AuthentikInstance`, accepted as is —
-//! connectivity and token are checked lazily, by the gateway factory.
+//! connectivity and token are checked lazily, by the gateway factory. Its
+//! finalizer holds the deletion while CRs are still bound to it.
 
 use std::sync::Arc;
 
 use api::AuthentikLocalInstance;
+use application::ports::BoundInstance;
 use application::use_cases::ReconcileOutcome;
 use kube::api::Api;
 use kube::runtime::controller::Action;
@@ -31,11 +33,23 @@ async fn reconcile(obj: Arc<AuthentikLocalInstance>, ctx: Arc<Ctx>) -> Result<Ac
     finalizer(&api, FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(instance) => apply(&api, &instance, &ctx).await,
-            FinalizerEvent::Cleanup(_instance) => Ok(Action::await_change()),
+            FinalizerEvent::Cleanup(instance) => {
+                super::finalize(instance.as_ref(), &ctx, cleanup(&instance, &ctx)).await
+            }
         }
     })
     .await
     .map_err(|e| Error::Finalizer(Box::new(e)))
+}
+
+/// Held while CRs are still bound to the instance: their own finalizers
+/// need it to clean up, and would otherwise stay stuck in Terminating.
+async fn cleanup(instance: &AuthentikLocalInstance, ctx: &Ctx) -> Result<Action, Error> {
+    let bound = BoundInstance::local(
+        instance.namespace().unwrap_or_default(),
+        instance.name_any(),
+    );
+    super::release_instance(ctx, &bound, false).await
 }
 
 async fn apply(

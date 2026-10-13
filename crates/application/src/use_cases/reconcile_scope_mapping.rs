@@ -1,24 +1,24 @@
 use api::AuthentikScopeMapping;
 
-use crate::ports::AuthentikGateway;
+use crate::ports::{AuthentikGateway, GatewayError};
 use crate::use_cases::{ReconcileOutcome, errored_from_gateway_error};
 
 /// Create-then-update, keyed on `status.authentikId`, same shape as
 /// `reconcile_flow`. A scope mapping references no other CRD — no group,
 /// flow or certificate name to resolve — so there is no
-/// `GatewayError::NotFound`-as-unresolved-ref arm here: a `NotFound` from
-/// the gateway can only be the mapping's own pk having disappeared
-/// upstream, which is a plain API error.
+/// `GatewayError::NotFound`-as-unresolved-ref arm here. The mapping's own
+/// pk having disappeared upstream (`GatewayError::Gone`) recreates it.
 pub async fn reconcile_scope_mapping(
     mapping: &AuthentikScopeMapping,
     authentik_id: Option<&str>,
     gateway: &dyn AuthentikGateway,
 ) -> ReconcileOutcome {
     let result = match authentik_id {
-        Some(id) => gateway
-            .update_scope_mapping(id, mapping)
-            .await
-            .map(|()| id.to_string()),
+        // Deleted out of band: recreated, the CR is authoritative.
+        Some(id) => match gateway.update_scope_mapping(id, mapping).await {
+            Err(GatewayError::Gone(_)) => gateway.create_scope_mapping(mapping).await,
+            result => result.map(|()| id.to_string()),
+        },
         None => gateway.create_scope_mapping(mapping).await,
     };
 

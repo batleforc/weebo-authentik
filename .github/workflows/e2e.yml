@@ -11,6 +11,8 @@ on:
     - cron: "0 4 * * 1" # weekly, Monday 04:00 UTC
   workflow_dispatch: {}
 
+permissions: {}
+
 env:
   KIND_CLUSTER: weebo-e2e
   COMPOSE_PROJECT: weebo-e2e
@@ -19,6 +21,8 @@ env:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 

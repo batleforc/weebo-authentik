@@ -23,6 +23,9 @@ pub struct AuthentikApplicationSpec {
     /// lives on.
     pub instance_ref: InstanceRef,
     pub name: String,
+    /// The application's slug: its URL in Authentik and its identity there
+    /// (`status.authentikId`). Changing it renames the application in
+    /// place; its access policies follow.
     pub slug: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub meta_icon: Option<String>,

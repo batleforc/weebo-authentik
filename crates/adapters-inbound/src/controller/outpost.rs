@@ -42,6 +42,8 @@ async fn apply(
     outpost: &AuthentikOutpost,
     ctx: &Ctx,
 ) -> Result<Action, Error> {
+    let current = super::current(api, outpost).await?;
+    let outpost = &current;
     let authentik_id = outpost.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let started = std::time::Instant::now();
@@ -70,7 +72,7 @@ async fn cleanup(
             .gateway_factory
             .default_gateway()
             .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+            .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
         gateway
             .delete_outpost(id)
             .await

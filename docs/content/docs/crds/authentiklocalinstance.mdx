@@ -41,7 +41,7 @@ spec:
 | --- | --- | --- | --- | --- |
 | `sharedWith` | `object` | no |  | Other namespaces (or cluster-scoped objects) allowed to use this instance — and its token. Unset: this namespace only. |
 | `tls` | `object` | no | `{"insecureSkipVerify":false}` | TLS verification for the API connection above; the CA `Secret` lives in this namespace. |
-| `tokenSecretRef` | `object` | yes |  | The API token the operator authenticates with, in a `Secret` of this namespace. Read on every reconcile: rotating it needs no restart. |
+| `tokenSecretRef` | `object` | yes |  | The API token the operator authenticates with, in a `Secret` of this namespace labelled `authentik.weebo.io/instance-token: "true"`. Read on every reconcile: rotating it needs no restart. |
 | `url` | `string` | yes |  | Base **web** URL of the Authentik instance, e.g. `https://login.example.com` — not the `/api/v3` REST endpoint, which is derived from it. |
 
 ## Build a manifest

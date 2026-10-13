@@ -40,7 +40,9 @@ pub(crate) fn errored_from_gateway_error(err: crate::ports::GatewayError) -> Rec
             reason: ReasonCode::AuthentikObjectAlreadyExists,
             message,
         },
-        GatewayError::NotFound(message) | GatewayError::Api(message) => ReconcileOutcome::Errored {
+        GatewayError::NotFound(message)
+        | GatewayError::Gone(message)
+        | GatewayError::Api(message) => ReconcileOutcome::Errored {
             reason: ReasonCode::AuthentikApiError,
             message,
         },
@@ -65,6 +67,10 @@ pub fn errored_from_factory_error(err: crate::ports::GatewayFactoryError) -> Rec
         },
         GatewayFactoryError::ResolutionFailed(message) => ReconcileOutcome::Errored {
             reason: ReasonCode::InstanceResolutionFailed,
+            message,
+        },
+        GatewayFactoryError::TokenNotAllowed(message) => ReconcileOutcome::Errored {
+            reason: ReasonCode::InstanceTokenNotAllowed,
             message,
         },
     }
@@ -100,5 +106,24 @@ pub fn errored_from_secret_store_error(err: crate::ports::SecretStoreError) -> R
     ReconcileOutcome::Errored {
         reason: ReasonCode::SecretStoreError,
         message: err.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ports::GatewayFactoryError;
+
+    #[test]
+    fn an_unlabelled_local_token_has_its_own_reason() {
+        let outcome =
+            errored_from_factory_error(GatewayFactoryError::TokenNotAllowed("not labelled".into()));
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::InstanceTokenNotAllowed,
+                ..
+            }
+        ));
     }
 }

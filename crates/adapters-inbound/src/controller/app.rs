@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use api::AuthentikApplication;
 use api::application::ProviderKind;
+use application::ports::GatewayError;
 use application::use_cases::reconcile_application::{delete_credentials, reconcile_application};
 use application::use_cases::{
     errored_from_factory_error, errored_from_instance_error, errored_from_secret_store_error,
@@ -48,6 +49,8 @@ async fn apply(
     ctx: &Ctx,
 ) -> Result<Action, Error> {
     let started = std::time::Instant::now();
+    let current = super::current(api, app).await?;
+    let app = &current;
     let authentik_id = app.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let namespace = app.namespace().unwrap_or_default();
@@ -107,39 +110,44 @@ async fn cleanup(
             Some(bound) => bound,
             None => super::application_instance(ctx, app)
                 .await
-                .map_err(|e| Error::Gateway(e.to_string()))?,
+                .map_err(|e| Error::cleanup(errored_from_instance_error(e)))?,
         };
         let gateway = ctx
             .gateway_factory
             .gateway_for(&bound)
             .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+            .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
         // Read the provider relationship before deleting the application.
-        // The status stores only the application's slug.
-        let remote = gateway
-            .get_application(id)
-            .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
-        if let (Some(provider_id), Some(provider_kind)) = (
-            remote.provider_id,
-            remote
-                .provider_meta_model_name
-                .as_deref()
-                .and_then(|name| match name {
-                    "authentik_providers_oauth2.oauth2provider" => Some(ProviderKind::Oauth2),
-                    "authentik_providers_proxy.proxyprovider" => Some(ProviderKind::Proxy),
-                    _ => None,
-                }),
-        ) {
-            gateway
-                .delete_provider(provider_id, provider_kind)
-                .await
-                .map_err(|e| Error::Gateway(e.to_string()))?;
+        // The status stores only the application's slug. Already deleted
+        // out of band: nothing left to delete there but the credentials.
+        match gateway.get_application(id).await {
+            Ok(remote) => {
+                if let (Some(provider_id), Some(provider_kind)) = (
+                    remote.provider_id,
+                    remote
+                        .provider_meta_model_name
+                        .as_deref()
+                        .and_then(|name| match name {
+                            "authentik_providers_oauth2.oauth2provider" => {
+                                Some(ProviderKind::Oauth2)
+                            }
+                            "authentik_providers_proxy.proxyprovider" => Some(ProviderKind::Proxy),
+                            _ => None,
+                        }),
+                ) {
+                    gateway
+                        .delete_provider(provider_id, provider_kind)
+                        .await
+                        .map_err(|e| Error::Gateway(e.to_string()))?;
+                }
+                gateway
+                    .delete_application(id)
+                    .await
+                    .map_err(|e| Error::Gateway(e.to_string()))?;
+            }
+            Err(GatewayError::Gone(_)) => {}
+            Err(e) => return Err(Error::Gateway(e.to_string())),
         }
-        gateway
-            .delete_application(id)
-            .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
 
         if matches!(app.spec.provider.kind, ProviderKind::Oauth2) {
             let secrets = ctx

@@ -10,7 +10,7 @@ use api::AuthentikBrand;
 use domain::brand_election::{self, BrandCandidate, Election};
 use domain::error::ReasonCode;
 
-use crate::ports::AuthentikGateway;
+use crate::ports::{AuthentikGateway, GatewayError};
 use crate::use_cases::{ReconcileOutcome, errored_from_gateway_error};
 
 pub struct BrandReconcileInput {
@@ -64,7 +64,8 @@ pub fn plan_brand_action(
 }
 
 /// Patch-first sync of the brand object's own fields (domain, branding,
-/// flows), plus the default-instance toggle when `become_default` is set.
+/// flows), plus the default toggle: set when `become_default`, cleared
+/// otherwise if Authentik has this brand as its default.
 /// Never called for `BrandAction::Conflict` — see the module doc comment.
 pub async fn reconcile_brand(
     brand: &AuthentikBrand,
@@ -73,10 +74,11 @@ pub async fn reconcile_brand(
     gateway: &dyn AuthentikGateway,
 ) -> ReconcileOutcome {
     let result = match authentik_id {
-        Some(id) => gateway
-            .update_brand(id, brand)
-            .await
-            .map(|()| id.to_string()),
+        // Deleted out of band: recreated, the CR is authoritative.
+        Some(id) => match gateway.update_brand(id, brand).await {
+            Err(GatewayError::Gone(_)) => gateway.create_brand(brand).await,
+            result => result.map(|()| id.to_string()),
+        },
         None => gateway.create_brand(brand).await,
     };
 
@@ -102,6 +104,21 @@ pub async fn reconcile_brand(
         }
         if let Err(e) = gateway.set_brand_default(&own_id, true).await {
             return errored_from_gateway_error(e);
+        }
+    } else {
+        // The CR is authoritative both ways: a brand no longer claiming
+        // default (`spec.default: true → false`, or adopted as the default
+        // without claiming it) stops being Authentik's default. No other
+        // brand is enabled in its place — see the cleanup's note on
+        // point 4 of "Election du brand par defaut".
+        match gateway.get_default_brand().await {
+            Ok(Some(current)) if current == own_id => {
+                if let Err(e) = gateway.set_brand_default(&own_id, false).await {
+                    return errored_from_gateway_error(e);
+                }
+            }
+            Ok(_) => {}
+            Err(e) => return errored_from_gateway_error(e),
         }
     }
 
@@ -152,5 +169,43 @@ mod tests {
             }
             _ => panic!("expected Conflict"),
         }
+    }
+
+    fn brand() -> AuthentikBrand {
+        AuthentikBrand {
+            metadata: kube::api::ObjectMeta {
+                name: Some("weebo".to_string()),
+                ..Default::default()
+            },
+            spec: serde_json::from_value(serde_json::json!({ "domain": "weebo.fr" }))
+                .expect("a minimal brand spec"),
+            status: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_brand_no_longer_claiming_default_stops_being_the_default() {
+        let gateway = crate::test_support::FakeGateway {
+            update_result: Some(Ok(())),
+            get_default_brand_result: Some(Ok(Some("b1".to_string()))),
+            ..Default::default()
+        };
+        let outcome = reconcile_brand(&brand(), Some("b1"), false, &gateway).await;
+        assert!(matches!(outcome, ReconcileOutcome::Synced { .. }));
+        assert_eq!(
+            *gateway.set_brand_default_calls.lock().unwrap(),
+            vec![("b1".to_string(), false)]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_brand_not_claiming_default_leaves_another_default_alone() {
+        let gateway = crate::test_support::FakeGateway {
+            update_result: Some(Ok(())),
+            get_default_brand_result: Some(Ok(Some("native".to_string()))),
+            ..Default::default()
+        };
+        reconcile_brand(&brand(), Some("b1"), false, &gateway).await;
+        assert!(gateway.set_brand_default_calls.lock().unwrap().is_empty());
     }
 }

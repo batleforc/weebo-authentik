@@ -1,6 +1,6 @@
 use api::AuthentikOutpost;
 
-use crate::ports::AuthentikGateway;
+use crate::ports::{AuthentikGateway, GatewayError};
 use crate::use_cases::{ReconcileOutcome, errored_from_gateway_error};
 
 /// Note this CRD is deliberately minimal (see `api::outpost`) since
@@ -13,10 +13,11 @@ pub async fn reconcile_outpost(
     gateway: &dyn AuthentikGateway,
 ) -> ReconcileOutcome {
     let result = match authentik_id {
-        Some(id) => gateway
-            .update_outpost(id, outpost)
-            .await
-            .map(|()| id.to_string()),
+        // Deleted out of band: recreated, the CR is authoritative.
+        Some(id) => match gateway.update_outpost(id, outpost).await {
+            Err(GatewayError::Gone(_)) => gateway.create_outpost(outpost).await,
+            result => result.map(|()| id.to_string()),
+        },
         None => gateway.create_outpost(outpost).await,
     };
 

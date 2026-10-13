@@ -83,7 +83,7 @@
       "type": "string"
     },
     "slug": {
-      "description": "Visible in the URL and the identity every other CRD uses to\nreference this flow (`AuthentikBrand.flow*`,\n`Oauth2ProviderSpec.authorizationFlow`, …). Immutable in practice:\nchanging it creates a new flow rather than renaming the old one.",
+      "description": "Visible in the URL and the identity every other CRD uses to\nreference this flow (`AuthentikBrand.flow*`,\n`Oauth2ProviderSpec.authorizationFlow`, …). Changing it renames the\nflow in place: every CR referencing it by the old slug must follow.",
       "type": "string"
     },
     "title": {

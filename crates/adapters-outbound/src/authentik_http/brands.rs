@@ -4,7 +4,7 @@ use authentik_client::apis::core_api;
 use authentik_client::models;
 
 use super::AuthentikHttpGateway;
-use super::shared::map_err;
+use super::shared::{map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     /// Same as `resolve_flow`, for the optional flow slugs on
@@ -110,7 +110,7 @@ impl AuthentikHttpGateway {
         core_api::core_brands_partial_update(&self.configuration, authentik_id, Some(req))
             .await
             .map(|_| ())
-            .map_err(map_err)
+            .map_err(map_own_err)
     }
 
     pub(super) async fn delete_brand_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {
@@ -180,6 +180,6 @@ impl AuthentikHttpGateway {
         core_api::core_brands_partial_update(&self.configuration, authentik_id, Some(req))
             .await
             .map(|_| ())
-            .map_err(map_err)
+            .map_err(map_own_err)
     }
 }

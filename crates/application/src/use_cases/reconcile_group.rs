@@ -10,10 +10,11 @@ pub async fn reconcile_group(
     gateway: &dyn AuthentikGateway,
 ) -> ReconcileOutcome {
     let result = match authentik_id {
-        Some(id) => gateway
-            .update_group(id, group)
-            .await
-            .map(|()| id.to_string()),
+        // Deleted out of band: recreated, the CR is authoritative.
+        Some(id) => match gateway.update_group(id, group).await {
+            Err(GatewayError::Gone(_)) => gateway.create_group(group).await,
+            result => result.map(|()| id.to_string()),
+        },
         None => gateway.create_group(group).await,
     };
 
@@ -99,6 +100,35 @@ mod tests {
             "group \"missing-parent\" not found".to_string(),
         )));
         let outcome = reconcile_group(&group("weebo-user"), None, &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::GroupRefNotFound,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_group_deleted_out_of_band_is_recreated() {
+        let gateway = FakeGateway {
+            update_result: Some(Err(GatewayError::Gone("group 11".to_string()))),
+            create_result: Some(Ok("12".to_string())),
+            ..Default::default()
+        };
+        let outcome = reconcile_group(&group("weebo-user"), Some("11"), &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "12"
+        ));
+    }
+
+    #[tokio::test]
+    async fn an_unresolved_parent_on_update_is_still_a_group_ref() {
+        let gateway = FakeGateway::update(Err(GatewayError::NotFound(
+            "group \"missing-parent\" not found".to_string(),
+        )));
+        let outcome = reconcile_group(&group("weebo-user"), Some("11"), &gateway).await;
         assert!(matches!(
             outcome,
             ReconcileOutcome::Errored {

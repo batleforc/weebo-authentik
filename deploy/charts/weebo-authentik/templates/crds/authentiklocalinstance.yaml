@@ -41,7 +41,10 @@ spec:
                     description: Cluster-scoped objects may use this instance.
                     type: boolean
                   namespaceSelector:
-                    description: Namespaces whose labels match this selector may use this instance.
+                    description: |-
+                      Namespaces whose labels match this selector may use this instance.
+                      An empty selector (`{}`) matches every namespace: the instance —
+                      and the token it holds — is then shared with the whole cluster.
                     nullable: true
                     properties:
                       matchExpressions:
@@ -109,7 +112,8 @@ spec:
               tokenSecretRef:
                 description: |-
                   The API token the operator authenticates with, in a `Secret` of this
-                  namespace. Read on every reconcile: rotating it needs no restart.
+                  namespace labelled `authentik.weebo.io/instance-token: "true"`. Read
+                  on every reconcile: rotating it needs no restart.
                 properties:
                   key:
                     type: string

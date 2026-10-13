@@ -16,6 +16,8 @@ on:
       - ".github/workflows/docs-pages.yml"
   workflow_dispatch:
 
+permissions: {}
+
 # Let a queued Pages deploy finish rather than cancelling it mid-publish.
 concurrency:
   group: pages
@@ -24,6 +26,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       NEXT_PUBLIC_BASE_PATH: /weebo-authentik
     steps:

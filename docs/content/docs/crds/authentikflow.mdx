@@ -52,7 +52,7 @@ spec:
 | `layout` | `string` | no |  | Visual layout of the flow's pages. |
 | `name` | `string` | yes |  | Internal name of the flow. |
 | `policyEngineMode` | `string` | no |  | How the flow's bound policies are combined. Defaults to Authentik's own default (`any`) when unset. |
-| `slug` | `string` | yes |  | Visible in the URL and the identity every other CRD uses to reference this flow (`AuthentikBrand.flow*`, `Oauth2ProviderSpec.authorizationFlow`, …). Immutable in practice: changing it creates a new flow rather than renaming the old one. |
+| `slug` | `string` | yes |  | Visible in the URL and the identity every other CRD uses to reference this flow (`AuthentikBrand.flow*`, `Oauth2ProviderSpec.authorizationFlow`, …). Changing it renames the flow in place: every CR referencing it by the old slug must follow. |
 | `title` | `string` | yes |  | Title shown to users on the flow's pages. |
 
 ## Build a manifest

@@ -17,6 +17,18 @@ pub(super) fn map_err<T>(err: authentik_client::apis::Error<T>) -> GatewayError 
     GatewayError::Api(err.to_string())
 }
 
+/// For a call addressing the CR's own object by its recorded id (PATCH,
+/// retrieve): a 404 there means the object itself is gone
+/// (`GatewayError::Gone`), not a reference that doesn't resolve —
+/// references are resolved by name beforehand and a dangling pk in a
+/// request body is a 400.
+pub(super) fn map_own_err<T>(err: authentik_client::apis::Error<T>) -> GatewayError {
+    match map_err(err) {
+        GatewayError::NotFound(message) => GatewayError::Gone(message),
+        other => other,
+    }
+}
+
 /// Shared by every `delete_*` method: a 404 on delete means the object is
 /// already gone, which is success (idempotent delete), not a failure —
 /// same intent as `K8sSecretStore::delete`'s treatment of a 404 from the

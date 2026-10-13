@@ -3,7 +3,7 @@ use std::sync::Arc;
 use api::instance::{SecretKeyRef, TlsOptions};
 use application::ports::{AuthentikGateway, BoundInstance, GatewayFactory, GatewayFactoryError};
 use kube::{Client, ResourceExt};
-use weebo_kit_adapters::Resolved;
+use weebo_kit_adapters::{Resolved, TokenSecretError};
 
 use crate::authentik_http::AuthentikHttpGateway;
 use crate::instance_resolver::AuthentikInstances;
@@ -19,7 +19,11 @@ use crate::secret_ref::read_secret_key;
 /// built HTTP gateway is not cached — which is also what makes an edited
 /// `spec.tls` (or a rotated CA in its `caSecretRef` Secret) take effect on
 /// the next reconcile rather than on the next operator restart. A local
-/// instance's token and CA live in its own namespace.
+/// instance's token and CA live in its own namespace, and its token Secret
+/// must be labelled `authentik.weebo.io/instance-token: "true"`: the
+/// operator reads Secrets with its own rights, so without that consent
+/// whoever may create a local instance could send any Secret of the
+/// namespace to a URL of their choosing.
 pub struct AuthentikGatewayFactory {
     client: Client,
     instances: Arc<AuthentikInstances>,
@@ -30,6 +34,9 @@ struct Connection {
     url: String,
     token_secret_ref: SecretKeyRef,
     tls: TlsOptions,
+    /// An `AuthentikLocalInstance`: its token Secret needs the consent
+    /// label.
+    local: bool,
 }
 
 impl AuthentikGatewayFactory {
@@ -42,9 +49,13 @@ impl AuthentikGatewayFactory {
         instance: Connection,
     ) -> Result<Arc<dyn AuthentikGateway>, GatewayFactoryError> {
         let secret_ref = &instance.token_secret_ref;
-        let token_bytes = read_secret_key(&self.client, secret_ref, "secret")
-            .await
-            .map_err(GatewayFactoryError::ResolutionFailed)?;
+        let token_bytes = if instance.local {
+            read_local_token(&self.client, secret_ref).await?
+        } else {
+            read_secret_key(&self.client, secret_ref, "secret")
+                .await
+                .map_err(GatewayFactoryError::ResolutionFailed)?
+        };
         let token = String::from_utf8(token_bytes).map_err(|e| {
             GatewayFactoryError::ResolutionFailed(format!(
                 "secret {}/{} key {:?} is not valid utf-8: {e}",
@@ -138,6 +149,29 @@ fn cluster_connection(instance: &api::AuthentikInstance) -> Connection {
         url: instance.spec.url.clone(),
         token_secret_ref: instance.spec.token_secret_ref.clone(),
         tls: instance.spec.tls.clone(),
+        local: false,
+    }
+}
+
+/// A local instance's token, through the kit's consent check. Same
+/// messages as `read_secret_key` for a missing Secret or key.
+async fn read_local_token(
+    client: &Client,
+    secret_ref: &SecretKeyRef,
+) -> Result<Vec<u8>, GatewayFactoryError> {
+    match weebo_kit_adapters::read_local_instance_token(client, secret_ref, &api::ANNOTATIONS).await
+    {
+        Ok(Some(bytes)) => Ok(bytes),
+        Ok(None) => Err(GatewayFactoryError::ResolutionFailed(format!(
+            "secret {}/{} has no key {:?}",
+            secret_ref.namespace, secret_ref.name, secret_ref.key
+        ))),
+        Err(e @ TokenSecretError::NotAllowed { .. }) => {
+            Err(GatewayFactoryError::TokenNotAllowed(e.to_string()))
+        }
+        Err(TokenSecretError::Kubernetes(e)) => Err(GatewayFactoryError::ResolutionFailed(
+            format!("secret: {e}"),
+        )),
     }
 }
 
@@ -161,6 +195,7 @@ impl GatewayFactory for AuthentikGatewayFactory {
                     url: local.spec.url.clone(),
                     token_secret_ref: local.spec.token_secret_ref.in_namespace(&namespace),
                     tls: local.spec.tls.in_namespace(&namespace),
+                    local: true,
                 }
             }
         };

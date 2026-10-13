@@ -208,9 +208,9 @@ spec:
                     backend:
                       default: kubernetes
                       description: |-
-                        `kubernetes` (default) or `vault`. A Vault target reuses the
-                        connection (address, mount, auth) of the instance's
-                        `secretStore.vault`, which must then be set.
+                        `kubernetes` (default) or `vault`. A Vault target reuses the Vault
+                        connection (address, mount, auth) the instance configures, which it
+                        must then do.
                       enum:
                       - kubernetes
                       - vault
@@ -238,6 +238,10 @@ spec:
                   type: object
                 type: array
               slug:
+                description: |-
+                  The application's slug: its URL in Authentik and its identity there
+                  (`status.authentikId`). Changing it renames the application in
+                  place; its access policies follow.
                 type: string
             required:
             - instanceRef

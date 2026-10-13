@@ -11,11 +11,11 @@ use api::access_policy::AuthentikAccessPolicySpec;
 use api::application::{AuthentikApplicationSpec, ProviderKind, ProviderSpec, ProxyProviderSpec};
 use api::namespace_policy::{AuthentikNamespacePolicySpec, Effect, NamespaceRule, ResourceKind};
 use api::{AuthentikAccessPolicy, AuthentikApplication, AuthentikNamespacePolicy};
-use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
+use kube::api::{Api, DeleteParams, ObjectMeta, Patch, PatchParams, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 
 mod support;
-use support::{init_tracing, new_ctx, wait_for, wait_for_event};
+use support::{init_tracing, new_ctx, wait_for, wait_for_absence, wait_for_event};
 
 async fn wait_for_ready_status(
     api: &Api<AuthentikAccessPolicy>,
@@ -222,6 +222,30 @@ async fn syncs_the_binding_once_the_application_has_synced() {
     let (status, reason, authentik_id) = wait_for_ready_status(&policies, "harbor-access").await;
     assert_eq!(status, "True", "reason={reason}");
     assert_eq!(authentik_id.as_deref(), Some(binding_pk));
+
+    // Torn down together, the application first (the common case): the
+    // binding is still deleted, on the instance the policy recorded.
+    mock.mock_delete(&format!("/policies/bindings/{binding_pk}/"), 204)
+        .await;
+    apps.delete("harbor", &DeleteParams::default())
+        .await
+        .expect("deleting the application must succeed");
+    policies
+        .delete("harbor-access", &DeleteParams::default())
+        .await
+        .expect("deleting the policy must be accepted");
+    wait_for_absence(&policies, "harbor-access").await;
+    let deleted = mock
+        .server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .any(|r| {
+            r.method.as_str() == "DELETE"
+                && r.url.path() == format!("/api/v3/policies/bindings/{binding_pk}/")
+        });
+    assert!(deleted, "the binding is deleted from Authentik");
 }
 
 /// The reconciler re-checks the namespace policies, not only the webhook

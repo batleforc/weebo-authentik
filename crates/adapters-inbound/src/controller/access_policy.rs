@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
 use api::{AuthentikAccessPolicy, AuthentikApplication};
+use application::ports::BoundInstance;
 use application::use_cases::reconcile_access_policy::{
     application_ref_not_found, reconcile_access_policy,
 };
 use application::use_cases::{errored_from_factory_error, errored_from_instance_error};
+use domain::Failure;
 use domain::allow_list::ResourceKind;
+use domain::error::ReasonCode;
 use kube::api::Api;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
@@ -48,6 +51,8 @@ async fn apply(
     namespace: &str,
 ) -> Result<Action, Error> {
     let started = std::time::Instant::now();
+    let current = super::current(api, policy).await?;
+    let policy = &current;
     let authentik_id = policy.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     // Same-namespace lookup, never a cluster-wide client — this is the
@@ -124,31 +129,11 @@ async fn cleanup(
         .as_ref()
         .and_then(|s| s.authentik_id.as_deref())
     {
-        // The instance recorded in its status; else its application's,
-        // best-effort. If the application is already gone (common — an
-        // application and its access policies are often torn down
-        // together), fall back to the single default instance rather than
-        // blocking cleanup on a resolution that can no longer succeed.
-        let namespace = policy.namespace().unwrap_or_default();
-        let app_api: Api<AuthentikApplication> = Api::namespaced(ctx.client.clone(), &namespace);
-        let recorded = policy.status.as_ref().and_then(|s| s.instance.clone());
-        let bound = match recorded {
-            Some(bound) => Some(bound),
-            None => match app_api
-                .get_opt(&policy.spec.application_ref)
-                .await
-                .ok()
-                .flatten()
-            {
-                Some(application) => super::application_instance(ctx, &application).await.ok(),
-                None => None,
-            },
-        };
-        let gateway = match bound {
+        let gateway = match policy_instance(policy, ctx).await? {
             Some(bound) => ctx.gateway_factory.gateway_for(&bound).await,
             None => ctx.gateway_factory.default_gateway().await,
         }
-        .map_err(|e| Error::Gateway(e.to_string()))?;
+        .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
 
         gateway
             .delete_policy_binding(id)
@@ -157,4 +142,47 @@ async fn cleanup(
     }
     super::announce_deleted(&ctx.recorder, policy).await;
     Ok(Action::await_change())
+}
+
+/// The instance a policy's binding lives on: the one recorded in its
+/// status (every synced policy records it); else — a policy synced before
+/// the field existed — its application's. `None` (the single default
+/// instance) only when neither is known any more *and* the operator has
+/// cluster-scoped instances: an application whose instance can't be
+/// resolved, or an operator limited to local instances, has no default to
+/// guess, and deleting on the wrong instance would orphan the binding
+/// silently (a 404 there counts as already deleted).
+async fn policy_instance(
+    policy: &AuthentikAccessPolicy,
+    ctx: &Ctx,
+) -> Result<Option<BoundInstance>, Error> {
+    if let Some(recorded) = policy.status.as_ref().and_then(|s| s.instance.clone()) {
+        return Ok(Some(recorded));
+    }
+    let namespace = policy.namespace().unwrap_or_default();
+    let app_api: Api<AuthentikApplication> = Api::namespaced(ctx.client.clone(), &namespace);
+    if let Some(application) = app_api.get_opt(&policy.spec.application_ref).await? {
+        return match application.status.as_ref().and_then(|s| s.instance.clone()) {
+            Some(bound) => Ok(Some(bound)),
+            None => super::application_instance(ctx, &application)
+                .await
+                .map(Some)
+                .map_err(|e| Error::cleanup(errored_from_instance_error(e))),
+        };
+    }
+    if ctx.scope.cluster_kinds() {
+        return Ok(None);
+    }
+    Err(Error::Cleanup(Failure::new(
+        ReasonCode::InstanceRefNotFound,
+        format!(
+            "neither the status nor application {:?} says which instance holds binding {}",
+            policy.spec.application_ref,
+            policy
+                .status
+                .as_ref()
+                .and_then(|s| s.authentik_id.as_deref())
+                .unwrap_or_default()
+        ),
+    )))
 }

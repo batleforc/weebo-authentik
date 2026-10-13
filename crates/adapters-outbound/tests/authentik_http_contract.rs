@@ -350,13 +350,15 @@ async fn get_application_success_with_a_provider_extracts_its_id_and_kind() {
 }
 
 #[tokio::test]
-async fn get_application_not_found_maps_to_not_found() {
+async fn get_application_not_found_maps_to_gone() {
     let mock = AuthentikMock::start().await;
     mock.mock_get_application("missing", 404, serde_json::json!({"detail": "not found"}))
         .await;
 
+    // The application addressed by its recorded slug is gone — not a
+    // reference that doesn't resolve.
     let err = gateway(&mock).get_application("missing").await.unwrap_err();
-    assert!(matches!(err, GatewayError::NotFound(_)));
+    assert!(matches!(err, GatewayError::Gone(_)));
 }
 
 #[tokio::test]
@@ -803,4 +805,162 @@ async fn upsert_oauth2_provider_rejects_a_grant_type_the_client_cannot_express()
         ),
         other => panic!("expected GatewayError::Api, got {other:?}"),
     }
+}
+
+fn group_cr(parent_ref: Option<&str>) -> AuthentikGroup {
+    AuthentikGroup {
+        metadata: ObjectMeta {
+            name: Some("weebo-user".to_string()),
+            ..Default::default()
+        },
+        spec: AuthentikGroupSpec {
+            name: "weebo-user".to_string(),
+            is_superuser: false,
+            parent_ref: parent_ref.map(str::to_string),
+            attributes: Default::default(),
+        },
+        status: None,
+    }
+}
+
+#[tokio::test]
+async fn update_group_of_a_deleted_group_maps_to_gone() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_patch(
+        "/core/groups/11111111-1111-1111-1111-111111111111/",
+        404,
+        serde_json::json!({"detail": "No Group matches the given query."}),
+    )
+    .await;
+
+    let err = gateway(&mock)
+        .update_group("11111111-1111-1111-1111-111111111111", &group_cr(None))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, GatewayError::Gone(_)));
+}
+
+#[tokio::test]
+async fn update_group_with_an_unresolved_parent_maps_to_not_found() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_get("/core/groups/", 200, empty_paginated_list())
+        .await;
+
+    let err = gateway(&mock)
+        .update_group(
+            "11111111-1111-1111-1111-111111111111",
+            &group_cr(Some("missing-parent")),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(err, GatewayError::NotFound(_)));
+}
+
+fn outpost_json(pk: &str, name: &str, providers: &[i32]) -> serde_json::Value {
+    serde_json::json!({
+        "pk": pk, "name": name, "type": "proxy",
+        "providers": providers, "providers_obj": [],
+        "service_connection": null, "service_connection_obj": null,
+        "refresh_interval_s": 60, "token_identifier": "t",
+        "config": {}, "managed": null,
+    })
+}
+
+fn paginated(results: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "pagination": {
+            "next": 0, "previous": 0, "count": 1,
+            "current": 1, "total_pages": 1, "start_index": 1, "end_index": 1
+        },
+        "results": results,
+        "autocomplete": {}
+    })
+}
+
+#[tokio::test]
+async fn attach_outpost_moves_the_provider_off_any_other_outpost() {
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, ResponseTemplate};
+
+    let embedded = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    let custom = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    let mock = AuthentikMock::start().await;
+    // `outpostRef: custom` resolves by name…
+    Mock::given(method("GET"))
+        .and(path("/api/v3/outposts/instances/"))
+        .and(query_param("name__iexact", "custom"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(paginated(serde_json::json!([outpost_json(
+                custom,
+                "custom",
+                &[]
+            )]))),
+        )
+        .mount(&mock.server)
+        .await;
+    // …while the embedded outpost still holds provider 7.
+    Mock::given(method("GET"))
+        .and(path("/api/v3/outposts/instances/"))
+        .and(query_param("providers_by_pk", "7"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(paginated(serde_json::json!([outpost_json(
+                embedded,
+                "authentik Embedded Outpost",
+                &[3, 7]
+            )]))),
+        )
+        .mount(&mock.server)
+        .await;
+    mock.mock_get(
+        &format!("/outposts/instances/{embedded}/"),
+        200,
+        outpost_json(embedded, "authentik Embedded Outpost", &[3, 7]),
+    )
+    .await;
+    mock.mock_get(
+        &format!("/outposts/instances/{custom}/"),
+        200,
+        outpost_json(custom, "custom", &[]),
+    )
+    .await;
+    mock.mock_patch(
+        &format!("/outposts/instances/{embedded}/"),
+        200,
+        outpost_json(embedded, "authentik Embedded Outpost", &[3]),
+    )
+    .await;
+    mock.mock_patch(
+        &format!("/outposts/instances/{custom}/"),
+        200,
+        outpost_json(custom, "custom", &[7]),
+    )
+    .await;
+
+    gateway(&mock)
+        .attach_outpost(Some("custom"), "7")
+        .await
+        .unwrap();
+
+    let patches: Vec<(String, serde_json::Value)> = mock
+        .server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.method.as_str() == "PATCH")
+        .map(|r| (r.url.path().to_string(), r.body_json().unwrap()))
+        .collect();
+    assert_eq!(
+        patches,
+        vec![
+            (
+                format!("/api/v3/outposts/instances/{embedded}/"),
+                serde_json::json!({"providers": [3]})
+            ),
+            (
+                format!("/api/v3/outposts/instances/{custom}/"),
+                serde_json::json!({"providers": [7]})
+            ),
+        ]
+    );
 }

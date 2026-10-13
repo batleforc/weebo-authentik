@@ -19,8 +19,16 @@ pub enum GatewayError {
     /// `domain::error::ReasonCode::AuthentikObjectAlreadyExists`.
     #[error("object already exists in Authentik: {0}")]
     AlreadyExists(String),
+    /// Something the call *references* (a parent group, a flow, an
+    /// outpost…) doesn't resolve — never the object addressed by the
+    /// call's own `authentik_id`, which is [`GatewayError::Gone`].
     #[error("not found in Authentik: {0}")]
     NotFound(String),
+    /// The object addressed by the recorded `authentik_id` no longer
+    /// exists (deleted out of band): the CR is authoritative, so an update
+    /// recreates it and a cleanup counts it as already deleted.
+    #[error("no longer in Authentik: {0}")]
+    Gone(String),
     #[error("authentik API error: {0}")]
     Api(String),
 }
@@ -316,6 +324,11 @@ pub enum GatewayFactoryError {
     /// Maps to `domain::error::ReasonCode::InstanceResolutionFailed`.
     #[error("failed resolving AuthentikInstance: {0}")]
     ResolutionFailed(String),
+    /// An `AuthentikLocalInstance`'s token `Secret` lacks the consent label
+    /// (`authentik.weebo.io/instance-token: "true"`). Maps to
+    /// `domain::error::ReasonCode::InstanceTokenNotAllowed`.
+    #[error("{0}")]
+    TokenNotAllowed(String),
 }
 
 /// Produces an `AuthentikGateway` for a resolved instance — an

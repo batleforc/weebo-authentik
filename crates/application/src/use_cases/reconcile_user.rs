@@ -12,7 +12,11 @@ pub async fn reconcile_user(
     gateway: &dyn AuthentikGateway,
 ) -> ReconcileOutcome {
     let result = match authentik_id {
-        Some(id) => gateway.update_user(id, user).await.map(|()| id.to_string()),
+        // Deleted out of band: recreated, the CR is authoritative.
+        Some(id) => match gateway.update_user(id, user).await {
+            Err(GatewayError::Gone(_)) => gateway.create_user(user).await,
+            result => result.map(|()| id.to_string()),
+        },
         None => gateway.create_user(user).await,
     };
 
@@ -103,6 +107,20 @@ mod tests {
                 reason: ReasonCode::AuthentikObjectAlreadyExists,
                 ..
             }
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_user_deleted_out_of_band_is_recreated_not_a_group_ref() {
+        let gateway = FakeGateway {
+            update_result: Some(Err(GatewayError::Gone("user 3".to_string()))),
+            create_result: Some(Ok("4".to_string())),
+            ..Default::default()
+        };
+        let outcome = reconcile_user(&user("batleforc"), Some("3"), &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "4"
         ));
     }
 }

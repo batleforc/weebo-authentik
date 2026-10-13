@@ -1,7 +1,7 @@
 //! One-shot import: reads an existing Authentik instance's state and
 //! generates `AuthentikGroup`/`AuthentikUser`/`AuthentikFlow`/
-//! `AuthentikBrand`/`AuthentikOutpost`/`AuthentikApplication`/
-//! `AuthentikAccessPolicy` YAML for `weebo-authentik-operator` to adopt.
+//! `AuthentikScopeMapping`/`AuthentikBrand`/`AuthentikOutpost`/
+//! `AuthentikApplication`/`AuthentikAccessPolicy` YAML for `weebo-authentik-operator` to adopt.
 //! See `.prompt/plan.md`,
 //! "Route C — migration à parité" and "Trois routes possibles".
 //!
@@ -26,6 +26,7 @@ mod common;
 mod flows;
 mod groups;
 mod outposts;
+mod scope_mappings;
 mod users;
 
 use std::path::PathBuf;
@@ -55,8 +56,8 @@ struct Args {
     /// Namespace assigned to every `AuthentikApplication`/
     /// `AuthentikAccessPolicy` CR generated in this run — matches the
     /// "migration namespace par namespace" workflow from
-    /// `.prompt/plan.md`. Cluster-scoped kinds (Group/User/Brand/
-    /// Outpost) are regenerated every run regardless of this value.
+    /// `.prompt/plan.md`. Cluster-scoped kinds (Group/User/Flow/ScopeMapping/
+    /// Brand/Outpost) are regenerated every run regardless of this value.
     #[arg(long)]
     namespace: String,
     /// Optional comma-separated allow-list of application slugs to
@@ -148,6 +149,7 @@ async fn main() -> anyhow::Result<()> {
     let groups_by_pk = groups::import_groups(&configuration, &args.out).await?;
     users::import_users(&configuration, &args.out, &groups_by_pk).await?;
     let flows_by_pk = flows::import_flows(&configuration, &args.out).await?;
+    scope_mappings::import_scope_mappings(&configuration, &args.out).await?;
     brands::import_brands(&configuration, &args.out, &flows_by_pk).await?;
     let outposts = outposts::import_outposts(&configuration, &args.out).await?;
     let lookups = applications::ImportLookups {
