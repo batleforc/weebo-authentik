@@ -55,8 +55,9 @@ Hexagonal, split by crate:
   the `AuthentikGateway`/`SecretStore` port traits.
 - `crates/api` — the CRD types (`kube::CustomResource` derives).
 - `crates/adapters-inbound` — the kube.rs controllers + admission webhook.
-- `crates/adapters-outbound` — the real Authentik HTTP client, `K8sSecretStore`,
-  `VaultSecretStore`.
+- `crates/adapters-outbound` — the real Authentik HTTP client and the
+  secret store factory (the kit's `RoutingSecretStore` over its
+  Kubernetes and Vault stores).
 - `crates/operator` — the binary: wires everything, leader election, webhook TLS.
 - `crates/importer` — one-shot tool that reads a live Authentik instance and
   emits CRD YAML (migration path from the Terraform module this replaces).

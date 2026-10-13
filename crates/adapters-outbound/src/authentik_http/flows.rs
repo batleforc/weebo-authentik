@@ -7,7 +7,7 @@ use authentik_client::apis::flows_api;
 use authentik_client::models;
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err};
+use super::shared::{ignore_not_found, map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_flow_impl(
@@ -63,7 +63,7 @@ impl AuthentikHttpGateway {
         flows_api::flows_instances_partial_update(&self.configuration, authentik_id, Some(req))
             .await
             .map(|_| ())
-            .map_err(map_err)
+            .map_err(map_own_err)
     }
 
     pub(super) async fn delete_flow_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {

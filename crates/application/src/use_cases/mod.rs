@@ -40,7 +40,9 @@ pub(crate) fn errored_from_gateway_error(err: crate::ports::GatewayError) -> Rec
             reason: ReasonCode::AuthentikObjectAlreadyExists,
             message,
         },
-        GatewayError::NotFound(message) | GatewayError::Api(message) => ReconcileOutcome::Errored {
+        GatewayError::NotFound(message)
+        | GatewayError::Gone(message)
+        | GatewayError::Api(message) => ReconcileOutcome::Errored {
             reason: ReasonCode::AuthentikApiError,
             message,
         },

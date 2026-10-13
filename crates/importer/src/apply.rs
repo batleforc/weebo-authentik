@@ -9,7 +9,7 @@ use std::path::Path;
 
 use api::{
     AuthentikAccessPolicy, AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup,
-    AuthentikOutpost, AuthentikStatus, AuthentikUser,
+    AuthentikOutpost, AuthentikScopeMapping, AuthentikStatus, AuthentikUser,
 };
 use kube::api::Api;
 use kube::{Client, Resource, ResourceExt};
@@ -29,6 +29,7 @@ const ORDER: &[&str] = &[
     "authentikgroup",
     "authentikuser",
     "authentikflow",
+    "authentikscopemapping",
     "authentikbrand",
     "authentikoutpost",
     "authentikapplication",
@@ -61,7 +62,7 @@ macro_rules! seeded {
         Api::namespaced($client, $ns.unwrap_or("default"))
     };
 }
-seeded!(cluster: AuthentikGroup, AuthentikUser, AuthentikFlow, AuthentikBrand, AuthentikOutpost);
+seeded!(cluster: AuthentikGroup, AuthentikUser, AuthentikFlow, AuthentikScopeMapping, AuthentikBrand, AuthentikOutpost);
 seeded!(namespaced: AuthentikApplication, AuthentikAccessPolicy);
 
 async fn adopt<K: Seeded>(client: &Client, cr: &K, force: bool) -> Result<Adoption, String> {
@@ -112,6 +113,9 @@ pub async fn apply_dir(client: &Client, dir: &Path, force: bool) -> anyhow::Resu
                 "authentikgroup" => adopt_file::<AuthentikGroup>(client, &yaml, force).await,
                 "authentikuser" => adopt_file::<AuthentikUser>(client, &yaml, force).await,
                 "authentikflow" => adopt_file::<AuthentikFlow>(client, &yaml, force).await,
+                "authentikscopemapping" => {
+                    adopt_file::<AuthentikScopeMapping>(client, &yaml, force).await
+                }
                 "authentikbrand" => adopt_file::<AuthentikBrand>(client, &yaml, force).await,
                 "authentikoutpost" => adopt_file::<AuthentikOutpost>(client, &yaml, force).await,
                 "authentikapplication" => {
@@ -138,6 +142,7 @@ mod tests {
             "authentikgroup",
             "authentikuser",
             "authentikflow",
+            "authentikscopemapping",
             "authentikbrand",
             "authentikoutpost",
             "authentikapplication",

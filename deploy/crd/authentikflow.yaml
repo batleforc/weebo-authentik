@@ -113,8 +113,8 @@ spec:
                 description: |-
                   Visible in the URL and the identity every other CRD uses to
                   reference this flow (`AuthentikBrand.flow*`,
-                  `Oauth2ProviderSpec.authorizationFlow`, …). Immutable in practice:
-                  changing it creates a new flow rather than renaming the old one.
+                  `Oauth2ProviderSpec.authorizationFlow`, …). Changing it renames the
+                  flow in place: every CR referencing it by the old slug must follow.
                 type: string
               title:
                 description: Title shown to users on the flow's pages.

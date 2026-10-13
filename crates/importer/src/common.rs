@@ -1,5 +1,6 @@
-//! Helpers shared by 5 of the importer's 6 non-entrypoint modules
-//! (`applications`, `brands`, `groups`, `outposts`, `users`).
+//! Helpers shared by the importer's per-kind modules
+//! (`applications`, `brands`, `flows`, `groups`, `outposts`,
+//! `scope_mappings`, `users`).
 
 use std::path::Path;
 

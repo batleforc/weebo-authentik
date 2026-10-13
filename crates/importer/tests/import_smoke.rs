@@ -6,7 +6,10 @@
 
 use std::process::Command;
 
-use api::{AuthentikAccessPolicy, AuthentikApplication, AuthentikGroup, AuthentikUser};
+use api::{
+    AuthentikAccessPolicy, AuthentikApplication, AuthentikGroup, AuthentikScopeMapping,
+    AuthentikUser,
+};
 use testkit::authentik_mock::AuthentikMock;
 
 fn paginated(results: serde_json::Value) -> serde_json::Value {
@@ -92,6 +95,33 @@ async fn import_generates_valid_crds_with_authentik_id() {
             "export_url": "", "layout": "stacked", "denied_action": "message_continue",
             "authentication": "require_authenticated",
         }])),
+    )
+    .await;
+
+    // `managed__isnull=true` is what the importer asks for; a built-in one
+    // returned anyway is still left out.
+    let mapping_pk = "66666666-6666-6666-6666-666666666666";
+    mock.mock_get(
+        "/propertymappings/provider/scope/",
+        200,
+        paginated(serde_json::json!([
+            {
+                "pk": mapping_pk, "managed": null, "name": "rustfs groups",
+                "expression": "return {}", "component": "ak-property-mapping-provider-scope-form",
+                "verbose_name": "Scope Mapping", "verbose_name_plural": "Scope Mappings",
+                "meta_model_name": "authentik_providers_oauth2.scopemapping",
+                "scope_name": "groups", "description": "",
+            },
+            {
+                "pk": "77777777-7777-7777-7777-777777777777",
+                "managed": "goauthentik.io/providers/oauth2/scope-profile",
+                "name": "authentik default OAuth Mapping: OpenID 'profile'",
+                "expression": "return {}", "component": "ak-property-mapping-provider-scope-form",
+                "verbose_name": "Scope Mapping", "verbose_name_plural": "Scope Mappings",
+                "meta_model_name": "authentik_providers_oauth2.scopemapping",
+                "scope_name": "profile", "description": "General Profile Information",
+            },
+        ])),
     )
     .await;
 
@@ -190,6 +220,25 @@ async fn import_generates_valid_crds_with_authentik_id() {
     .unwrap();
     assert_eq!(user_cr.spec.username, "alice");
     assert_eq!(user_cr.spec.group_refs, vec!["weebo-user".to_string()]);
+
+    let mapping_cr: AuthentikScopeMapping = serde_norway::from_str(
+        &std::fs::read_to_string(dir.join("authentikscopemapping-rustfs-groups.yaml")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(mapping_cr.spec.scope_name, "groups");
+    assert_eq!(mapping_cr.spec.description, None);
+    assert_eq!(
+        mapping_cr
+            .status
+            .as_ref()
+            .and_then(|s| s.authentik_id.clone()),
+        Some(mapping_pk.to_string())
+    );
+    assert!(
+        !dir.join("authentikscopemapping-authentik-default-oauth-mapping-openid-profile.yaml")
+            .exists(),
+        "a built-in mapping is not imported"
+    );
 
     let app_cr: AuthentikApplication = serde_norway::from_str(
         &std::fs::read_to_string(dir.join("authentikapplication-harbor.yaml")).unwrap(),

@@ -47,6 +47,8 @@ async fn apply(
 ) -> Result<Action, Error> {
     let name = brand.name_any();
     let started = std::time::Instant::now();
+    let current = super::current(api, brand).await?;
+    let brand = &current;
     let authentik_id = brand.status.as_ref().and_then(|s| s.authentik_id.clone());
     let this = to_input(&name, brand);
 
@@ -106,7 +108,7 @@ async fn cleanup(brand: &AuthentikBrand, ctx: &Ctx) -> Result<Action, Error> {
             .gateway_factory
             .default_gateway()
             .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+            .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
         gateway
             .delete_brand(id)
             .await

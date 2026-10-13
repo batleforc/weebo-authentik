@@ -38,6 +38,8 @@ async fn reconcile(obj: Arc<AuthentikUser>, ctx: Arc<Ctx>) -> Result<Action, Err
 }
 
 async fn apply(api: &Api<AuthentikUser>, user: &AuthentikUser, ctx: &Ctx) -> Result<Action, Error> {
+    let current = super::current(api, user).await?;
+    let user = &current;
     let authentik_id = user.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let started = std::time::Instant::now();
@@ -62,7 +64,7 @@ async fn cleanup(
             .gateway_factory
             .default_gateway()
             .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+            .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
         gateway
             .delete_user(id)
             .await

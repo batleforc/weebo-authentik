@@ -12,11 +12,11 @@ use api::application::{
     ProxyProviderSpec,
 };
 use k8s_openapi::api::core::v1::Secret;
-use kube::api::{Api, ObjectMeta, PostParams};
+use kube::api::{Api, DeleteParams, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 
 mod support;
-use support::{init_tracing, new_ctx, wait_for};
+use support::{init_tracing, new_ctx, wait_for, wait_for_absence};
 
 /// Serves both the authorization_flow and invalidation_flow lookups: a
 /// wiremock `path()` match ignores the query string, so one canned
@@ -270,4 +270,179 @@ async fn proxy_application_syncs_id_attaches_outpost_and_writes_no_secret() {
         matches!(result, Err(kube::Error::Api(ref e)) if e.code == 404),
         "a proxy provider must never get a credentials Secret written, got {result:?}"
     );
+}
+
+/// The mocks a proxy application `longhorn` needs to sync (provider 43,
+/// attached to the embedded outpost).
+async fn mount_proxy_sync(mock: &AuthentikMock) {
+    mock.mock_get("/flows/instances/", 200, flows_list()).await;
+    mock.mock_post(
+        "/providers/proxy/",
+        201,
+        serde_json::json!({
+            "pk": 43, "name": "longhorn", "component": "ak-provider-proxy-form",
+            "authorization_flow": "d0000000-0000-0000-0000-000000000001",
+            "invalidation_flow": "d0000000-0000-0000-0000-000000000002",
+            "assigned_application_slug": null, "assigned_application_name": null,
+            "assigned_backchannel_application_slug": null, "assigned_backchannel_application_name": null,
+            "verbose_name": "Proxy Provider", "verbose_name_plural": "Proxy Providers",
+            "meta_model_name": "authentik_providers_proxy.proxyprovider",
+            "client_id": "embedded-outpost-client-id", "external_host": "https://longhorn.example.com",
+            "redirect_uris": [], "outpost_set": [],
+        }),
+    )
+    .await;
+    mock.mock_post(
+        "/core/applications/",
+        201,
+        serde_json::json!({
+            "pk": "66666666-6666-6666-6666-666666666666", "name": "Longhorn", "slug": "longhorn",
+            "provider_obj": null, "backchannel_providers_obj": [],
+            "launch_url": null, "meta_icon_url": null, "meta_icon_themed_urls": null,
+        }),
+    )
+    .await;
+    let outpost_pk = "77777777-aaaa-bbbb-cccc-ddddddddddd0";
+    let outpost = serde_json::json!({
+        "pk": outpost_pk, "name": "authentik Embedded Outpost", "type": "proxy",
+        "providers": [43], "providers_obj": [], "service_connection_obj": null,
+        "refresh_interval_s": 86400, "token_identifier": "tok", "config": {},
+    });
+    mock.mock_get(
+        "/outposts/instances/",
+        200,
+        serde_json::json!({
+            "pagination": {"next": 0, "previous": 0, "count": 1, "current": 1, "total_pages": 1, "start_index": 1, "end_index": 1},
+            "results": [outpost.clone()],
+            "autocomplete": {}
+        }),
+    )
+    .await;
+    mock.mock_get(&format!("/outposts/instances/{outpost_pk}/"), 200, outpost)
+        .await;
+}
+
+fn proxy_application() -> AuthentikApplication {
+    AuthentikApplication {
+        metadata: ObjectMeta {
+            name: Some("longhorn".to_string()),
+            namespace: Some("default".to_string()),
+            ..Default::default()
+        },
+        spec: AuthentikApplicationSpec {
+            instance_ref: api::application::InstanceRef::named("prod"),
+            name: "Longhorn".to_string(),
+            slug: "longhorn".to_string(),
+            meta_icon: None,
+            provider: ProviderSpec {
+                kind: ProviderKind::Proxy,
+                oauth2: None,
+                proxy: Some(ProxyProviderSpec {
+                    internal_host: "http://longhorn.internal".to_string(),
+                    external_host: "https://longhorn.example.com".to_string(),
+                    authorization_flow: "default-authorization-flow".to_string(),
+                    invalidation_flow: "default-invalidation-flow".to_string(),
+                    outpost_ref: None,
+                }),
+            },
+            secret_targets: Vec::new(),
+        },
+        status: None,
+    }
+}
+
+async fn deletes(mock: &AuthentikMock) -> Vec<String> {
+    mock.server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.method.as_str() == "DELETE")
+        .map(|r| r.url.path().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn deleting_an_application_deletes_its_provider_then_the_application() {
+    init_tracing();
+
+    let cluster = testkit::envtest::start().await;
+    let client = cluster.client();
+    let mock = AuthentikMock::start().await;
+    mount_proxy_sync(&mock).await;
+    mock.mock_get_application(
+        "longhorn",
+        200,
+        serde_json::json!({
+            "pk": "66666666-6666-6666-6666-666666666666", "name": "Longhorn", "slug": "longhorn",
+            "provider": 43,
+            "provider_obj": {
+                "pk": 43, "name": "longhorn", "authentication_flow": null,
+                "authorization_flow": "d0000000-0000-0000-0000-000000000001",
+                "invalidation_flow": "d0000000-0000-0000-0000-000000000002",
+                "property_mappings": null, "component": "ak-provider-proxy-form",
+                "assigned_application_slug": "longhorn", "assigned_application_name": "Longhorn",
+                "assigned_backchannel_application_slug": null,
+                "assigned_backchannel_application_name": null,
+                "verbose_name": "Proxy Provider", "verbose_name_plural": "Proxy Providers",
+                "meta_model_name": "authentik_providers_proxy.proxyprovider",
+            },
+            "backchannel_providers_obj": [],
+            "launch_url": null, "meta_icon_url": null, "meta_icon_themed_urls": null,
+        }),
+    )
+    .await;
+    mock.mock_delete("/providers/proxy/43/", 204).await;
+    mock.mock_delete("/core/applications/longhorn/", 204).await;
+
+    let ctx = new_ctx(client.clone(), &mock);
+    tokio::spawn(controller::app::run(client.clone(), ctx));
+
+    let apps: Api<AuthentikApplication> = Api::namespaced(client.clone(), "default");
+    apps.create(&PostParams::default(), &proxy_application())
+        .await
+        .expect("AuthentikApplication CR create must succeed");
+    wait_for_authentik_id(&apps, "longhorn").await;
+
+    apps.delete("longhorn", &DeleteParams::default())
+        .await
+        .expect("deleting the application must be accepted");
+    wait_for_absence(&apps, "longhorn").await;
+
+    assert_eq!(
+        deletes(&mock).await,
+        vec![
+            "/api/v3/providers/proxy/43/".to_string(),
+            "/api/v3/core/applications/longhorn/".to_string(),
+        ]
+    );
+}
+
+/// Deleted by hand in Authentik: the CR is still released (nothing left to
+/// delete there), not stuck in Terminating behind a 404.
+#[tokio::test]
+async fn an_application_deleted_out_of_band_is_still_released() {
+    init_tracing();
+
+    let cluster = testkit::envtest::start().await;
+    let client = cluster.client();
+    let mock = AuthentikMock::start().await;
+    mount_proxy_sync(&mock).await;
+    mock.mock_get_application("longhorn", 404, serde_json::json!({"detail": "Not found."}))
+        .await;
+
+    let ctx = new_ctx(client.clone(), &mock);
+    tokio::spawn(controller::app::run(client.clone(), ctx));
+
+    let apps: Api<AuthentikApplication> = Api::namespaced(client.clone(), "default");
+    apps.create(&PostParams::default(), &proxy_application())
+        .await
+        .expect("AuthentikApplication CR create must succeed");
+    wait_for_authentik_id(&apps, "longhorn").await;
+
+    apps.delete("longhorn", &DeleteParams::default())
+        .await
+        .expect("deleting the application must be accepted");
+    wait_for_absence(&apps, "longhorn").await;
+    assert!(deletes(&mock).await.is_empty());
 }

@@ -50,28 +50,22 @@ pub async fn reconcile_access_policy(
         };
     };
 
+    let upsert = |id| {
+        gateway.upsert_policy_binding(
+            id,
+            application_authentik_id,
+            &policy.spec.group_ref,
+            policy.spec.order,
+            policy.spec.negate,
+        )
+    };
     let result = match authentik_id {
-        Some(id) => gateway
-            .upsert_policy_binding(
-                Some(id),
-                application_authentik_id,
-                &policy.spec.group_ref,
-                policy.spec.order,
-                policy.spec.negate,
-            )
-            .await
-            .map(|_| id.to_string()),
-        None => {
-            gateway
-                .upsert_policy_binding(
-                    None,
-                    application_authentik_id,
-                    &policy.spec.group_ref,
-                    policy.spec.order,
-                    policy.spec.negate,
-                )
-                .await
-        }
+        // Deleted out of band: recreated, the CR is authoritative.
+        Some(id) => match upsert(Some(id)).await {
+            Err(GatewayError::Gone(_)) => upsert(None).await,
+            result => result.map(|_| id.to_string()),
+        },
+        None => upsert(None).await,
     };
 
     match result {
@@ -218,6 +212,25 @@ mod tests {
                 reason: ReasonCode::GroupRefNotFound,
                 ..
             }
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_binding_deleted_out_of_band_is_recreated() {
+        let app = application(Some("harbor"));
+        let gateway = FakeGateway::default();
+        gateway
+            .upsert_policy_binding_sequence
+            .lock()
+            .unwrap()
+            .extend([
+                Err(GatewayError::Gone("binding".to_string())),
+                Ok("new-binding".to_string()),
+            ]);
+        let outcome = reconcile_access_policy(&policy(), &app, Some("old-binding"), &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "new-binding"
         ));
     }
 }

@@ -327,6 +327,18 @@ delete-recreate par défaut.
   plutôt que de recréer silencieusement.
 - Tout le reste (redirect URIs, meta_icon, flows référencés, policy
   binding order, etc.) reste du PATCH in-place.
+- Objet supprimé hors opérateur (404 sur l'objet adressé par
+  `authentikId`, distinct d'un 404 sur une référence) : la CR étant
+  autoritative, il est recréé au reconcile suivant, et le cleanup du
+  finalizer le compte comme déjà supprimé. Un changement de `slug`
+  (application, flow) est un PATCH : l'`authentikId` enregistré suit le
+  nouveau slug.
+- Un provider créé par un reconcile dont la création/mise à jour de
+  l'application échoue est supprimé aussitôt (le status n'enregistre pas
+  d'id de provider : sinon chaque nouvel essai en créerait un autre).
+- Le finalizer d'une `AuthentikInstance`/`AuthentikLocalInstance` attend
+  qu'aucune CR n'y soit plus liée (`InstanceInUse`) : leurs propres
+  cleanups en ont besoin.
 
 ## Sécurité opérationnelle & déploiement
 
@@ -379,9 +391,10 @@ destination de `AuthentikInstance.spec.secretStore`). La cible Vault
 réutilise la *connexion* Vault de l'instance (adresse, mount, auth) — elle
 ne choisit que le chemin sous ce mount ; l'instance doit donc porter un
 bloc `secretStore.vault` même si son `backend` par défaut est
-`kubernetes`. Adapter : `secret_fanout.rs` (`FanOutSecretStore`), câblé
-par `AuthentikSecretStoreFactory` qui reçoit désormais l'`AuthentikApplication`
-entière (plus seulement l'`instanceRef`).
+`kubernetes`. Adapter : le `RoutingSecretStore` du kit
+(weebo-operator-kit, `weebo-kit-adapters`), construit par instance par
+`AuthentikSecretStoreFactory` ; chaque cible est routée vers son backend
+au moment de l'écriture.
 
 **Blockers migration (documentés, ordre harbor → s3 → argo → che → vault
 choisi autour d'eux)** :
@@ -415,7 +428,8 @@ choisi autour d'eux)** :
 - `adapters/inbound` : `Controller` kube.rs par CRD (finalizers + status
   conditions), webhook d'admission (`axum`), bootstrap otel.
 - `adapters/outbound` : `AuthentikHttpGateway` (wrap `authentik-client`),
-  `K8sSecretStore`, `VaultSecretStore`.
+  `AuthentikSecretStoreFactory` (le `RoutingSecretStore` du kit, qui
+  porte les backends `K8sSecretStore`/`VaultSecretStore` du kit).
 - Génération CRD : crate binaire `crdgen` (Rust, via
   `CustomResourceExt::crd()`), invoquée directement par `task recu`
   (placeholder déjà présent dans `Taskfile.yaml`) — pas de couche

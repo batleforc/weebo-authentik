@@ -5,6 +5,9 @@
 //! real `wiremock`/`envtest` I/O for layers 2-3): these tests must stay
 //! synchronous-fast and dependency-free, not spin up a mock HTTP server.
 
+use std::collections::VecDeque;
+use std::sync::Mutex;
+
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{
     AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
@@ -30,6 +33,15 @@ pub struct FakeGateway {
     pub upsert_oauth2_provider_result: Option<Result<Oauth2ProviderUpsertResult, GatewayError>>,
     pub upsert_proxy_provider_result: Option<Result<String, GatewayError>>,
     pub attach_outpost_result: Option<Result<(), GatewayError>>,
+    pub get_default_brand_result: Option<Result<Option<String>, GatewayError>>,
+    /// Every `set_brand_default(id, default)` call, in order (always `Ok`).
+    pub set_brand_default_calls: Mutex<Vec<(String, bool)>>,
+    /// Every `delete_provider` call's provider id, in order.
+    pub deleted_providers: Mutex<Vec<i32>>,
+    /// Consumed first, in order, by `upsert_policy_binding` — for a test
+    /// scripting a sequence (a `Gone` then the recreate) — before falling
+    /// back to `upsert_policy_binding_result`.
+    pub upsert_policy_binding_sequence: Mutex<VecDeque<Result<String, GatewayError>>>,
 }
 
 impl FakeGateway {
@@ -97,9 +109,10 @@ impl AuthentikGateway for FakeGateway {
     }
     async fn delete_provider(
         &self,
-        _authentik_id: i32,
+        authentik_id: i32,
         _kind: ProviderKind,
     ) -> Result<(), GatewayError> {
+        self.deleted_providers.lock().unwrap().push(authentik_id);
         self.delete_provider_result
             .clone()
             .expect("test did not script a delete_provider response on FakeGateway")
@@ -201,14 +214,20 @@ impl AuthentikGateway for FakeGateway {
         unimplemented!("delete_brand not scripted on FakeGateway")
     }
     async fn get_default_brand(&self) -> Result<Option<String>, GatewayError> {
-        unimplemented!("get_default_brand not scripted on FakeGateway")
+        self.get_default_brand_result
+            .clone()
+            .expect("test did not script a get_default_brand response on FakeGateway")
     }
     async fn set_brand_default(
         &self,
-        _authentik_id: &str,
-        _default: bool,
+        authentik_id: &str,
+        default: bool,
     ) -> Result<(), GatewayError> {
-        unimplemented!("set_brand_default not scripted on FakeGateway")
+        self.set_brand_default_calls
+            .lock()
+            .unwrap()
+            .push((authentik_id.to_string(), default));
+        Ok(())
     }
 
     async fn upsert_oauth2_provider(
@@ -241,6 +260,14 @@ impl AuthentikGateway for FakeGateway {
         _order: i32,
         _negate: bool,
     ) -> Result<String, GatewayError> {
+        if let Some(next) = self
+            .upsert_policy_binding_sequence
+            .lock()
+            .unwrap()
+            .pop_front()
+        {
+            return next;
+        }
         self.upsert_policy_binding_result
             .clone()
             .expect("test did not script an upsert_policy_binding response on FakeGateway")

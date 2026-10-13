@@ -1,6 +1,6 @@
 use api::AuthentikFlow;
 
-use crate::ports::AuthentikGateway;
+use crate::ports::{AuthentikGateway, GatewayError};
 use crate::use_cases::{ReconcileOutcome, errored_from_gateway_error};
 
 /// A flow is a leaf resource — it references no other CRD — so this is the
@@ -15,7 +15,13 @@ pub async fn reconcile_flow(
     gateway: &dyn AuthentikGateway,
 ) -> ReconcileOutcome {
     let result = match authentik_id {
-        Some(id) => gateway.update_flow(id, flow).await.map(|()| id.to_string()),
+        // The PATCH carries `spec.slug`, and flows are slug-keyed: the
+        // recorded id follows a slug change. Deleted out of band: recreated,
+        // the CR is authoritative.
+        Some(id) => match gateway.update_flow(id, flow).await {
+            Err(GatewayError::Gone(_)) => gateway.create_flow(flow).await,
+            result => result.map(|()| flow.spec.slug.clone()),
+        },
         None => gateway.create_flow(flow).await,
     };
 
@@ -89,6 +95,30 @@ mod tests {
                 reason: ReasonCode::AuthentikObjectAlreadyExists,
                 ..
             }
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_slug_change_moves_the_recorded_id_to_the_new_slug() {
+        let gateway = FakeGateway::update(Ok(()));
+        let outcome = reconcile_flow(&flow("device-code-v2"), Some("device-code"), &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "device-code-v2"
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_flow_deleted_out_of_band_is_recreated() {
+        let gateway = FakeGateway {
+            update_result: Some(Err(GatewayError::Gone("flow".to_string()))),
+            create_result: Some(Ok("device-code".to_string())),
+            ..Default::default()
+        };
+        let outcome = reconcile_flow(&flow("device-code"), Some("device-code"), &gateway).await;
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "device-code"
         ));
     }
 }

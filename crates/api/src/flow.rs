@@ -33,8 +33,8 @@ use crate::status::AuthentikStatus;
 pub struct AuthentikFlowSpec {
     /// Visible in the URL and the identity every other CRD uses to
     /// reference this flow (`AuthentikBrand.flow*`,
-    /// `Oauth2ProviderSpec.authorizationFlow`, …). Immutable in practice:
-    /// changing it creates a new flow rather than renaming the old one.
+    /// `Oauth2ProviderSpec.authorizationFlow`, …). Changing it renames the
+    /// flow in place: every CR referencing it by the old slug must follow.
     pub slug: String,
     /// Internal name of the flow.
     pub name: String,

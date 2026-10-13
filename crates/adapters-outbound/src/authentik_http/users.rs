@@ -4,7 +4,7 @@ use authentik_client::apis::core_api;
 use authentik_client::models;
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, parse_i32};
+use super::shared::{ignore_not_found, map_err, map_own_err, parse_i32};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_user_impl(
@@ -58,7 +58,7 @@ impl AuthentikHttpGateway {
         core_api::core_users_partial_update(&self.configuration, id, Some(req))
             .await
             .map(|_| ())
-            .map_err(map_err)
+            .map_err(map_own_err)
     }
 
     pub(super) async fn delete_user_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {

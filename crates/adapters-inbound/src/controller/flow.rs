@@ -3,10 +3,10 @@ use std::sync::Arc;
 use api::AuthentikFlow;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_flow::reconcile_flow;
+use kube::Client;
 use kube::api::Api;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::{Client, ResourceExt};
 
 use super::{Ctx, Error, FINALIZER, error_policy};
 
@@ -38,12 +38,8 @@ async fn reconcile(obj: Arc<AuthentikFlow>, ctx: Arc<Ctx>) -> Result<Action, Err
 }
 
 async fn apply(api: &Api<AuthentikFlow>, flow: &AuthentikFlow, ctx: &Ctx) -> Result<Action, Error> {
-    let name = flow.name_any();
-    // Re-fetched from the API server rather than trusted from the watch
-    // cache, for the same reason spelled out in `controller/group.rs`: a
-    // stale cached `authentik_id: None` right after a create would trigger
-    // a spurious second create the gateway can never recover from.
-    let current = api.get(&name).await?;
+    // Fresh from the API server, not the watch cache: see `super::current`.
+    let current = super::current(api, flow).await?;
     let authentik_id = current.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let started = std::time::Instant::now();
@@ -68,7 +64,7 @@ async fn cleanup(
             .gateway_factory
             .default_gateway()
             .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+            .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
         gateway
             .delete_flow(id)
             .await

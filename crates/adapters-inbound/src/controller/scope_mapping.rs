@@ -3,10 +3,10 @@ use std::sync::Arc;
 use api::AuthentikScopeMapping;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_scope_mapping::reconcile_scope_mapping;
+use kube::Client;
 use kube::api::Api;
 use kube::runtime::controller::Action;
 use kube::runtime::finalizer::{Event as FinalizerEvent, finalizer};
-use kube::{Client, ResourceExt};
 
 use super::{Ctx, Error, FINALIZER, error_policy};
 
@@ -42,19 +42,8 @@ async fn apply(
     mapping: &AuthentikScopeMapping,
     ctx: &Ctx,
 ) -> Result<Action, Error> {
-    let name = mapping.name_any();
-    // Re-fetched directly from the API server rather than trusted from
-    // `mapping` (sourced from kube-runtime's local watch cache): reconciles
-    // for one object are serialized, but the watch event carrying a
-    // *previous* reconcile's `patch_synced_status` can still be in flight
-    // when this one starts (e.g. right behind the finalizer-add patch),
-    // so a cached `authentik_id: None` here would be stale and trigger a
-    // spurious second `create_scope_mapping` — which the gateway can never
-    // recover from (see `ports.rs`, "never a silent adopt"). Confirmed in
-    // practice: without this, the finalizer-add-triggered reconcile that
-    // immediately follows a successful create still reads a stale
-    // `None` and re-creates, colliding with the object it just made.
-    let current = api.get(&name).await?;
+    // Fresh from the API server, not the watch cache: see `super::current`.
+    let current = super::current(api, mapping).await?;
     let authentik_id = current.status.as_ref().and_then(|s| s.authentik_id.clone());
 
     let started = std::time::Instant::now();
@@ -98,7 +87,7 @@ async fn cleanup(
             .gateway_factory
             .default_gateway()
             .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+            .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
         gateway
             .delete_scope_mapping(id)
             .await

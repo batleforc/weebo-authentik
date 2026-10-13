@@ -60,6 +60,10 @@ weebo_kit_domain::reason_codes! {
         /// the one recorded in `status.instance`: not followed until
         /// `spec.instanceRef.kind` says which.
         InstanceBindingChanged,
+        /// An `AuthentikInstance`/`AuthentikLocalInstance` being deleted still
+        /// has CRs bound to it: their own cleanups need it, so its finalizer
+        /// waits until they are gone.
+        InstanceInUse,
         /// An update would take a CR still carrying the finalizer out of the
         /// operator's label selector (`watch.labelSelector`): refused at
         /// admission.
@@ -131,7 +135,7 @@ mod tests {
     #[test]
     fn every_code_is_pascal_case() {
         weebo_kit_domain::reason::assert_pascal_case(ReasonCode::ALL);
-        assert_eq!(ReasonCode::ALL.len(), 23);
+        assert_eq!(ReasonCode::ALL.len(), 24);
     }
 
     #[test]

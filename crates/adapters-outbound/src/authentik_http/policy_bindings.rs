@@ -3,7 +3,7 @@ use authentik_client::apis::{core_api, policies_api};
 use authentik_client::models;
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err};
+use super::shared::{ignore_not_found, map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn upsert_policy_binding_impl(
@@ -14,10 +14,17 @@ impl AuthentikHttpGateway {
         order: i32,
         negate: bool,
     ) -> Result<String, GatewayError> {
+        // The application this binding targets, by the slug its CR
+        // recorded: a 404 is neither the binding gone nor its group ref.
         let target =
             core_api::core_applications_retrieve(&self.configuration, application_authentik_id)
                 .await
-                .map_err(map_err)?
+                .map_err(|e| match map_err(e) {
+                    GatewayError::NotFound(_) => GatewayError::Api(format!(
+                        "application {application_authentik_id:?} not found in Authentik"
+                    )),
+                    other => other,
+                })?
                 .pk;
         let group = self.resolve_group_by_name(group_name).await?;
 
@@ -53,7 +60,7 @@ impl AuthentikHttpGateway {
                 };
                 policies_api::policies_bindings_partial_update(&self.configuration, id, Some(req))
                     .await
-                    .map_err(map_err)?
+                    .map_err(map_own_err)?
                     .pk
             }
         };

@@ -150,15 +150,16 @@ async fn try_reconcile_application(
     // The CR's status never stores the provider's own id (only the
     // application's) — on update, the current provider FK is read back
     // off the live Authentik application so the right provider gets
-    // patched in place rather than a new one created.
-    let existing = match authentik_id {
-        Some(id) => Some(
-            gateway
-                .get_application(id)
-                .await
-                .map_err(errored_from_gateway_error)?,
-        ),
-        None => None,
+    // patched in place rather than a new one created. An application
+    // deleted out of band is recreated (the CR is authoritative): from
+    // here on, as on a first reconcile.
+    let (authentik_id, existing) = match authentik_id {
+        Some(id) => match gateway.get_application(id).await {
+            Ok(remote) => (Some(id), Some(remote)),
+            Err(GatewayError::Gone(_)) => (None, None),
+            Err(e) => return Err(errored_from_gateway_error(e)),
+        },
+        None => (None, None),
     };
     let existing_meta_model_name = existing
         .as_ref()
@@ -213,6 +214,11 @@ async fn try_reconcile_application(
             .map(|n| n.to_string())
     };
 
+    // A provider created by this reconcile (none recorded, or the old kind
+    // just deleted) is deleted again if the application can't be created
+    // or updated to point at it: the status never records a provider id,
+    // so the next attempt would create yet another one.
+    let provider_created = existing_provider_id.is_none();
     let provider_id = match &app.spec.provider.kind {
         ProviderKind::Oauth2 => {
             let spec = app.spec.provider.oauth2.as_ref().expect(
@@ -245,14 +251,34 @@ async fn try_reconcile_application(
         ProviderKind::Saml | ProviderKind::Ldap => unreachable!("rejected above"),
     };
 
-    let new_authentik_id = match authentik_id {
+    // The PATCH carries `spec.slug`, and applications are slug-keyed: the
+    // recorded id follows a slug change.
+    let written = match authentik_id {
         Some(id) => gateway
             .update_application(id, app, provider_id)
             .await
-            .map(|()| id.to_string()),
+            .map(|()| app.spec.slug.clone()),
         None => gateway.create_application(app, provider_id).await,
-    }
-    .map_err(errored_from_gateway_error)?;
+    };
+    let new_authentik_id = match written {
+        Ok(id) => id,
+        Err(e) => {
+            let mut outcome = errored_from_gateway_error(e);
+            // Best effort: the application's own error is the one reported,
+            // a provider left behind is named in its message.
+            if provider_created
+                && let Err(cleanup) = gateway
+                    .delete_provider(provider_id, app.spec.provider.kind.clone())
+                    .await
+                && let ReconcileOutcome::Errored { message, .. } = &mut outcome
+            {
+                message.push_str(&format!(
+                    "; provider {provider_id} it created could not be deleted: {cleanup}"
+                ));
+            }
+            return Err(outcome);
+        }
+    };
 
     if let ProviderKind::Proxy = app.spec.provider.kind {
         let spec = app.spec.provider.proxy.as_ref().expect("checked above");
@@ -999,5 +1025,137 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    // --- the remote object deleted out of band, slug changes, rollbacks ---
+
+    #[tokio::test]
+    async fn an_application_deleted_out_of_band_is_recreated() {
+        let gateway = FakeGateway {
+            get_application_result: Some(Err(GatewayError::Gone("harbor".to_string()))),
+            upsert_proxy_provider_result: Some(Ok("56".to_string())),
+            create_result: Some(Ok("harbor".to_string())),
+            attach_outpost_result: Some(Ok(())),
+            ..Default::default()
+        };
+
+        let outcome = reconcile_application(
+            &app(proxy_spec(), None),
+            Some("harbor"),
+            &gateway,
+            &FakeSecretStore::default(),
+        )
+        .await;
+
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "harbor"
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_slug_change_moves_the_recorded_id_to_the_new_slug() {
+        let mut renamed = app(proxy_spec(), None);
+        renamed.spec.slug = "registry".to_string();
+        let gateway = FakeGateway {
+            get_application_result: Some(Ok(RemoteApplication {
+                provider_id: Some(56),
+                provider_meta_model_name: Some(
+                    "authentik_providers_proxy.proxyprovider".to_string(),
+                ),
+            })),
+            upsert_proxy_provider_result: Some(Ok("56".to_string())),
+            update_result: Some(Ok(())),
+            attach_outpost_result: Some(Ok(())),
+            ..Default::default()
+        };
+
+        let outcome = reconcile_application(
+            &renamed,
+            Some("harbor"),
+            &gateway,
+            &FakeSecretStore::default(),
+        )
+        .await;
+
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(id) } if id == "registry"
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_provider_created_for_an_application_that_fails_is_deleted() {
+        let gateway = FakeGateway {
+            upsert_proxy_provider_result: Some(Ok("57".to_string())),
+            create_result: Some(Err(GatewayError::AlreadyExists("slug".to_string()))),
+            delete_provider_result: Some(Ok(())),
+            ..Default::default()
+        };
+
+        let outcome = reconcile_application(
+            &app(proxy_spec(), None),
+            None,
+            &gateway,
+            &FakeSecretStore::default(),
+        )
+        .await;
+
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::AuthentikObjectAlreadyExists,
+                ..
+            }
+        ));
+        assert_eq!(*gateway.deleted_providers.lock().unwrap(), vec![57]);
+    }
+
+    #[tokio::test]
+    async fn a_provider_left_behind_is_named_in_the_failure() {
+        let gateway = FakeGateway {
+            upsert_proxy_provider_result: Some(Ok("57".to_string())),
+            create_result: Some(Err(GatewayError::Api("boom".to_string()))),
+            delete_provider_result: Some(Err(GatewayError::Api("down".to_string()))),
+            ..Default::default()
+        };
+
+        let outcome = reconcile_application(
+            &app(proxy_spec(), None),
+            None,
+            &gateway,
+            &FakeSecretStore::default(),
+        )
+        .await;
+
+        let ReconcileOutcome::Errored { message, .. } = outcome else {
+            panic!("expected a failure");
+        };
+        assert!(message.contains("provider 57"), "{message}");
+    }
+
+    #[tokio::test]
+    async fn an_existing_provider_is_kept_when_the_update_fails() {
+        let gateway = FakeGateway {
+            get_application_result: Some(Ok(RemoteApplication {
+                provider_id: Some(56),
+                provider_meta_model_name: Some(
+                    "authentik_providers_proxy.proxyprovider".to_string(),
+                ),
+            })),
+            upsert_proxy_provider_result: Some(Ok("56".to_string())),
+            update_result: Some(Err(GatewayError::Api("boom".to_string()))),
+            ..Default::default()
+        };
+
+        reconcile_application(
+            &app(proxy_spec(), None),
+            Some("harbor"),
+            &gateway,
+            &FakeSecretStore::default(),
+        )
+        .await;
+
+        assert!(gateway.deleted_providers.lock().unwrap().is_empty());
     }
 }

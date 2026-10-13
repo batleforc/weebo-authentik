@@ -4,7 +4,7 @@ use authentik_client::apis::core_api;
 use authentik_client::models;
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err};
+use super::shared::{ignore_not_found, map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_group_impl(
@@ -69,7 +69,7 @@ impl AuthentikHttpGateway {
         core_api::core_groups_partial_update(&self.configuration, authentik_id, Some(req))
             .await
             .map(|_| ())
-            .map_err(map_err)
+            .map_err(map_own_err)
     }
 
     pub(super) async fn delete_group_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {

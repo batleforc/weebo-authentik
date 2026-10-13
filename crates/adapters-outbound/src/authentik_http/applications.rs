@@ -4,7 +4,7 @@ use authentik_client::apis::core_api;
 use authentik_client::models;
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err};
+use super::shared::{ignore_not_found, map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_application_impl(
@@ -55,7 +55,7 @@ impl AuthentikHttpGateway {
         core_api::core_applications_partial_update(&self.configuration, authentik_id, Some(req))
             .await
             .map(|_| ())
-            .map_err(map_err)
+            .map_err(map_own_err)
     }
 
     pub(super) async fn delete_application_impl(
@@ -73,7 +73,7 @@ impl AuthentikHttpGateway {
     ) -> Result<RemoteApplication, GatewayError> {
         let app = core_api::core_applications_retrieve(&self.configuration, authentik_id)
             .await
-            .map_err(map_err)?;
+            .map_err(map_own_err)?;
         Ok(RemoteApplication {
             provider_id: app.provider.flatten(),
             provider_meta_model_name: app.provider_obj.map(|p| p.meta_model_name),
