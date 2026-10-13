@@ -242,6 +242,16 @@ targets need an `AuthentikInstance`: the operator's Vault identity is
 shared by every namespace).
 
 ```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: authentik-api-token
+  namespace: team-a
+  labels:
+    authentik.weebo.io/instance-token: "true"
+stringData:
+  token: <API token>
+---
 apiVersion: authentik.weebo.io/v1alpha1
 kind: AuthentikLocalInstance
 metadata:
@@ -253,6 +263,19 @@ spec:
     name: authentik-api-token
     key: token
 ```
+
+The token `Secret` must carry the label
+`authentik.weebo.io/instance-token: "true"`, or the instance and its
+applications fail with `InstanceTokenNotAllowed`. The operator reads
+Secrets with its own rights and sends the token to `spec.url`: without
+that consent, anyone allowed to create an `AuthentikLocalInstance` could
+send any `Secret` of the namespace to a server of their choosing. An
+`AuthentikInstance`, created by cluster admins, needs no label.
+
+Upgrading from a release before 0.17: label every Secret an
+`AuthentikLocalInstance` names before upgrading
+(`kubectl label secret -n team-a authentik-api-token
+authentik.weebo.io/instance-token=true`).
 
 `spec.instanceRef` finds the instance by name: an operator watching the
 whole cluster tries the `AuthentikInstance` first, then the

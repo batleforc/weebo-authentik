@@ -37,16 +37,20 @@ cog verify --file "$1"
 """
 
 # Every commit: artifacts regenerated, lint, tests and CVE check pass, then
-# the formatting fixers and the secret scan on what is staged.
+# the formatting fixers and the secret scan on what is staged. Only what
+# recu regenerated is staged on top: a partial commit (git add -p) keeps
+# the rest of the working tree out.
 [git_hooks.pre-commit]
 script = """#!/bin/sh
 set -e
 if task --summary recu >/dev/null 2>&1; then
+    dirty="$(git diff --name-only)"
     task recu
-    git add -u # recu may regenerate tracked files, staged before linting
+    git diff --name-only | while IFS= read -r f; do
+        if ! printf '%s' "$dirty" | grep -Fxq -- "$f"; then git add -- "$f"; fi
+    done
 fi
 task lint
-git add -u # in case linting fixed anything
 .hooks/end-of-line.sh
 .hooks/whitespace-fixer.sh
 task test

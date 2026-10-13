@@ -64,6 +64,11 @@ weebo_kit_domain::reason_codes! {
         /// has CRs bound to it: their own cleanups need it, so its finalizer
         /// waits until they are gone.
         InstanceInUse,
+        /// An `AuthentikLocalInstance`'s `tokenSecretRef` names a `Secret`
+        /// that doesn't carry the `authentik.weebo.io/instance-token: "true"`
+        /// label: a local instance may only send a Secret labelled for it to
+        /// its `url`.
+        InstanceTokenNotAllowed,
         /// An update would take a CR still carrying the finalizer out of the
         /// operator's label selector (`watch.labelSelector`): refused at
         /// admission.
@@ -135,7 +140,7 @@ mod tests {
     #[test]
     fn every_code_is_pascal_case() {
         weebo_kit_domain::reason::assert_pascal_case(ReasonCode::ALL);
-        assert_eq!(ReasonCode::ALL.len(), 24);
+        assert_eq!(ReasonCode::ALL.len(), 25);
     }
 
     #[test]

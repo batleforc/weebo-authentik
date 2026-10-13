@@ -324,6 +324,11 @@ pub enum GatewayFactoryError {
     /// Maps to `domain::error::ReasonCode::InstanceResolutionFailed`.
     #[error("failed resolving AuthentikInstance: {0}")]
     ResolutionFailed(String),
+    /// An `AuthentikLocalInstance`'s token `Secret` lacks the consent label
+    /// (`authentik.weebo.io/instance-token: "true"`). Maps to
+    /// `domain::error::ReasonCode::InstanceTokenNotAllowed`.
+    #[error("{0}")]
+    TokenNotAllowed(String),
 }
 
 /// Produces an `AuthentikGateway` for a resolved instance — an

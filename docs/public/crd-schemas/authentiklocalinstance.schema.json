@@ -13,7 +13,7 @@
           "type": "boolean"
         },
         "namespaceSelector": {
-          "description": "Namespaces whose labels match this selector may use this instance.",
+          "description": "Namespaces whose labels match this selector may use this instance.\nAn empty selector (`{}`) matches every namespace: the instance —\nand the token it holds — is then shared with the whole cluster.",
           "nullable": true,
           "properties": {
             "matchExpressions": {
@@ -97,7 +97,7 @@
       "type": "object"
     },
     "tokenSecretRef": {
-      "description": "The API token the operator authenticates with, in a `Secret` of this\nnamespace. Read on every reconcile: rotating it needs no restart.",
+      "description": "The API token the operator authenticates with, in a `Secret` of this\nnamespace labelled `authentik.weebo.io/instance-token: \"true\"`. Read\non every reconcile: rotating it needs no restart.",
       "properties": {
         "key": {
           "type": "string"

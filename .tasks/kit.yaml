@@ -9,8 +9,13 @@ vars:
   KIT_REPO: batleforc/weebo-operator-kit
   # A local checkout to render from instead (KIT_DIR=../weebo-operator-kit).
   KIT_DIR: '{{.KIT_DIR | default ""}}'
+  # The changelog's repository: origin's name, not the checkout's
+  # directory (a clone or worktree may be named otherwise).
   REPOSITORY:
-    sh: basename "{{.ROOT_DIR}}"
+    sh: |
+      url="$(git -C "{{.ROOT_DIR}}" remote get-url origin 2>/dev/null || true)"
+      name="$(basename "${url%.git}" 2>/dev/null || true)"
+      echo "${name:-$(basename "{{.ROOT_DIR}}")}"
 
 tasks:
   cog:
@@ -31,18 +36,31 @@ tasks:
       - |
         set -eu
         KIT_DIR="{{.KIT_DIR}}"
+        if [ -z "$KIT_DIR" ] && ! echo "{{.KIT_TAG}}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "kit tag '{{.KIT_TAG}}' is not vX.Y.Z (TAG=vX.Y.Z, or KIT_DIR=<checkout>)" >&2
+          exit 1
+        fi
+        # Fetched into a scratch directory first: a failed download leaves
+        # cog.toml and this file as they were (a redirection would have
+        # truncated them already).
+        tmp="$(mktemp -d)"
+        trap 'rm -rf "$tmp"' EXIT
         fetch() {
           if [ -n "$KIT_DIR" ]; then
-            cat "$KIT_DIR/templates/$1"
+            cat "$KIT_DIR/templates/$1" > "$tmp/$1"
           else
-            curl -fsSL "https://raw.githubusercontent.com/{{.KIT_REPO}}/{{.KIT_TAG}}/templates/$1"
+            curl -fsSL -o "$tmp/$1" "https://raw.githubusercontent.com/{{.KIT_REPO}}/{{.KIT_TAG}}/templates/$1"
           fi
+          [ -s "$tmp/$1" ] || { echo "templates/$1: empty" >&2; exit 1; }
         }
-        fetch cog.toml | sed "s|@REPOSITORY@|{{.REPOSITORY}}|g" > cog.toml
+        fetch cog.toml
+        sed "s|@REPOSITORY@|{{.REPOSITORY}}|g" "$tmp/cog.toml" > "$tmp/cog.rendered"
         # The operator's copy of this file follows the template too.
         if [ "$(realpath "{{.TASKFILE}}")" != "$(realpath "${KIT_DIR:-/nonexistent}/templates/kit.yaml" 2>/dev/null || true)" ]; then
-          fetch kit.yaml > "{{.TASKFILE}}"
+          fetch kit.yaml
+          mv "$tmp/kit.yaml" "{{.TASKFILE}}"
         fi
+        mv "$tmp/cog.rendered" cog.toml
         echo "cog.toml rendered for {{.REPOSITORY}} from weebo-operator-kit {{if .KIT_DIR}}{{.KIT_DIR}}{{else}}{{.KIT_TAG}}{{end}}"
       - cog install-hook -a -o
 
@@ -64,15 +82,31 @@ tasks:
       - |
         set -eu
         KIT_DIR="{{.KIT_DIR}}"
+        if ! echo "{{.KIT_TAG}}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "kit tag '{{.KIT_TAG}}' is not vX.Y.Z (TAG=vX.Y.Z)" >&2
+          exit 1
+        fi
         if [ -n "$KIT_DIR" ]; then
           sh "$KIT_DIR/templates/pin-kit.sh" . "{{.KIT_TAG}}" "$KIT_DIR"
         else
-          curl -fsSL "https://raw.githubusercontent.com/{{.KIT_REPO}}/{{.KIT_TAG}}/templates/pin-kit.sh" | sh -s -- . "{{.KIT_TAG}}"
+          # Downloaded, then run: piped into sh, a failed download would
+          # run an empty script and succeed.
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          curl -fsSL -o "$tmp/pin-kit.sh" "https://raw.githubusercontent.com/{{.KIT_REPO}}/{{.KIT_TAG}}/templates/pin-kit.sh"
+          sh "$tmp/pin-kit.sh" . "{{.KIT_TAG}}"
         fi
         for chart in deploy/charts/*/Chart.yaml; do
           [ -f "$chart" ] || continue
-          grep -q 'name: weebo-operator-lib' "$chart" && mise exec -- helm dependency update "$(dirname "$chart")"
+          if grep -q 'name: weebo-operator-lib' "$chart"; then
+            mise exec -- helm dependency update "$(dirname "$chart")"
+          fi
         done
+        # The docs site's package-lock.json follows the @weebo/operator-docs
+        # pin pin-kit.sh just moved.
+        if [ -f docs/package.json ] && grep -q '"@weebo/operator-docs"' docs/package.json; then
+          (cd docs && mise exec -- npm install --package-lock-only --no-audit --no-fund)
+        fi
       - task: cog
         vars: { TAG: "{{.KIT_TAG}}" }
       # Cargo.lock follows the kit crates' new tag (a changed git source is

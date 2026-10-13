@@ -29,7 +29,8 @@ pub struct AuthentikLocalInstanceSpec {
     /// is derived from it.
     pub url: String,
     /// The API token the operator authenticates with, in a `Secret` of this
-    /// namespace. Read on every reconcile: rotating it needs no restart.
+    /// namespace labelled `authentik.weebo.io/instance-token: "true"`. Read
+    /// on every reconcile: rotating it needs no restart.
     pub token_secret_ref: LocalSecretKeyRef,
     /// TLS verification for the API connection above; the CA `Secret` lives
     /// in this namespace.

@@ -69,6 +69,10 @@ pub fn errored_from_factory_error(err: crate::ports::GatewayFactoryError) -> Rec
             reason: ReasonCode::InstanceResolutionFailed,
             message,
         },
+        GatewayFactoryError::TokenNotAllowed(message) => ReconcileOutcome::Errored {
+            reason: ReasonCode::InstanceTokenNotAllowed,
+            message,
+        },
     }
 }
 
@@ -102,5 +106,24 @@ pub fn errored_from_secret_store_error(err: crate::ports::SecretStoreError) -> R
     ReconcileOutcome::Errored {
         reason: ReasonCode::SecretStoreError,
         message: err.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ports::GatewayFactoryError;
+
+    #[test]
+    fn an_unlabelled_local_token_has_its_own_reason() {
+        let outcome =
+            errored_from_factory_error(GatewayFactoryError::TokenNotAllowed("not labelled".into()));
+        assert!(matches!(
+            outcome,
+            ReconcileOutcome::Errored {
+                reason: ReasonCode::InstanceTokenNotAllowed,
+                ..
+            }
+        ));
     }
 }

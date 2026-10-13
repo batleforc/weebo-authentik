@@ -175,7 +175,7 @@
         "properties": {
           "backend": {
             "default": "kubernetes",
-            "description": "`kubernetes` (default) or `vault`. A Vault target reuses the\nconnection (address, mount, auth) of the instance's\n`secretStore.vault`, which must then be set.",
+            "description": "`kubernetes` (default) or `vault`. A Vault target reuses the Vault\nconnection (address, mount, auth) the instance configures, which it\nmust then do.",
             "enum": [
               "kubernetes",
               "vault"
