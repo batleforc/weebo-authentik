@@ -261,7 +261,8 @@ status:
   providerId: string | null     # AuthentikApplication seulement : PK du
                                  # provider de l'application, réutilisé si
                                  # l'application est supprimée hors
-                                 # opérateur, supprimé avec la CR
+                                 # opérateur, supprimé avec la CR (quel que
+                                 # soit son type, via /providers/all/)
   conditions:
     - type: Ready
       status: "True" | "False" | "Unknown"
@@ -286,7 +287,11 @@ Séquence à la première réconciliation d'une CR (`status.authentikId` vide) :
    qui tranche.
 2. Si la création réussit → le PK retourné est écrit dans
    `status.authentikId`. C'est la seule façon dont une CR "possède"
-   désormais un objet Authentik.
+   désormais un objet Authentik. Il est écrit même quand une étape
+   suivante du même reconcile échoue (provider d'une application écrit
+   dès sa création, application avant l'attachement à l'outpost) : la
+   tentative suivante met à jour ce qui existe au lieu de le recréer et
+   d'entrer en collision avec lui.
 3. Si l'API Authentik refuse pour cause de doublon (slug/nom déjà pris
    par un objet que cette CR ne possède pas) → `Ready: False`,
    `reason: AuthentikObjectAlreadyExists`, `authentikId` reste vide, un

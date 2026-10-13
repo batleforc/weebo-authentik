@@ -442,6 +442,44 @@ async fn delete_provider_on_404_is_idempotent() {
     assert!(result.is_ok());
 }
 
+/// Whatever the provider's kind: `/providers/all/{id}/`.
+#[tokio::test]
+async fn delete_any_provider_hits_the_kind_agnostic_endpoint() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/providers/all/5/", 204).await;
+
+    let result = gateway(&mock).delete_any_provider(5).await;
+    assert!(result.is_ok());
+    let paths: Vec<String> = mock
+        .server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|r| format!("{} {}", r.method, r.url.path()))
+        .collect();
+    assert_eq!(paths, vec!["DELETE /api/v3/providers/all/5/".to_string()]);
+}
+
+#[tokio::test]
+async fn delete_any_provider_on_404_is_idempotent() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/providers/all/99/", 404).await;
+
+    assert!(gateway(&mock).delete_any_provider(99).await.is_ok());
+}
+
+#[tokio::test]
+async fn delete_any_provider_reports_a_server_error() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/providers/all/5/", 500).await;
+
+    assert!(matches!(
+        gateway(&mock).delete_any_provider(5).await,
+        Err(GatewayError::Api(_))
+    ));
+}
+
 fn brand(domain: &str) -> AuthentikBrand {
     AuthentikBrand {
         metadata: ObjectMeta {

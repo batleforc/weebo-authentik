@@ -420,7 +420,8 @@ async fn deleting_an_application_deletes_its_provider_then_the_application() {
 
 /// Deleted by hand in Authentik: the CR is still released, not stuck in
 /// Terminating behind a 404, and the provider recorded in its status
-/// (`providerId`), left behind by the application, is deleted with it.
+/// (`providerId`), left behind by the application, is deleted with it —
+/// whatever its kind, the spec may name another one since.
 #[tokio::test]
 async fn an_application_deleted_out_of_band_is_still_released() {
     init_tracing();
@@ -431,7 +432,10 @@ async fn an_application_deleted_out_of_band_is_still_released() {
     mount_proxy_sync(&mock).await;
     mock.mock_get_application("longhorn", 404, serde_json::json!({"detail": "Not found."}))
         .await;
-    mock.mock_delete("/providers/proxy/43/", 204).await;
+    // The recreated application reuses the recorded provider.
+    mock.mock_patch("/providers/proxy/43/", 200, proxy_provider_43())
+        .await;
+    mock.mock_delete("/providers/all/43/", 204).await;
 
     let ctx = new_ctx(client.clone(), &mock);
     tokio::spawn(controller::app::run(client.clone(), ctx));
@@ -456,6 +460,158 @@ async fn an_application_deleted_out_of_band_is_still_released() {
     wait_for_absence(&apps, "longhorn").await;
     assert_eq!(
         deletes(&mock).await,
-        vec!["/api/v3/providers/proxy/43/".to_string()]
+        vec!["/api/v3/providers/all/43/".to_string()]
+    );
+}
+
+/// The proxy provider 43, as Authentik returns it.
+fn proxy_provider_43() -> serde_json::Value {
+    serde_json::json!({
+        "pk": 43, "name": "longhorn", "component": "ak-provider-proxy-form",
+        "authorization_flow": "d0000000-0000-0000-0000-000000000001",
+        "invalidation_flow": "d0000000-0000-0000-0000-000000000002",
+        "assigned_application_slug": null, "assigned_application_name": null,
+        "assigned_backchannel_application_slug": null, "assigned_backchannel_application_name": null,
+        "verbose_name": "Proxy Provider", "verbose_name_plural": "Proxy Providers",
+        "meta_model_name": "authentik_providers_proxy.proxyprovider",
+        "client_id": "embedded-outpost-client-id", "external_host": "https://longhorn.example.com",
+        "redirect_uris": [], "outpost_set": [],
+    })
+}
+
+async fn posts(mock: &AuthentikMock, path: &str) -> usize {
+    mock.server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path() == path)
+        .count()
+}
+
+fn ready_reason(app: &AuthentikApplication) -> Option<String> {
+    app.status
+        .as_ref()?
+        .conditions
+        .iter()
+        .find(|c| c.type_ == "Ready" && c.status == "False")
+        .map(|c| c.reason.clone())
+}
+
+/// Created in Authentik, then the outpost attachment fails: the application
+/// and its provider are recorded all the same, and the next attempts update
+/// them — never a second create colliding with the first.
+#[tokio::test]
+async fn an_application_created_before_a_failing_step_is_recorded() {
+    init_tracing();
+
+    let cluster = testkit::envtest::start().await;
+    let client = cluster.client();
+    let mock = AuthentikMock::start().await;
+    mock.mock_get("/flows/instances/", 200, flows_list()).await;
+    mock.mock_post("/providers/proxy/", 201, proxy_provider_43())
+        .await;
+    mock.mock_patch("/providers/proxy/43/", 200, proxy_provider_43())
+        .await;
+    let application = serde_json::json!({
+        "pk": "66666666-6666-6666-6666-666666666666", "name": "Longhorn", "slug": "longhorn",
+        "provider": 43, "provider_obj": null, "backchannel_providers_obj": [],
+        "launch_url": null, "meta_icon_url": null, "meta_icon_themed_urls": null,
+    });
+    mock.mock_post("/core/applications/", 201, application.clone())
+        .await;
+    mock.mock_patch("/core/applications/longhorn/", 200, application)
+        .await;
+    mock.mock_get_application(
+        "longhorn",
+        200,
+        serde_json::json!({
+            "pk": "66666666-6666-6666-6666-666666666666", "name": "Longhorn", "slug": "longhorn",
+            "provider": 43, "provider_obj": proxy_provider_43(), "backchannel_providers_obj": [],
+            "launch_url": null, "meta_icon_url": null, "meta_icon_themed_urls": null,
+        }),
+    )
+    .await;
+    // The embedded outpost can't be listed: the last step fails.
+    mock.mock_get(
+        "/outposts/instances/",
+        500,
+        serde_json::json!({"detail": "down"}),
+    )
+    .await;
+
+    let ctx = new_ctx(client.clone(), &mock);
+    tokio::spawn(controller::app::run(client.clone(), ctx));
+
+    let apps: Api<AuthentikApplication> = Api::namespaced(client.clone(), "default");
+    apps.create(&PostParams::default(), &proxy_application())
+        .await
+        .expect("AuthentikApplication CR create must succeed");
+
+    let (id, provider) = wait_for(&apps, "longhorn", |app| {
+        ready_reason(app)?;
+        let status = app.status.as_ref()?;
+        Some((status.authentik_id.clone()?, status.provider_id.clone()?))
+    })
+    .await;
+    assert_eq!((id.as_str(), provider.as_str()), ("longhorn", "43"));
+
+    // Further attempts (the failure requeues) update what was recorded.
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    assert_eq!(posts(&mock, "/api/v3/core/applications/").await, 1);
+    assert_eq!(posts(&mock, "/api/v3/providers/proxy/").await, 1);
+}
+
+/// The application can't be created (its slug is taken), the provider made
+/// for it can: recorded, it is patched by the next attempts rather than
+/// created again, and deleted with the CR.
+#[tokio::test]
+async fn a_provider_recorded_without_its_application_is_deleted_with_the_cr() {
+    init_tracing();
+
+    let cluster = testkit::envtest::start().await;
+    let client = cluster.client();
+    let mock = AuthentikMock::start().await;
+    mock.mock_get("/flows/instances/", 200, flows_list()).await;
+    mock.mock_post("/providers/proxy/", 201, proxy_provider_43())
+        .await;
+    mock.mock_patch("/providers/proxy/43/", 200, proxy_provider_43())
+        .await;
+    mock.mock_post(
+        "/core/applications/",
+        400,
+        serde_json::json!({"slug": ["Application with this slug already exists."]}),
+    )
+    .await;
+    mock.mock_delete("/providers/all/43/", 204).await;
+
+    let ctx = new_ctx(client.clone(), &mock);
+    tokio::spawn(controller::app::run(client.clone(), ctx));
+
+    let apps: Api<AuthentikApplication> = Api::namespaced(client.clone(), "default");
+    apps.create(&PostParams::default(), &proxy_application())
+        .await
+        .expect("AuthentikApplication CR create must succeed");
+
+    let provider = wait_for(&apps, "longhorn", |app| {
+        app.status.as_ref()?.provider_id.clone()
+    })
+    .await;
+    assert_eq!(provider, "43");
+    let recorded = apps.get("longhorn").await.unwrap();
+    assert_eq!(
+        ready_reason(&recorded).as_deref(),
+        Some("AuthentikObjectAlreadyExists")
+    );
+    assert_eq!(recorded.status.unwrap().authentik_id, None);
+
+    apps.delete("longhorn", &DeleteParams::default())
+        .await
+        .expect("deleting the application must be accepted");
+    wait_for_absence(&apps, "longhorn").await;
+    assert_eq!(posts(&mock, "/api/v3/providers/proxy/").await, 1);
+    assert_eq!(
+        deletes(&mock).await,
+        vec!["/api/v3/providers/all/43/".to_string()]
     );
 }

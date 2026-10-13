@@ -6,7 +6,7 @@ use authentik_client::apis::{crypto_api, propertymappings_api, providers_api};
 use authentik_client::models;
 
 use super::AuthentikHttpGateway;
-use super::shared::{map_err, map_own_err, parse_i32};
+use super::shared::{ignore_not_found, map_err, map_own_err, parse_i32};
 
 impl AuthentikHttpGateway {
     /// Certificate key pairs are always a lookup of an existing
@@ -313,5 +313,14 @@ impl AuthentikHttpGateway {
             Err(GatewayError::NotFound(_)) => Ok(()),
             Err(other) => Err(other),
         }
+    }
+
+    pub(super) async fn delete_any_provider_impl(
+        &self,
+        authentik_id: i32,
+    ) -> Result<(), GatewayError> {
+        ignore_not_found(
+            providers_api::providers_all_destroy(&self.configuration, authentik_id).await,
+        )
     }
 }
