@@ -1,0 +1,56 @@
+# ── Build stage ───────────────────────────────────────────────────────────────
+# The `-static` image: one statically linked (musl) binary on Red Hat
+# Hummingbird's static base — no libc, no GCC runtime, nothing else to
+# patch. The workspace is rustls end to end (kube's rustls-tls default,
+# vaultrs's `rustls`, axum-server's tls-rustls-no-provider): no OpenSSL;
+# ring and aws-lc's C builds with musl-gcc.
+FROM rust:1-slim-trixie@sha256:2752b332db73fdbb7dc576f06c82ed1f312005784ef913d7e04a28f5f55dc581 AS builder
+
+# Throwaway build stage: the toolchain's packages follow the pinned image.
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends musl-tools \
+    && rm -rf /var/lib/apt/lists/* \
+    && rustup target add "$(uname -m)-unknown-linux-musl"
+
+WORKDIR /build
+
+# Cache dependency compilation separately from source changes: manifests
+# first, every crate stubbed, deps built, then the real sources.
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+RUN find crates -name '*.rs' -delete && \
+    for crate in crates/*/; do \
+      mkdir -p "$crate/src" && echo "pub fn _stub() {}" > "$crate/src/lib.rs"; \
+    done && \
+    for bin in operator crdgen importer; do echo "fn main() {}" > "crates/$bin/src/main.rs"; done
+
+# --locked: build exactly what Cargo.lock resolves. Failure is tolerated
+# here only because stubs may not satisfy every crate; the real build below
+# is the one that gates.
+RUN cargo build --locked --release -p operator --target "$(uname -m)-unknown-linux-musl" \
+    2>/dev/null; exit 0
+
+COPY crates/ crates/
+RUN find crates -name '*.rs' -exec touch {} + && \
+    target="$(uname -m)-unknown-linux-musl" && \
+    cargo build --locked --release -p operator --target "$target" && \
+    mkdir /out && cp "target/$target/release/operator" /out/operator
+
+# ── Runtime image ─────────────────────────────────────────────────────────────
+# Red Hat Hummingbird static: CA certificates and passwd only.
+FROM registry.access.redhat.com/hi/static:latest@sha256:85fafe17d51d330089d4f39a9716bcc0eacfbda0c15ecb39f669cbfcd815ff8b AS runtime
+
+COPY --from=builder /out/operator /usr/local/bin/operator
+
+# The same numeric UID as Containerfile's: the chart pins one `runAsUser`.
+USER 65532:65532
+
+# Static OCI metadata; version, revision and created are added by the
+# publish workflow (build-push-action `labels:`).
+LABEL org.opencontainers.image.title="weebo-authentik-operator" \
+      org.opencontainers.image.description="Kubernetes operator managing Authentik objects as CRDs (static)" \
+      org.opencontainers.image.source="https://github.com/batleforc/weebo-authentik" \
+      org.opencontainers.image.url="https://github.com/batleforc/weebo-authentik" \
+      org.opencontainers.image.vendor="batleforc"
+
+ENTRYPOINT ["/usr/local/bin/operator"]

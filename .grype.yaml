@@ -1,0 +1,15 @@
+# Accepted findings of the publish workflow's image scan (Grype), each
+# scoped and justified. Package names are regular expressions.
+ignore:
+  # CVE-2026-95619, the GCC runtime (libgcc, libstdc++) of Red Hat
+  # Hummingbird's core runtime: no fix shipped yet. Accepted on 2026-10-13
+  # for the main image; the `-static` image carries no GCC runtime. Drop
+  # these once Red Hat ships the fix.
+  - vulnerability: CVE-2026-95619
+    package:
+      name: '^libgcc$'
+      type: rpm
+  - vulnerability: CVE-2026-95619
+    package:
+      name: '^libstdc\+\+$'
+      type: rpm

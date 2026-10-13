@@ -196,7 +196,7 @@ shutdown:
   # removal propagates (env WEEBO_SHUTDOWN_DRAIN_SECONDS).
   drainSeconds: 5
   # -- When > 0, a native `preStop: sleep` (Kubernetes 1.30+, no shell
-  # needed, distroless has none) delays SIGTERM by that many seconds.
+  # needed, the image has none) delays SIGTERM by that many seconds.
   # Usually unnecessary on top of drainSeconds.
   preStopSleepSeconds: 0
   # -- The leader finishes in-flight reconciles before exiting: longer
@@ -237,7 +237,7 @@ defaultTopologySpread: true
 # can be omitted from labelSelector: they are added when missing.
 topologySpreadConstraints: []
 
-# The image runs as distroless's nonroot UID (Containerfile).
+# The image runs as UID 65532 (Containerfile, Containerfile.static).
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65532

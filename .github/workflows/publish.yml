@@ -3,10 +3,10 @@ name: Publish
 # A pushed release tag `vX.Y.Z` (a bump made locally with `cog bump`, which
 # synced Cargo.toml and Chart.yaml through .hooks/bump-versions.sh):
 # weebo-operator-kit's publish workflow — the operator image of each
-# variant (distroless Debian 13, and Red Hat Hummingbird as `-hardened`),
-# scanned by Grype, smoke-run, signed; the chart (OCI); the GitHub Release.
-# The hardened variant is optional: a finding without a fix there leaves it
-# out of the release instead of blocking it.
+# variant (Red Hat Hummingbird, and a statically linked one as `-static`),
+# scanned by Grype (accepted findings: .grype.yaml), smoke-run, signed; the
+# chart (OCI); the GitHub Release. The static variant is optional: a
+# failure there leaves it out of the release instead of blocking it.
 on:
   push:
     tags: ["v*"]
@@ -21,7 +21,7 @@ permissions: {}
 
 jobs:
   publish:
-    uses: batleforc/weebo-operator-kit/.github/workflows/publish.yml@v0.11.0
+    uses: batleforc/weebo-operator-kit/.github/workflows/publish.yml@v0.12.0
     permissions:
       contents: write
       packages: write
@@ -32,6 +32,6 @@ jobs:
       chart: weebo-authentik
       variants: >-
         [{"file": "Containerfile", "suffix": "", "required": true},
-         {"file": "Containerfile.hardened", "suffix": "-hardened", "required": false}]
+         {"file": "Containerfile.static", "suffix": "-static", "required": false}]
       smoke-entrypoint: /usr/local/bin/operator
       smoke-args: --version

@@ -1,10 +1,17 @@
 # ── Build stage ───────────────────────────────────────────────────────────────
+# Red Hat Hummingbird images (builder and runtime): the main image. Its
+# `-static` sibling is Containerfile.static.
 # The whole workspace is rustls-based end to end (kube's rustls-tls
 # default, vaultrs's `default = ["rustls"]`, axum-server's
 # tls-rustls-no-provider) — no OpenSSL/libssl needed at build or run time.
 # `testkit`/`envtest` is a dev-dependency, never compiled by this release
 # build: a standard Rust toolchain is all it needs.
-FROM rust:1-slim-trixie@sha256:2752b332db73fdbb7dc576f06c82ed1f312005784ef913d7e04a28f5f55dc581 AS builder
+FROM registry.access.redhat.com/hi/rust:latest-builder@sha256:6ecd7053f3415021e6241c672570ba156073b77210e9fb30c581d07311e78b5a AS builder
+
+# The builder image defaults to a non-root user without write access to
+# /build; root is confined to this throwaway stage.
+# hadolint ignore=DL3002
+USER 0
 
 WORKDIR /build
 
@@ -29,16 +36,15 @@ RUN find crates -name '*.rs' -exec touch {} + && \
     cargo build --locked --release -p operator
 
 # ── Runtime image ─────────────────────────────────────────────────────────────
-# distroless/cc on Debian 13 matches trixie's glibc ABI (the builder's) and
-# ships ca-certificates + a non-root "nonroot" user — no shell, no package
-# manager, minimal surface for a network-facing admission webhook. Debian
-# 12's still carried High libssl3 findings when this moved.
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2 AS runtime
+# Red Hat Hummingbird core runtime: minimal, continuously rebuilt for CVEs.
+# Grype reads its RPM database (Trivy doesn't know the OS); its accepted
+# findings are .grype.yaml's.
+FROM registry.access.redhat.com/hi/core-runtime:latest@sha256:1abbb3f306dd1df28c46415def816056247cf850b861655097d46af971746f9b AS runtime
 
 COPY --from=builder /build/target/release/operator /usr/local/bin/operator
 
-# 65532 is distroless's `nonroot`. Numeric so Kubernetes can enforce
-# `runAsNonRoot` without resolving names; the Helm chart pins the same UID.
+# Numeric so Kubernetes can enforce `runAsNonRoot` without resolving names;
+# the Helm chart pins the same UID, valid for the `-static` image too.
 USER 65532:65532
 
 # Static OCI metadata; version, revision and created are added by the
