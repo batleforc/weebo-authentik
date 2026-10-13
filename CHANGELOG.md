@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.16.2](https://github.com/batleforc/weebo-authentik/compare/3b270793939573c19dec89457593d5fc7adb26a8..v0.16.2) - 2026-10-13
+#### Miscellaneous Chores
+- (**kit**) weebo-operator-kit v0.12.1 (#9) - ([3b27079](https://github.com/batleforc/weebo-authentik/commit/3b270793939573c19dec89457593d5fc7adb26a8)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.16.1](https://github.com/batleforc/weebo-authentik/compare/6beaffc860c5321fa4f78cd9ba94b025411fda01..v0.16.1) - 2026-10-13
 #### Continuous Integration
 - publish through the kit's workflow; Debian 13 and Hummingbird images (kit v0.11.0) (#8) - ([6beaffc](https://github.com/batleforc/weebo-authentik/commit/6beaffc860c5321fa4f78cd9ba94b025411fda01)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
