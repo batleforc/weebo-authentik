@@ -65,7 +65,7 @@ jobs:
 
       - name: Build operator image and load it into kind
         run: |
-          docker build -t "$OPERATOR_IMAGE" .
+          docker build -t "$OPERATOR_IMAGE" -f Containerfile .
           mise exec -- kind load docker-image "$OPERATOR_IMAGE" --name "$KIND_CLUSTER"
 
       - name: Install cert-manager
