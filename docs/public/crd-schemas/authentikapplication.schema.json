@@ -169,7 +169,7 @@
       "type": "object"
     },
     "secretTargets": {
-      "description": "Where this application's oauth2 credentials are written. When empty\n(the default), they go to one target named after this CR, in its\nnamespace, on the `AuthentikInstance`'s `secretStore.backend`. When\nnon-empty, they are **fanned out** to every listed target;\nKubernetes and Vault targets may be mixed. A target stays in this\nCR's namespace, and a Vault `path` under\n`<pathPrefix>/<namespace>/`. Only meaningful for\n`provider.kind: oauth2` — proxy providers carry no client secret, so\nthis is ignored for them.",
+      "description": "Where this application's oauth2 credentials are written. When empty\n(the default), they go to one target named after this CR, in its\nnamespace, on the `AuthentikInstance`'s `secretStore.backend`. When\nnon-empty, they are **fanned out** to every listed target;\nKubernetes and Vault targets may be mixed. A target stays in this\nCR's namespace, and a Vault `path` under\n`<pathPrefix>/<namespace>/` unless the instance's `pathGrants`\nopen it to this namespace. Only meaningful for\n`provider.kind: oauth2` — proxy providers carry no client secret, so\nthis is ignored for them.",
       "items": {
         "description": "Where an emitted secret (generated password or key, OAuth2 credentials,\naccess token) is written. A CR may list several targets — the same\nvalue is fanned out to each.",
         "properties": {
@@ -192,7 +192,7 @@
             "type": "string"
           },
           "path": {
-            "description": "Vault only: explicit KV v2 path under the instance's mount. On a\nnamespaced CR it must stay under `<pathPrefix>/<namespace>/`.",
+            "description": "Vault only: explicit KV v2 path under the instance's mount. It must\nstay under `<pathPrefix>/<namespace>/` (this object's namespace, or\nthe target's on a cluster-scoped object), unless the instance's\n`pathGrants` open it to this object.",
             "nullable": true,
             "type": "string"
           }

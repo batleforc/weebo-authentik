@@ -199,7 +199,8 @@ spec:
                   non-empty, they are **fanned out** to every listed target;
                   Kubernetes and Vault targets may be mixed. A target stays in this
                   CR's namespace, and a Vault `path` under
-                  `<pathPrefix>/<namespace>/`. Only meaningful for
+                  `<pathPrefix>/<namespace>/` unless the instance's `pathGrants`
+                  open it to this namespace. Only meaningful for
                   `provider.kind: oauth2` — proxy providers carry no client secret, so
                   this is ignored for them.
                 items:
@@ -232,8 +233,10 @@ spec:
                       type: string
                     path:
                       description: |-
-                        Vault only: explicit KV v2 path under the instance's mount. On a
-                        namespaced CR it must stay under `<pathPrefix>/<namespace>/`.
+                        Vault only: explicit KV v2 path under the instance's mount. It must
+                        stay under `<pathPrefix>/<namespace>/` (this object's namespace, or
+                        the target's on a cluster-scoped object), unless the instance's
+                        `pathGrants` open it to this object.
                       nullable: true
                       type: string
                   required:

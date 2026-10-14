@@ -86,12 +86,75 @@ spec:
                           KV v2 secrets engine mount (e.g. `secret`) credentials are written
                           under.
                         type: string
+                      pathGrants:
+                        description: |-
+                          Paths outside `<pathPrefix>/<namespace>/` that the
+                          `AuthentikApplication`s of the listed namespaces may write to (an
+                          application publishing its credentials where its consumer already
+                          reads them). A grant opens its paths to everyone allowed to create
+                          an `AuthentikApplication` in a covered namespace; it never hands
+                          over a value another CR owns. The Vault policy of
+                          `kubernetesAuthRole` stays the hard bound: restrict it to the same
+                          paths.
+                        items:
+                          description: |-
+                            Paths of the instance's secret backend that objects may write to
+                            outside their namespace's subtree `<pathPrefix>/<namespace>/`. Opens
+                            them to every subject allowed to create an emitting object in a
+                            covered namespace, and cannot hand over a value another object owns.
+                          properties:
+                            clusterScoped:
+                              description: |-
+                                The grant opens `paths` to cluster-scoped objects (instead of
+                                `namespaces`).
+                              type: boolean
+                            namespaces:
+                              description: |-
+                                Namespaces whose objects may write `paths`: exact names, `*`, or a
+                                prefix glob such as `team-*`. `team-*` opens the paths to every
+                                matching namespace.
+                              items:
+                                maxLength: 64
+                                minLength: 1
+                                type: string
+                              maxItems: 64
+                              type: array
+                            paths:
+                              description: |-
+                                Path patterns under the mount, compared segment by segment: a
+                                literal segment matches itself, `+` exactly one segment, and a last
+                                `*` one or more. Each holds at least one literal segment, e.g.
+                                `batlehub/auth`, `+/auth`, `platform/*`. Prefer exact paths where
+                                values not written by the operator live: a covered object may take
+                                over a value no object owns yet.
+                              items:
+                                maxLength: 512
+                                pattern: ^(?:(?:[^/*+]+|\+)/)*(?:[^/*+]+|\+|\*)$
+                                type: string
+                                x-kubernetes-validations:
+                                - message: a path pattern has no "." or ".." segment
+                                  rule: '!self.matches(''(^|/)\\.\\.?(/|$)'')'
+                                - message: a path pattern has at least one literal segment
+                                  rule: self.matches('(^|/)[^/*+]+(/|$)')
+                              maxItems: 64
+                              minItems: 1
+                              type: array
+                          required:
+                          - paths
+                          type: object
+                          x-kubernetes-validations:
+                          - message: a grant names namespaces or is clusterScoped, not both
+                            rule: (has(self.namespaces) && size(self.namespaces) > 0) != (has(self.clusterScoped) && self.clusterScoped)
+                        maxItems: 32
+                        type: array
                       pathPrefix:
                         default: weebo-authentik
                         description: |-
                           Path prefix under `mount` — a target's default KV path is
-                          `<pathPrefix>/<namespace>/<name>`, and an `AuthentikApplication`
-                          may only write under `<pathPrefix>/<its namespace>/`.
+                          `<pathPrefix>/<namespace>/<name>` (`<namespace>/<name>` when empty),
+                          and an `AuthentikApplication` may only write under
+                          `<pathPrefix>/<its namespace>/`, unless `pathGrants` opens a path to
+                          it.
                         type: string
                     required:
                     - address
