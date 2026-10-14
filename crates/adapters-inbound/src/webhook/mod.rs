@@ -2,14 +2,16 @@
 //! `application::use_cases::evaluate_admission::enforce` (the kit's
 //! allow-list engine, through `domain::allow_list`) — the same check the
 //! reconcilers repeat. A CR bound to an `AuthentikLocalInstance` isn't
-//! governed by the policy (its namespace's own token bounds it). Plus
-//! `/scope`, the kit's `ScopeGuard`.
+//! governed by the policy (its namespace's own token bounds it). An
+//! `AuthentikApplication`'s Vault targets are checked against its
+//! instance's Vault connection (`pathPrefix`, `pathGrants`), as its secret
+//! store will. Plus `/scope`, the kit's `ScopeGuard`.
 
 use std::sync::Arc;
 
 use api::namespace_policy::NamespaceRule;
 use api::{AuthentikAccessPolicy, AuthentikApplication};
-use application::ports::{BoundInstance, InstanceDirectory, PolicySource};
+use application::ports::{BoundInstance, InstanceDirectory, InstanceVaults, PolicySource};
 use application::use_cases::evaluate_admission::enforce;
 use axum::Router;
 use domain::allow_list::ResourceKind;
@@ -17,7 +19,9 @@ use domain::error::ReasonCode;
 use kube::Client;
 use kube::api::Api;
 use kube::core::DynamicObject;
-use weebo_kit_runtime::admission::{Admission, Denial, ScopeGuard, scope_router, typed};
+use weebo_kit_runtime::admission::{
+    Admission, Denial, ScopeGuard, VaultPaths, check_vault_targets, scope_router, typed,
+};
 use weebo_kit_runtime::{Health, WatchScope};
 
 use crate::controller::FINALIZER;
@@ -36,6 +40,8 @@ pub struct WebhookState {
 pub struct InstanceLookup {
     pub client: Client,
     pub directory: Arc<dyn InstanceDirectory>,
+    /// The resolved instance's Vault connection.
+    pub vaults: Arc<dyn InstanceVaults>,
 }
 
 /// `POST /validate` (the kit's: a `DELETE`, or an `UPDATE` leaving `spec`
@@ -59,22 +65,23 @@ pub fn router(state: WebhookState, health: Arc<Health>, scope: WatchScope) -> Ro
 }
 
 impl WebhookState {
-    /// The reviewed CR is bound to an `AuthentikLocalInstance`. Anything
-    /// that can't be resolved counts as governed: the policy decides.
-    async fn bound_locally(
+    /// The application the reviewed CR is about (itself, or the one an
+    /// access policy names) and its instance. `None` for what can't be
+    /// resolved.
+    async fn resolve(
         &self,
         kind: ResourceKind,
         namespace: &str,
         object: &DynamicObject,
-    ) -> bool {
+    ) -> (Option<AuthentikApplication>, Option<BoundInstance>) {
         let Some(lookup) = &self.instances else {
-            return false;
+            return (None, None);
         };
         let application = match kind {
             ResourceKind::AuthentikApplication => typed::<AuthentikApplication>(object).ok(),
             ResourceKind::AuthentikAccessPolicy => {
                 let Ok(policy) = typed::<AuthentikAccessPolicy>(object) else {
-                    return false;
+                    return (None, None);
                 };
                 Api::<AuthentikApplication>::namespaced(lookup.client.clone(), namespace)
                     .get_opt(&policy.spec.application_ref)
@@ -84,7 +91,7 @@ impl WebhookState {
             }
         };
         let Some(application) = application else {
-            return false;
+            return (None, None);
         };
         let recorded = application
             .status
@@ -98,7 +105,35 @@ impl WebhookState {
                 .await
                 .ok(),
         };
-        bound.is_some_and(|b| !b.governed_by_policy())
+        (Some(application), bound)
+    }
+
+    /// The application's Vault targets, refused when its secret store
+    /// would refuse them. An instance that can't be read is left to the
+    /// reconcile, which reports it.
+    async fn check_vault_paths(
+        &self,
+        application: &AuthentikApplication,
+        bound: &BoundInstance,
+        namespace: &str,
+    ) -> Result<(), Denial<ReasonCode>> {
+        let Some(lookup) = &self.instances else {
+            return Ok(());
+        };
+        let vault = match lookup.vaults.vault_of(bound).await {
+            Ok(Some(vault)) => vault,
+            Ok(None) => return Ok(()),
+            Err(err) => {
+                tracing::warn!(error = %err, %bound, "instance unreadable: Vault paths left to the reconcile");
+                return Ok(());
+            }
+        };
+        let paths = vault.as_ref().map(|v| VaultPaths {
+            path_prefix: &v.path_prefix,
+            path_grants: &v.path_grants,
+        });
+        check_vault_targets(&application.spec.secret_targets, Some(namespace), paths)
+            .map_err(|message| Denial::new(ReasonCode::SecretStoreError, message))
     }
 }
 
@@ -121,7 +156,16 @@ impl Admission for WebhookState {
                 format!("unrecognized kind for this webhook: {kind}"),
             ));
         };
-        if self.bound_locally(kind, namespace, object).await {
+        let (application, bound) = self.resolve(kind, namespace, object).await;
+        if kind == ResourceKind::AuthentikApplication
+            && let (Some(application), Some(bound)) = (&application, &bound)
+        {
+            self.check_vault_paths(application, bound, namespace)
+                .await?;
+        }
+        // Bound to an AuthentikLocalInstance: not governed by the policy.
+        // Anything that can't be resolved counts as governed.
+        if bound.is_some_and(|b| !b.governed_by_policy()) {
             return Ok(());
         }
         let result = enforce(self.policies.as_ref(), namespace, kind)

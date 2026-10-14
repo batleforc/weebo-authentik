@@ -36,7 +36,8 @@ pub struct AuthentikApplicationSpec {
     /// non-empty, they are **fanned out** to every listed target;
     /// Kubernetes and Vault targets may be mixed. A target stays in this
     /// CR's namespace, and a Vault `path` under
-    /// `<pathPrefix>/<namespace>/`. Only meaningful for
+    /// `<pathPrefix>/<namespace>/` unless the instance's `pathGrants`
+    /// open it to this namespace. Only meaningful for
     /// `provider.kind: oauth2` — proxy providers carry no client secret, so
     /// this is ignored for them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -314,6 +314,20 @@ pub use weebo_kit_application::instances::{
     BoundInstance, InstanceDirectory, InstanceError, ResolveError,
 };
 
+/// The Vault connection of a resolved instance, as the admission webhook
+/// checks a CR's Vault targets against it (`secretStore.vault`: its
+/// `pathPrefix` and `pathGrants`). Read from the binary's instance
+/// reflectors: no API call per request.
+#[async_trait::async_trait]
+pub trait InstanceVaults: Send + Sync {
+    /// `Ok(None)`: the instance is gone. `Ok(Some(None))`: it has no Vault
+    /// connection — always the case of an `AuthentikLocalInstance`.
+    async fn vault_of(
+        &self,
+        instance: &BoundInstance,
+    ) -> Result<Option<Option<api::instance::VaultSecretStoreSpec>>, String>;
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayFactoryError {
     /// The instance resolved for a CR is gone. Maps to

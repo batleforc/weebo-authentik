@@ -13,6 +13,7 @@ thiserror = { workspace = true }
 serde_json = { workspace = true }
 weebo-kit-api = { workspace = true }
 weebo-kit-application = { workspace = true }
+weebo-kit-domain = { workspace = true }
 
 [dev-dependencies]
 weebo-kit-application = { workspace = true, features = ["test-support"] }

@@ -131,7 +131,9 @@ already be configured Vault-side to trust that ServiceAccount) — no
 static Vault token to provision or rotate. Credentials land at
 `<mount>/data/<pathPrefix>/<namespace>/<name>` (KV v2), one secret per
 `AuthentikApplication` CR, same naming convention as the Kubernetes
-backend.
+backend. An empty `pathPrefix` (`pathPrefix: ""`) drops the segment:
+`<mount>/data/<namespace>/<name>`, where a Vault policy templated on the
+namespace already reads.
 
 The write is **conditional**: the operator reads the path first and only
 issues a KV v2 `set` when the stored document differs from what it would
@@ -213,7 +215,9 @@ Notes:
 - A target stays in the application's namespace (`namespace`, when set,
   must be the application's own), and an explicit Vault `path` must stay
   under `<pathPrefix>/<namespace>/` — a team can't write over another
-  team's credentials.
+  team's credentials — unless the instance's `pathGrants` open it (see
+  below). A path out of reach is refused at admission (`kubectl apply`
+  fails with `SecretStoreError`) and again at every reconcile.
 - A `vault` target reuses the connection/auth config from the instance's
   `secretStore.vault` (address, mount, Kubernetes-auth role) — it only
   chooses _where under that mount_ to write. The instance must therefore
@@ -228,6 +232,54 @@ Notes:
   earlier releases are adopted.
 - `secretTargets` is only meaningful for `provider.kind: oauth2` — proxy
   providers carry no client secret, so it is ignored for them.
+
+### Writing outside the namespace subtree
+
+When an admin declares every application in one namespace (say `auth`)
+and each credential must land where its consumer already reads it
+(`argocd/auth`, `batlehub/auth`…), the `AuthentikInstance` opens those
+paths with `secretStore.vault.pathGrants`:
+
+```yaml
+  secretStore:
+    vault:
+      address: https://vault.example.com:8200
+      mount: secret
+      kubernetesAuthRole: weebo-authentik-operator
+      pathGrants:
+        - namespaces: [auth] # names, `*`, or a prefix glob like `team-*`
+          paths:
+            - argocd/auth
+            - batlehub/auth
+            - eclipse-che/auth
+```
+
+An application in a covered namespace may then use those paths as
+explicit `path`s. Patterns are compared segment by segment: a literal
+segment matches itself, `+` exactly one segment (`+/auth` covers
+`batlehub/auth`, not `a/b/auth`), and a last `*` one or more
+(`batlehub/*`). Every pattern holds at least one literal segment, and the
+CRD refuses `..`, empty segments and a `*` before the last segment. A
+grant lists at most 64 paths, an instance at most 32 grants.
+
+Before granting:
+
+- **A grant opens its paths to every subject allowed to create an
+  `AuthentikApplication` in a covered namespace.** A grant on `team-*`
+  opens them to every team. It adds to RBAC and `AuthentikNamespacePolicy`,
+  it doesn't replace them.
+- **Ownership still applies**: a path already owned by another CR is
+  never overwritten. But a value with no owner yet (written by Terraform,
+  by hand) is taken over by its first writer. Prefer exact paths over
+  `+`/`*` wherever unmanaged values live.
+- **Vault stays the hard bound.** Grants only stop the operator from
+  writing what its role could write; restrict the Vault policy of
+  `kubernetesAuthRole` to the same paths.
+- **Removing a grant** leaves the values in place, and the applications
+  that wrote there fail with `SecretStoreError` — deleting them too —
+  until the grant is back or their `path` changes.
+
+`AuthentikLocalInstance`s have no Vault connection, hence no grants.
 
 ## A namespace's own instance
 

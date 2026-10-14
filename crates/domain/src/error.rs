@@ -86,6 +86,12 @@ weebo_kit_domain::reason_codes! {
         /// Authentik API error). See `application::ports::SecretStoreError`
         /// and `SecretStoreFactoryError`.
         SecretStoreError,
+        /// An `AuthentikInstance`'s `secretStore.vault.pathGrants` is
+        /// invalid (a grant naming both namespaces and `clusterScoped`, or
+        /// neither; a path pattern without a literal segment, with `..`, or
+        /// with `*` before its last segment). Normally refused by the CRD
+        /// schema already.
+        InvalidVaultPathGrants,
         /// The remote Authentik object was created for this CR (Event
         /// only: `status.authentikId` was just recorded).
         Created,
@@ -140,7 +146,7 @@ mod tests {
     #[test]
     fn every_code_is_pascal_case() {
         weebo_kit_domain::reason::assert_pascal_case(ReasonCode::ALL);
-        assert_eq!(ReasonCode::ALL.len(), 25);
+        assert_eq!(ReasonCode::ALL.len(), 26);
     }
 
     #[test]

@@ -2,7 +2,7 @@ use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use weebo_kit_api::{SecretKeyRef, SecretStoreBackend, TlsOptions};
+pub use weebo_kit_api::{SecretKeyRef, SecretStoreBackend, TlsOptions, VaultPathGrant};
 
 use crate::status::AuthentikStatus;
 
@@ -63,10 +63,23 @@ pub struct VaultSecretStoreSpec {
     /// under.
     pub mount: String,
     /// Path prefix under `mount` — a target's default KV path is
-    /// `<pathPrefix>/<namespace>/<name>`, and an `AuthentikApplication`
-    /// may only write under `<pathPrefix>/<its namespace>/`.
+    /// `<pathPrefix>/<namespace>/<name>` (`<namespace>/<name>` when empty),
+    /// and an `AuthentikApplication` may only write under
+    /// `<pathPrefix>/<its namespace>/`, unless `pathGrants` opens a path to
+    /// it.
     #[serde(default = "default_vault_path_prefix")]
     pub path_prefix: String,
+    /// Paths outside `<pathPrefix>/<namespace>/` that the
+    /// `AuthentikApplication`s of the listed namespaces may write to (an
+    /// application publishing its credentials where its consumer already
+    /// reads them). A grant opens its paths to everyone allowed to create
+    /// an `AuthentikApplication` in a covered namespace; it never hands
+    /// over a value another CR owns. The Vault policy of
+    /// `kubernetesAuthRole` stays the hard bound: restrict it to the same
+    /// paths.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(length(max = 32))]
+    pub path_grants: Vec<VaultPathGrant>,
     /// Vault Kubernetes-auth role this operator authenticates as — its
     /// own ServiceAccount JWT is exchanged for a Vault token via
     /// `auth/<kubernetesAuthMount>/login`. See `.prompt/plan.md`'s note

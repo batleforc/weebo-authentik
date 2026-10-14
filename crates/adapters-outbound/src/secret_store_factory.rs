@@ -8,7 +8,9 @@
 use std::sync::Arc;
 
 use api::instance::{SecretStoreBackend, VaultSecretStoreSpec};
-use application::ports::{BoundInstance, SecretStore, SecretStoreError, SecretStoreFactory};
+use application::ports::{
+    BoundInstance, InstanceVaults, SecretStore, SecretStoreError, SecretStoreFactory,
+};
 use futures::FutureExt;
 use kube::{Client, ResourceExt};
 use weebo_kit_adapters::{
@@ -71,6 +73,7 @@ async fn vault_for(
         address: spec.address.clone(),
         mount: spec.mount.clone(),
         path_prefix: spec.path_prefix.clone(),
+        path_grants: spec.path_grants.clone(),
         kubernetes_auth_role: spec.kubernetes_auth_role.clone(),
         kubernetes_auth_mount: spec.kubernetes_auth_mount.clone(),
         ca_source: spec
@@ -127,5 +130,22 @@ impl SecretStoreFactory for AuthentikSecretStoreFactory {
             Box::new(move || vault_for(client, logins, name, vault).boxed()),
             store_spec.backend,
         )))
+    }
+}
+
+#[async_trait::async_trait]
+impl InstanceVaults for AuthentikSecretStoreFactory {
+    async fn vault_of(
+        &self,
+        bound: &BoundInstance,
+    ) -> Result<Option<Option<VaultSecretStoreSpec>>, String> {
+        Ok(self
+            .instances
+            .get(bound)
+            .await?
+            .map(|resolved| match resolved {
+                Resolved::Cluster(instance) => instance.spec.secret_store.vault,
+                Resolved::Local(_) => None,
+            }))
     }
 }

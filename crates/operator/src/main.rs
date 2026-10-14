@@ -145,10 +145,11 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
     ));
     // Routes each secret target to Kubernetes or to the instance's Vault
     // (`spec.secretStore`), logging in to Vault only when a target needs it.
-    let secrets_factory: Arc<dyn SecretStoreFactory> = Arc::new(AuthentikSecretStoreFactory::new(
+    let secret_stores = Arc::new(AuthentikSecretStoreFactory::new(
         client.clone(),
         instances.clone(),
     ));
+    let secrets_factory: Arc<dyn SecretStoreFactory> = secret_stores.clone();
     let directory: Arc<dyn InstanceDirectory> = instances;
 
     // Every AuthentikNamespacePolicy, read by the webhook and re-checked by
@@ -187,6 +188,7 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
                 instances: Some(InstanceLookup {
                     client: client.clone(),
                     directory,
+                    vaults: secret_stores,
                 }),
             },
             health.clone(),
