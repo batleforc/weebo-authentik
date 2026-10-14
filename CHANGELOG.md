@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.18.0](https://github.com/batleforc/weebo-authentik/compare/faf9c4ca874edcb8c97d5c49f335ae6f9cb19bb2..v0.18.0) - 2026-10-14
+#### Features
+- (**vault**) pathGrants on the instance's Vault connection, kit v0.15.0 (#14) - ([faf9c4c](https://github.com/batleforc/weebo-authentik/commit/faf9c4ca874edcb8c97d5c49f335ae6f9cb19bb2)) - Maxime, Claude Opus 5.5
+#### Bug Fixes
+- (**deps**) rustls 0.23.46 (RUSTSEC-2026-0346..0349) (#15) - ([57a59df](https://github.com/batleforc/weebo-authentik/commit/57a59df0910aea722d101ab6d08c125e414fcf29)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.17.2](https://github.com/batleforc/weebo-authentik/compare/622e6d561ab407bbc1619cffd4a830428ab17fb7..v0.17.2) - 2026-10-13
 #### Bug Fixes
 - (**application**) record remote objects early; delete a provider of any kind (#13) - ([622e6d5](https://github.com/batleforc/weebo-authentik/commit/622e6d561ab407bbc1619cffd4a830428ab17fb7)) - Maxime, Claude Opus 5.5
