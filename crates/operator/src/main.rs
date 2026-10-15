@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -10,13 +9,9 @@ use adapters_outbound::{
 use api::namespace_policy::NamespaceRule;
 use api::{AuthentikApplication, AuthentikInstance, AuthentikLocalInstance};
 use application::ports::{GatewayFactory, InstanceDirectory, PolicySource, SecretStoreFactory};
-use futures::StreamExt;
-use kube::api::Api;
+use kube::Client;
 use kube::runtime::events::{Recorder, Reporter};
-use kube::runtime::reflector::Store;
-use kube::runtime::{WatchStreamExt, reflector, watcher};
-use kube::{Client, Resource};
-use serde::de::DeserializeOwned;
+use weebo_kit_runtime::store::spawn_reflector;
 use weebo_kit_runtime::{Health, WatchScope, leader, telemetry, webhook_server};
 
 /// Default `LEASE_NAME`: what every release used before it became
@@ -80,7 +75,8 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     telemetry.serve_metrics().await?;
-    register_leader_gauge();
+    // `weebo_authentik_leader`: 1 on the replica holding the lease.
+    leader::register_leader_gauge("weebo-authentik-operator", "weebo_authentik");
 
     let client = Client::try_default().await?;
 
@@ -240,49 +236,4 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
     // Bounded: the drain started with the signal, long before.
     let _ = tokio::time::timeout(Duration::from_secs(30), webhook.stopped()).await;
     Ok(())
-}
-
-/// `weebo_authentik_leader`: 1 on the replica holding the lease.
-fn register_leader_gauge() {
-    // The callback is registered with the meter provider and lives as long
-    // as it does: the handle itself can go.
-    let _ = opentelemetry::global::meter("weebo-authentik-operator")
-        .u64_observable_gauge("weebo_authentik_leader")
-        .with_description("1 when this replica holds the leader lease")
-        .with_callback(|observer| observer.observe(u64::from(leader::is_leader()), &[]))
-        .build();
-}
-
-/// A reflector on `api`, its watch errors reported to `health`: the store
-/// serves every read from memory, and watch errors back off exponentially
-/// instead of spinning.
-fn spawn_reflector<K>(
-    api: Api<K>,
-    scope: &WatchScope,
-    health: Arc<Health>,
-    name: &'static str,
-) -> Store<K>
-where
-    K: Resource<DynamicType = ()> + Clone + Debug + DeserializeOwned + Send + Sync + 'static,
-{
-    let (store, writer) = reflector::store::<K>();
-    let stream = reflector::reflector(
-        writer,
-        watcher(api, scope.watcher_config()).default_backoff(),
-    );
-    tokio::spawn(async move {
-        stream
-            .for_each(|event| {
-                match event {
-                    Ok(_) => health.ok(name),
-                    Err(err) => {
-                        tracing::warn!(error = %err, "{name} watch error");
-                        health.failed(name, err.to_string());
-                    }
-                }
-                futures::future::ready(())
-            })
-            .await;
-    });
-    store
 }

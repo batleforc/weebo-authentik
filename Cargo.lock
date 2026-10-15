@@ -2325,10 +2325,8 @@ dependencies = [
  "anyhow",
  "api",
  "application",
- "futures",
  "k8s-openapi",
  "kube",
- "opentelemetry",
  "rustls",
  "serde",
  "serde_json",
@@ -4201,8 +4199,8 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-adapters"
-version = "0.15.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.15.0#26bdd63d3c551449fcc871340580366e26f00aa1"
+version = "0.16.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.16.0#67c0aacc9ef3a86256bb9f1999979e935556df45"
 dependencies = [
  "async-trait",
  "futures",
@@ -4224,8 +4222,8 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-api"
-version = "0.15.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.15.0#26bdd63d3c551449fcc871340580366e26f00aa1"
+version = "0.16.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.16.0#67c0aacc9ef3a86256bb9f1999979e935556df45"
 dependencies = [
  "k8s-openapi",
  "schemars 1.2.1",
@@ -4234,8 +4232,8 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-application"
-version = "0.15.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.15.0#26bdd63d3c551449fcc871340580366e26f00aa1"
+version = "0.16.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.16.0#67c0aacc9ef3a86256bb9f1999979e935556df45"
 dependencies = [
  "async-trait",
  "k8s-openapi",
@@ -4245,13 +4243,13 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-domain"
-version = "0.15.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.15.0#26bdd63d3c551449fcc871340580366e26f00aa1"
+version = "0.16.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.16.0#67c0aacc9ef3a86256bb9f1999979e935556df45"
 
 [[package]]
 name = "weebo-kit-perf"
-version = "0.15.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.15.0#26bdd63d3c551449fcc871340580366e26f00aa1"
+version = "0.16.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.16.0#67c0aacc9ef3a86256bb9f1999979e935556df45"
 dependencies = [
  "http",
  "k8s-openapi",
@@ -4265,8 +4263,8 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-runtime"
-version = "0.15.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.15.0#26bdd63d3c551449fcc871340580366e26f00aa1"
+version = "0.16.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.16.0#67c0aacc9ef3a86256bb9f1999979e935556df45"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4287,13 +4285,14 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "weebo-kit-api",
+ "weebo-kit-application",
  "weebo-kit-domain",
 ]
 
 [[package]]
 name = "weebo-kit-testkit"
-version = "0.15.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.15.0#26bdd63d3c551449fcc871340580366e26f00aa1"
+version = "0.16.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.16.0#67c0aacc9ef3a86256bb9f1999979e935556df45"
 dependencies = [
  "envtest",
  "kube",
