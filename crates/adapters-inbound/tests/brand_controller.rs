@@ -10,11 +10,11 @@ use std::time::Duration;
 use adapters_inbound::controller;
 use api::AuthentikBrand;
 use api::brand::AuthentikBrandSpec;
-use kube::api::{Api, ObjectMeta, PostParams};
+use kube::api::{Api, DeleteParams, ObjectMeta, PostParams};
 use testkit::authentik_mock::AuthentikMock;
 
 mod support;
-use support::{init_tracing, new_ctx, wait_for};
+use support::{init_tracing, new_ctx, wait_for, wait_for_absence};
 
 fn brand_spec(domain: &str, default: bool) -> AuthentikBrandSpec {
     AuthentikBrandSpec {
@@ -178,6 +178,80 @@ async fn two_default_brands_conflict_loser_errored_without_touching_the_gateway(
         .reason
         .clone();
     assert_eq!(reason, "DefaultBrandConflict");
+}
+
+/// Created, then the default toggle fails: the brand is recorded all the
+/// same, so the next attempts patch it (never a second create colliding
+/// with the first) and deleting the CR deletes it.
+#[tokio::test]
+async fn a_brand_created_before_a_failing_default_toggle_is_recorded() {
+    init_tracing();
+
+    let cluster = testkit::envtest::start().await;
+    let client = cluster.client();
+
+    let mock = AuthentikMock::start().await;
+    let pk = "77777777-7777-7777-7777-777777777777";
+    mock.mock_post(
+        "/core/brands/",
+        201,
+        serde_json::json!({"brand_uuid": pk, "domain": "weebo.example.com"}),
+    )
+    .await;
+    mock.mock_patch(
+        &format!("/core/brands/{pk}/"),
+        200,
+        serde_json::json!({"brand_uuid": pk, "domain": "weebo.example.com"}),
+    )
+    .await;
+    // Listing the brands to find the current default fails.
+    mock.mock_get("/core/brands/", 500, serde_json::json!({"detail": "boom"}))
+        .await;
+    mock.mock_delete(&format!("/core/brands/{pk}/"), 204).await;
+
+    let ctx = new_ctx(client.clone(), &mock);
+    tokio::spawn(controller::brand::run(client.clone(), ctx));
+
+    let brands: Api<AuthentikBrand> = Api::all(client.clone());
+    brands
+        .create(
+            &PostParams::default(),
+            &AuthentikBrand {
+                metadata: ObjectMeta {
+                    name: Some("weebo".to_string()),
+                    ..Default::default()
+                },
+                spec: brand_spec("weebo.example.com", true),
+                status: None,
+            },
+        )
+        .await
+        .expect("AuthentikBrand CR create must succeed");
+
+    let (status, authentik_id) = wait_for(&brands, "weebo", |brand| {
+        let status = brand.status.as_ref()?;
+        let cond = status.conditions.iter().find(|c| c.type_ == "Ready")?;
+        Some((cond.status.clone(), status.authentik_id.clone()?))
+    })
+    .await;
+    assert_eq!(status, "False");
+    assert_eq!(authentik_id, pk);
+
+    brands
+        .delete("weebo", &DeleteParams::default())
+        .await
+        .expect("deleting the brand must be accepted");
+    wait_for_absence(&brands, "weebo").await;
+
+    let requests = mock.server.received_requests().await.unwrap();
+    let count = |method: &str, path: &str| {
+        requests
+            .iter()
+            .filter(|r| r.method.as_str() == method && r.url.path() == path)
+            .count()
+    };
+    assert_eq!(count("POST", "/api/v3/core/brands/"), 1);
+    assert_eq!(count("DELETE", &format!("/api/v3/core/brands/{pk}/")), 1);
 }
 
 fn empty_paginated_list() -> serde_json::Value {

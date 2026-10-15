@@ -174,14 +174,22 @@ async fn cleanup(
                                 _ => None,
                             }),
                     ) {
-                        (Some(provider_id), Some(provider_kind)) => gateway
-                            .delete_provider(provider_id, provider_kind)
-                            .await
-                            .map_err(|e| Error::Gateway(e.to_string()))?,
-                        // An application pointing at no provider: the one
-                        // recorded, if any.
-                        (None, _) => delete_recorded_provider.await?,
-                        _ => {}
+                        (Some(provider_id), Some(provider_kind)) => {
+                            gateway
+                                .delete_provider(provider_id, provider_kind)
+                                .await
+                                .map_err(|e| Error::Gateway(e.to_string()))?;
+                            // Repointed out of band: the one recorded is
+                            // left behind by the application.
+                            if recorded_provider != Some(provider_id) {
+                                delete_recorded_provider.await?;
+                            }
+                        }
+                        // An application pointing at no provider, or
+                        // repointed out of band to a provider of a kind
+                        // this operator never creates (left alone, it isn't
+                        // this CR's): the one recorded, if any.
+                        _ => delete_recorded_provider.await?,
                     }
                     gateway
                         .delete_application(id)
