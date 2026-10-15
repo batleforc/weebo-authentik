@@ -4,7 +4,7 @@ use api::AuthentikBrand;
 use application::use_cases::ReconcileOutcome;
 use application::use_cases::errored_from_factory_error;
 use application::use_cases::reconcile_brand::{
-    BrandAction, BrandReconcileInput, plan_brand_action, reconcile_brand,
+    BrandAction, BrandReconcileInput, BrandReconciled, plan_brand_action, reconcile_brand_recording,
 };
 use kube::api::Api;
 use kube::runtime::controller::Action;
@@ -59,7 +59,10 @@ async fn apply(
     let all = list_default_claimants(api, &this).await?;
     let action = plan_brand_action(&this, &all);
 
-    let outcome = match action {
+    let BrandReconciled {
+        outcome,
+        authentik_id: written_id,
+    } = match action {
         BrandAction::NoDefaultClaim => sync_brand(ctx, brand, authentik_id.as_deref(), false).await,
         BrandAction::BecomeDefault => sync_brand(ctx, brand, authentik_id.as_deref(), true).await,
         // Losing claimant: never touches Authentik at all, per
@@ -67,16 +70,35 @@ async fn apply(
         BrandAction::Conflict {
             winner_name,
             reason,
-        } => ReconcileOutcome::Errored {
-            reason,
-            message: format!(
-                "another AuthentikBrand ({winner_name}) already holds spec.default: true"
-            ),
+        } => BrandReconciled {
+            outcome: ReconcileOutcome::Errored {
+                reason,
+                message: format!(
+                    "another AuthentikBrand ({winner_name}) already holds spec.default: true"
+                ),
+            },
+            authentik_id: None,
         },
     };
+    // The brand is recorded as soon as it exists in Authentik, even when
+    // the default toggle failed afterwards: the next attempt patches it
+    // instead of colliding with it, and the finalizer deletes it.
+    let mut fields = serde_json::Map::new();
+    if let Some(id) = written_id {
+        fields.insert("authentikId".into(), id.into());
+    }
     super::record_reconcile("AuthentikBrand", started, &outcome);
     let action = super::requeue_after(&outcome);
-    super::patch_reconcile_outcome(api, &ctx.recorder, brand, outcome, "brand synced").await?;
+    super::patch_reconcile_outcome_with(
+        api,
+        &ctx.recorder,
+        brand,
+        outcome,
+        "brand synced",
+        None,
+        fields,
+    )
+    .await?;
 
     Ok(action)
 }
@@ -86,10 +108,15 @@ async fn sync_brand(
     brand: &AuthentikBrand,
     authentik_id: Option<&str>,
     become_default: bool,
-) -> ReconcileOutcome {
+) -> BrandReconciled {
     match ctx.gateway_factory.default_gateway().await {
-        Ok(gateway) => reconcile_brand(brand, authentik_id, become_default, gateway.as_ref()).await,
-        Err(e) => errored_from_factory_error(e),
+        Ok(gateway) => {
+            reconcile_brand_recording(brand, authentik_id, become_default, gateway.as_ref()).await
+        }
+        Err(e) => BrandReconciled {
+            outcome: errored_from_factory_error(e),
+            authentik_id: None,
+        },
     }
 }
 

@@ -73,6 +73,30 @@ pub async fn reconcile_brand(
     become_default: bool,
     gateway: &dyn AuthentikGateway,
 ) -> ReconcileOutcome {
+    reconcile_brand_recording(brand, authentik_id, become_default, gateway)
+        .await
+        .outcome
+}
+
+/// What a reconcile of a brand leaves to record: its outcome, and the
+/// brand it knows to exist — recorded even when the default toggle failed
+/// after the brand was created, so the next attempt patches it instead of
+/// creating it again (and colliding with it).
+#[derive(Debug)]
+pub struct BrandReconciled {
+    pub outcome: ReconcileOutcome,
+    /// The brand (`status.authentikId`), once created or updated by this
+    /// reconcile; `None` leaves the recorded one as it was.
+    pub authentik_id: Option<String>,
+}
+
+/// [`reconcile_brand`], also returning what to record.
+pub async fn reconcile_brand_recording(
+    brand: &AuthentikBrand,
+    authentik_id: Option<&str>,
+    become_default: bool,
+    gateway: &dyn AuthentikGateway,
+) -> BrandReconciled {
     let result = match authentik_id {
         // Deleted out of band: recreated, the CR is authoritative.
         Some(id) => match gateway.update_brand(id, brand).await {
@@ -84,46 +108,56 @@ pub async fn reconcile_brand(
 
     let own_id = match result {
         Ok(id) => id,
-        Err(e) => return errored_from_gateway_error(e),
+        Err(e) => {
+            return BrandReconciled {
+                outcome: errored_from_gateway_error(e),
+                authentik_id: None,
+            };
+        }
     };
 
+    let outcome = match toggle_default(&own_id, become_default, gateway).await {
+        Ok(()) => ReconcileOutcome::Synced {
+            authentik_id: Some(own_id.clone()),
+        },
+        Err(e) => errored_from_gateway_error(e),
+    };
+    BrandReconciled {
+        outcome,
+        authentik_id: Some(own_id),
+    }
+}
+
+/// Makes `own_id` Authentik's default brand (`become_default`), or makes
+/// sure it no longer is.
+async fn toggle_default(
+    own_id: &str,
+    become_default: bool,
+    gateway: &dyn AuthentikGateway,
+) -> Result<(), GatewayError> {
+    let current = gateway.get_default_brand().await?;
     if become_default {
         // Only disable the currently-default brand if it isn't already
         // this one (idempotent re-reconciles shouldn't toggle it off and
         // back on) — see `.prompt/plan.md`, "Election du brand par
         // defaut", point 2: an unmanaged/native default gets disabled
         // before this CR's brand is enabled.
-        match gateway.get_default_brand().await {
-            Ok(Some(current)) if current != own_id => {
-                if let Err(e) = gateway.set_brand_default(&current, false).await {
-                    return errored_from_gateway_error(e);
-                }
-            }
-            Ok(_) => {}
-            Err(e) => return errored_from_gateway_error(e),
+        if let Some(current) = current
+            && current != own_id
+        {
+            gateway.set_brand_default(&current, false).await?;
         }
-        if let Err(e) = gateway.set_brand_default(&own_id, true).await {
-            return errored_from_gateway_error(e);
-        }
+        gateway.set_brand_default(own_id, true).await
     } else {
         // The CR is authoritative both ways: a brand no longer claiming
         // default (`spec.default: true → false`, or adopted as the default
         // without claiming it) stops being Authentik's default. No other
         // brand is enabled in its place — see the cleanup's note on
         // point 4 of "Election du brand par defaut".
-        match gateway.get_default_brand().await {
-            Ok(Some(current)) if current == own_id => {
-                if let Err(e) = gateway.set_brand_default(&own_id, false).await {
-                    return errored_from_gateway_error(e);
-                }
-            }
-            Ok(_) => {}
-            Err(e) => return errored_from_gateway_error(e),
+        if current.as_deref() == Some(own_id) {
+            gateway.set_brand_default(own_id, false).await?;
         }
-    }
-
-    ReconcileOutcome::Synced {
-        authentik_id: Some(own_id),
+        Ok(())
     }
 }
 
@@ -207,5 +241,70 @@ mod tests {
         };
         reconcile_brand(&brand(), Some("b1"), false, &gateway).await;
         assert!(gateway.set_brand_default_calls.lock().unwrap().is_empty());
+    }
+
+    /// Created, then the default toggle fails: the brand is returned all
+    /// the same, so the controller records it and the next attempt patches
+    /// it instead of colliding with it.
+    #[tokio::test]
+    async fn a_brand_created_before_a_failing_default_toggle_is_recorded() {
+        let gateway = crate::test_support::FakeGateway {
+            create_result: Some(Ok("b1".to_string())),
+            get_default_brand_result: Some(Err(GatewayError::Api("boom".to_string()))),
+            ..Default::default()
+        };
+        let reconciled = reconcile_brand_recording(&brand(), None, true, &gateway).await;
+        assert!(matches!(
+            reconciled.outcome,
+            ReconcileOutcome::Errored { .. }
+        ));
+        assert_eq!(reconciled.authentik_id.as_deref(), Some("b1"));
+        assert!(gateway.set_brand_default_calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_brand_recreated_out_of_band_before_a_failing_toggle_is_recorded() {
+        let gateway = crate::test_support::FakeGateway {
+            update_result: Some(Err(GatewayError::Gone("b1".to_string()))),
+            create_result: Some(Ok("b2".to_string())),
+            get_default_brand_result: Some(Err(GatewayError::Api("boom".to_string()))),
+            ..Default::default()
+        };
+        let reconciled = reconcile_brand_recording(&brand(), Some("b1"), false, &gateway).await;
+        assert!(matches!(
+            reconciled.outcome,
+            ReconcileOutcome::Errored { .. }
+        ));
+        assert_eq!(reconciled.authentik_id.as_deref(), Some("b2"));
+    }
+
+    #[tokio::test]
+    async fn a_failing_create_records_nothing() {
+        let gateway =
+            crate::test_support::FakeGateway::create(Err(GatewayError::Api("boom".to_string())));
+        let reconciled = reconcile_brand_recording(&brand(), None, true, &gateway).await;
+        assert!(matches!(
+            reconciled.outcome,
+            ReconcileOutcome::Errored { .. }
+        ));
+        assert_eq!(reconciled.authentik_id, None);
+    }
+
+    #[tokio::test]
+    async fn the_winner_replaces_another_default() {
+        let gateway = crate::test_support::FakeGateway {
+            update_result: Some(Ok(())),
+            get_default_brand_result: Some(Ok(Some("native".to_string()))),
+            ..Default::default()
+        };
+        let reconciled = reconcile_brand_recording(&brand(), Some("b1"), true, &gateway).await;
+        assert!(matches!(
+            reconciled.outcome,
+            ReconcileOutcome::Synced { authentik_id: Some(ref id) } if id == "b1"
+        ));
+        assert_eq!(
+            *gateway.set_brand_default_calls.lock().unwrap(),
+            vec![("native".to_string(), false), ("b1".to_string(), true)]
+        );
     }
 }

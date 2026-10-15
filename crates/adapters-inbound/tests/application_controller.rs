@@ -464,6 +464,72 @@ async fn an_application_deleted_out_of_band_is_still_released() {
     );
 }
 
+/// Repointed out of band to a provider of a kind the operator never
+/// creates: that one is left alone (it isn't this CR's), the recorded one,
+/// left behind by the application, is deleted with it.
+#[tokio::test]
+async fn an_application_repointed_out_of_band_still_deletes_its_recorded_provider() {
+    init_tracing();
+
+    let cluster = testkit::envtest::start().await;
+    let client = cluster.client();
+    let mock = AuthentikMock::start().await;
+    mount_proxy_sync(&mock).await;
+    mock.mock_get_application(
+        "longhorn",
+        200,
+        serde_json::json!({
+            "pk": "66666666-6666-6666-6666-666666666666", "name": "Longhorn", "slug": "longhorn",
+            "provider": 99,
+            "provider_obj": {
+                "pk": 99, "name": "longhorn-saml", "authentication_flow": null,
+                "authorization_flow": "d0000000-0000-0000-0000-000000000001",
+                "invalidation_flow": "d0000000-0000-0000-0000-000000000002",
+                "property_mappings": null, "component": "ak-provider-saml-form",
+                "assigned_application_slug": "longhorn", "assigned_application_name": "Longhorn",
+                "assigned_backchannel_application_slug": null,
+                "assigned_backchannel_application_name": null,
+                "verbose_name": "SAML Provider", "verbose_name_plural": "SAML Providers",
+                "meta_model_name": "authentik_providers_saml.samlprovider",
+            },
+            "backchannel_providers_obj": [],
+            "launch_url": null, "meta_icon_url": null, "meta_icon_themed_urls": null,
+        }),
+    )
+    .await;
+    mock.mock_delete("/providers/all/43/", 204).await;
+    mock.mock_delete("/core/applications/longhorn/", 204).await;
+
+    let ctx = new_ctx(client.clone(), &mock);
+    tokio::spawn(controller::app::run(client.clone(), ctx));
+
+    let apps: Api<AuthentikApplication> = Api::namespaced(client.clone(), "default");
+    apps.create(&PostParams::default(), &proxy_application())
+        .await
+        .expect("AuthentikApplication CR create must succeed");
+    wait_for_authentik_id(&apps, "longhorn").await;
+    let provider_id = wait_for(&apps, "longhorn", |app| {
+        app.status
+            .as_ref()
+            .and_then(|s| s.provider_id.as_deref())
+            .map(str::to_string)
+    })
+    .await;
+    assert_eq!(provider_id, "43");
+
+    apps.delete("longhorn", &DeleteParams::default())
+        .await
+        .expect("deleting the application must be accepted");
+    wait_for_absence(&apps, "longhorn").await;
+    assert_eq!(
+        deletes(&mock).await,
+        vec![
+            "/api/v3/providers/all/43/".to_string(),
+            "/api/v3/core/applications/longhorn/".to_string(),
+        ]
+    );
+}
+
 /// The proxy provider 43, as Authentik returns it.
 fn proxy_provider_43() -> serde_json::Value {
     serde_json::json!({

@@ -262,7 +262,9 @@ status:
                                  # provider de l'application, réutilisé si
                                  # l'application est supprimée hors
                                  # opérateur, supprimé avec la CR (quel que
-                                 # soit son type, via /providers/all/)
+                                 # soit son type, via /providers/all/,
+                                 # même si l'application pointe hors
+                                 # opérateur vers un autre provider)
   conditions:
     - type: Ready
       status: "True" | "False" | "Unknown"
@@ -289,7 +291,8 @@ Séquence à la première réconciliation d'une CR (`status.authentikId` vide) :
    `status.authentikId`. C'est la seule façon dont une CR "possède"
    désormais un objet Authentik. Il est écrit même quand une étape
    suivante du même reconcile échoue (provider d'une application écrit
-   dès sa création, application avant l'attachement à l'outpost) : la
+   dès sa création, application avant l'attachement à l'outpost, brand
+   avant le basculement du brand par défaut) : la
    tentative suivante met à jour ce qui existe au lieu de le recréer et
    d'entrer en collision avec lui.
 3. Si l'API Authentik refuse pour cause de doublon (slug/nom déjà pris
