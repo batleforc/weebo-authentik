@@ -67,6 +67,13 @@ pub struct VaultSecretStoreSpec {
     /// and an `AuthentikApplication` may only write under
     /// `<pathPrefix>/<its namespace>/`, unless `pathGrants` opens a path to
     /// it.
+    ///
+    /// An empty prefix makes every namespace's subtree a top-level folder
+    /// of the mount: a namespace named like a folder that holds other
+    /// values (one a grant opens, `shared/` say) owns that folder — its
+    /// objects write there without any grant. Keep a prefix unless the
+    /// mount is reserved to per-namespace folders and no namespace can be
+    /// created with the name of another top-level folder.
     #[serde(default = "default_vault_path_prefix")]
     pub path_prefix: String,
     /// Paths outside `<pathPrefix>/<namespace>/` that the
