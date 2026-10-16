@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.18.1](https://github.com/batleforc/weebo-authentik/compare/e194a54523ca3ddbbbacb2047994e5e12fc0c7c7..v0.18.1) - 2026-10-15
+#### Bug Fixes
+- (**application**) record a brand before switching the default; delete a recorded provider of any kind (#16) - ([e194a54](https://github.com/batleforc/weebo-authentik/commit/e194a54523ca3ddbbbacb2047994e5e12fc0c7c7)) - Maxime, Claude Opus 5.5
+- (**deps**) kit v0.16.0 (#17) - ([faa17ed](https://github.com/batleforc/weebo-authentik/commit/faa17ed631ea17720bcf0bb5f350e2f56494a596)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.18.0](https://github.com/batleforc/weebo-authentik/compare/faf9c4ca874edcb8c97d5c49f335ae6f9cb19bb2..v0.18.0) - 2026-10-14
 #### Features
 - (**vault**) pathGrants on the instance's Vault connection, kit v0.15.0 (#14) - ([faf9c4c](https://github.com/batleforc/weebo-authentik/commit/faf9c4ca874edcb8c97d5c49f335ae6f9cb19bb2)) - Maxime, Claude Opus 5.5
