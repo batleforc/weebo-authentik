@@ -111,7 +111,11 @@ async fn sync_brand(
 ) -> BrandReconciled {
     match ctx.gateway_factory.default_gateway().await {
         Ok(gateway) => {
-            reconcile_brand_recording(brand, authentik_id, become_default, gateway.as_ref()).await
+            let reconciled =
+                reconcile_brand_recording(brand, authentik_id, become_default, gateway.as_ref())
+                    .await;
+            super::report_writes("AuthentikBrand", &ctx.recorder, brand, gateway.as_ref()).await;
+            reconciled
         }
         Err(e) => BrandReconciled {
             outcome: errored_from_factory_error(e),
@@ -140,6 +144,7 @@ async fn cleanup(brand: &AuthentikBrand, ctx: &Ctx) -> Result<Action, Error> {
             .delete_brand(id)
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
+        super::count_writes("AuthentikBrand", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, brand).await;
     Ok(Action::await_change())

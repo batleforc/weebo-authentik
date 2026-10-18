@@ -95,6 +95,12 @@ weebo_kit_domain::reason_codes! {
         /// The remote Authentik object was created for this CR (Event
         /// only: `status.authentikId` was just recorded).
         Created,
+        /// Fields of the CR's Authentik objects no longer held their
+        /// desired value (changed in Authentik) and were put back; the
+        /// Event names the objects and fields (Event only). Coming back on
+        /// every reconcile for the same field, it is a comparison bug, not
+        /// a drift (weebo-si RFC 0003).
+        DriftCorrected,
         /// The finalizer deleted the remote Authentik object of this CR
         /// (Event only).
         Deleted,
@@ -132,6 +138,7 @@ impl ReasonCode {
             ReasonCode::NoAccessPolicyBound
             | ReasonCode::Reconciled
             | ReasonCode::Created
+            | ReasonCode::DriftCorrected
             | ReasonCode::Deleted
             | ReasonCode::Released => Severity::Advisory,
             _ => Severity::Blocking,
@@ -146,7 +153,7 @@ mod tests {
     #[test]
     fn every_code_is_pascal_case() {
         weebo_kit_domain::reason::assert_pascal_case(ReasonCode::ALL);
-        assert_eq!(ReasonCode::ALL.len(), 26);
+        assert_eq!(ReasonCode::ALL.len(), 27);
     }
 
     #[test]

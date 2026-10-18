@@ -81,13 +81,21 @@ async fn apply(
         (None, Ok(bound)) => match ctx.gateway_factory.gateway_for(bound).await {
             Ok(gateway) => match ctx.secrets_factory.store_for(bound).await {
                 Ok(secrets) => {
-                    reconcile_application_recording(
+                    let reconciled = reconcile_application_recording(
                         app,
                         authentik_id.as_deref(),
                         gateway.as_ref(),
                         secrets.as_ref(),
                     )
-                    .await
+                    .await;
+                    super::report_writes(
+                        "AuthentikApplication",
+                        &ctx.recorder,
+                        app,
+                        gateway.as_ref(),
+                    )
+                    .await;
+                    reconciled
                 }
                 Err(e) => unrecorded(errored_from_secret_store_error(e)),
             },
@@ -202,6 +210,7 @@ async fn cleanup(
             },
             None => delete_recorded_provider.await?,
         }
+        super::count_writes("AuthentikApplication", gateway.as_ref());
 
         if matches!(app.spec.provider.kind, ProviderKind::Oauth2) {
             let secrets = ctx

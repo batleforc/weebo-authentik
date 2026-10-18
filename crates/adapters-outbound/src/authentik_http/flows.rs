@@ -9,7 +9,7 @@ use authentik_client::models;
 use domain::drift::Drift;
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
+use super::shared::{map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_flow_impl(
@@ -37,6 +37,7 @@ impl AuthentikHttpGateway {
         // convention as `create_application`.
         flows_api::flows_instances_create(&self.configuration, req)
             .await
+            .inspect(|_| self.created("flow"))
             .map(|f| f.slug)
             .map_err(map_err)
     }
@@ -92,7 +93,7 @@ impl AuthentikHttpGateway {
             &mut req.authentication,
             &remote.authentication,
         );
-        if !must_write("flow", authentik_id, &drift) {
+        if !self.must_write("flow", authentik_id, &drift) {
             return Ok(());
         }
         flows_api::flows_instances_partial_update(&self.configuration, authentik_id, Some(req))
@@ -102,7 +103,8 @@ impl AuthentikHttpGateway {
     }
 
     pub(super) async fn delete_flow_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {
-        ignore_not_found(
+        self.gone(
+            "flow",
             flows_api::flows_instances_destroy(&self.configuration, authentik_id).await,
         )
     }

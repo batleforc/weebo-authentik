@@ -6,7 +6,7 @@ use authentik_client::models;
 use domain::drift::{Drift, same_set};
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, must_write, parse_i32};
+use super::shared::{map_err, map_own_err, parse_i32};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_user_impl(
@@ -31,6 +31,7 @@ impl AuthentikHttpGateway {
         };
         core_api::core_users_create(&self.configuration, req)
             .await
+            .inspect(|_| self.created("user"))
             .map(|u| u.pk.to_string())
             .map_err(map_err)
     }
@@ -68,7 +69,7 @@ impl AuthentikHttpGateway {
             same_set(d, r.as_deref().unwrap_or_default())
         });
         drift.keep_opt("email", &mut req.email, &remote.email);
-        if !must_write("user", authentik_id, &drift) {
+        if !self.must_write("user", authentik_id, &drift) {
             return Ok(());
         }
         core_api::core_users_partial_update(&self.configuration, id, Some(req))
@@ -79,6 +80,9 @@ impl AuthentikHttpGateway {
 
     pub(super) async fn delete_user_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {
         let id = parse_i32(authentik_id)?;
-        ignore_not_found(core_api::core_users_destroy(&self.configuration, id).await)
+        self.gone(
+            "user",
+            core_api::core_users_destroy(&self.configuration, id).await,
+        )
     }
 }

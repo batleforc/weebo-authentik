@@ -49,7 +49,16 @@ async fn apply(
     let started = std::time::Instant::now();
     let outcome = match ctx.gateway_factory.default_gateway().await {
         Ok(gateway) => {
-            reconcile_scope_mapping(mapping, authentik_id.as_deref(), gateway.as_ref()).await
+            let outcome =
+                reconcile_scope_mapping(mapping, authentik_id.as_deref(), gateway.as_ref()).await;
+            super::report_writes(
+                "AuthentikScopeMapping",
+                &ctx.recorder,
+                &current,
+                gateway.as_ref(),
+            )
+            .await;
+            outcome
         }
         Err(e) => errored_from_factory_error(e),
     };
@@ -92,6 +101,7 @@ async fn cleanup(
             .delete_scope_mapping(id)
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
+        super::count_writes("AuthentikScopeMapping", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, mapping).await;
     Ok(Action::await_change())

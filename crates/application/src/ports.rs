@@ -33,6 +33,20 @@ pub enum GatewayError {
     Api(String),
 }
 
+pub use domain::drift::RemoteWrite;
+
+/// A write the gateway made to Authentik: an object created, put back
+/// after a drift (`fields`: the ones corrected), or deleted. Read by the
+/// controller after the reconcile ([`AuthentikGateway::take_writes`]) for
+/// the `remote_writes_total` counter and the `DriftCorrected` Event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Written {
+    /// The Authentik object (`group`, `oauth2_provider`…).
+    pub object: &'static str,
+    pub cause: RemoteWrite,
+    pub fields: Vec<&'static str>,
+}
+
 /// Talks to a single Authentik instance's API. One instantiation per
 /// `AuthentikInstance` CR, produced on demand by `GatewayFactory`.
 ///
@@ -42,6 +56,13 @@ pub enum GatewayError {
 /// — native async-fn-in-traits are not `dyn`-compatible on stable Rust.
 #[async_trait::async_trait]
 pub trait AuthentikGateway: Send + Sync {
+    /// The writes made since the last call, oldest first. A gateway is
+    /// built for each reconcile, so these are that reconcile's. Test
+    /// doubles may keep the default: no write reported.
+    fn take_writes(&self) -> Vec<Written> {
+        Vec::new()
+    }
+
     /// Attempt-create-first, never lookup-then-create (avoids the race
     /// window between concurrent reconciles) — a name/slug collision with
     /// an object this gateway didn't just create must surface as

@@ -44,7 +44,11 @@ async fn apply(api: &Api<AuthentikUser>, user: &AuthentikUser, ctx: &Ctx) -> Res
 
     let started = std::time::Instant::now();
     let outcome = match ctx.gateway_factory.default_gateway().await {
-        Ok(gateway) => reconcile_user(user, authentik_id.as_deref(), gateway.as_ref()).await,
+        Ok(gateway) => {
+            let outcome = reconcile_user(user, authentik_id.as_deref(), gateway.as_ref()).await;
+            super::report_writes("AuthentikUser", &ctx.recorder, user, gateway.as_ref()).await;
+            outcome
+        }
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikUser", started, &outcome);
@@ -69,6 +73,7 @@ async fn cleanup(
             .delete_user(id)
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
+        super::count_writes("AuthentikUser", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, user).await;
     Ok(Action::await_change())

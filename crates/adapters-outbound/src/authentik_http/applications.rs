@@ -6,7 +6,7 @@ use authentik_client::models;
 use domain::drift::Drift;
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
+use super::shared::{map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_application_impl(
@@ -30,6 +30,7 @@ impl AuthentikHttpGateway {
         };
         core_api::core_applications_create(&self.configuration, req)
             .await
+            .inspect(|_| self.created("application"))
             .map(|a| a.slug)
             .map_err(map_err)
     }
@@ -62,7 +63,7 @@ impl AuthentikHttpGateway {
         drift.keep("slug", &mut req.slug, &remote.slug);
         drift.keep_opt("provider", &mut req.provider, &remote.provider);
         drift.keep_opt("meta_icon", &mut req.meta_icon, &remote.meta_icon);
-        if !must_write("application", authentik_id, &drift) {
+        if !self.must_write("application", authentik_id, &drift) {
             return Ok(());
         }
         core_api::core_applications_partial_update(&self.configuration, authentik_id, Some(req))
@@ -75,7 +76,8 @@ impl AuthentikHttpGateway {
         &self,
         authentik_id: &str,
     ) -> Result<(), GatewayError> {
-        ignore_not_found(
+        self.gone(
+            "application",
             core_api::core_applications_destroy(&self.configuration, authentik_id).await,
         )
     }
