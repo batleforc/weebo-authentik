@@ -18,6 +18,7 @@ description: What the operator exports, the probes it answers, and the settings 
 | --- | --- | --- | --- |
 | `weebo_authentik_reconcile_total` | counter | `kind`, `result` (`success`/`error`: the severity of the `Ready` reason), `reason` (the `Ready` reason code) | Reconcile runs |
 | `weebo_authentik_reconcile_duration_seconds` | histogram | `kind` | Reconcile run duration; buckets 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 s |
+| `weebo_authentik_remote_writes_total` | counter | `kind`, `cause` (`created`/`drift`/`deleted`) | Writes to the remote system. At rest it stays flat: an object is only written when it differs from its spec |
 | `weebo_authentik_webhook_decisions_total` | counter | `kind`, `result` (`allow`/`deny`) | Admission webhook decisions |
 | `weebo_authentik_leader` | gauge (0/1) | none | `1` on the replica holding the leader lease |
 
@@ -32,6 +33,10 @@ sum by (kind) (rate(weebo_authentik_reconcile_total{result="error"}[15m]))
 
 # Why they fail
 sum by (reason) (rate(weebo_authentik_reconcile_total{result="error"}[15m]))
+
+# Objects rewritten at rest: one correction is a drift, a steady rate is
+# a field compared wrong (the RepeatedDrift alert)
+sum by (kind) (increase(weebo_authentik_remote_writes_total{cause="drift"}[30m]))
 
 # Reconcile p95, per kind
 histogram_quantile(0.95, sum by (kind, le) (rate(weebo_authentik_reconcile_duration_seconds_bucket[5m])))
