@@ -3,8 +3,10 @@ use application::ports::GatewayError;
 use authentik_client::apis::core_api;
 use authentik_client::models;
 
+use domain::drift::Drift;
+
 use super::AuthentikHttpGateway;
-use super::shared::{map_err, map_own_err};
+use super::shared::{map_err, map_own_err, must_write};
 
 impl AuthentikHttpGateway {
     /// Same as `resolve_flow`, for the optional flow slugs on
@@ -71,7 +73,10 @@ impl AuthentikHttpGateway {
         authentik_id: &str,
         brand: &AuthentikBrand,
     ) -> Result<(), GatewayError> {
-        let req = models::PatchedBrandRequest {
+        let remote = core_api::core_brands_retrieve(&self.configuration, authentik_id)
+            .await
+            .map_err(map_own_err)?;
+        let mut req = models::PatchedBrandRequest {
             domain: Some(brand.spec.domain.clone()),
             default: None,
             branding_title: brand.spec.branding_title.clone(),
@@ -107,6 +112,56 @@ impl AuthentikHttpGateway {
             client_certificates: None,
             attributes: None,
         };
+        let mut drift = Drift::default();
+        drift.keep("domain", &mut req.domain, &remote.domain);
+        drift.keep_opt(
+            "branding_title",
+            &mut req.branding_title,
+            &remote.branding_title,
+        );
+        drift.keep_opt(
+            "branding_logo",
+            &mut req.branding_logo,
+            &remote.branding_logo,
+        );
+        drift.keep_opt(
+            "branding_favicon",
+            &mut req.branding_favicon,
+            &remote.branding_favicon,
+        );
+        drift.keep_opt(
+            "branding_default_flow_background",
+            &mut req.branding_default_flow_background,
+            &remote.branding_default_flow_background,
+        );
+        drift.keep_opt(
+            "flow_authentication",
+            &mut req.flow_authentication,
+            &remote.flow_authentication,
+        );
+        drift.keep_opt(
+            "flow_invalidation",
+            &mut req.flow_invalidation,
+            &remote.flow_invalidation,
+        );
+        drift.keep_opt(
+            "flow_recovery",
+            &mut req.flow_recovery,
+            &remote.flow_recovery,
+        );
+        drift.keep_opt(
+            "flow_unenrollment",
+            &mut req.flow_unenrollment,
+            &remote.flow_unenrollment,
+        );
+        drift.keep_opt(
+            "flow_user_settings",
+            &mut req.flow_user_settings,
+            &remote.flow_user_settings,
+        );
+        if !must_write("brand", authentik_id, &drift) {
+            return Ok(());
+        }
         core_api::core_brands_partial_update(&self.configuration, authentik_id, Some(req))
             .await
             .map(|_| ())

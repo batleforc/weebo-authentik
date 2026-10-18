@@ -7,8 +7,10 @@ use application::ports::GatewayError;
 use authentik_client::apis::outposts_api;
 use authentik_client::models;
 
+use domain::drift::{Drift, same_subset};
+
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, parse_i32};
+use super::shared::{ignore_not_found, map_err, map_own_err, must_write, parse_i32};
 
 /// Authentik's outpost embedded with every installation, never created by
 /// this operator — the default target for a proxy provider whose
@@ -88,7 +90,10 @@ impl AuthentikHttpGateway {
         authentik_id: &str,
         outpost: &AuthentikOutpost,
     ) -> Result<(), GatewayError> {
-        let req = models::PatchedOutpostRequest {
+        let remote = outposts_api::outposts_instances_retrieve(&self.configuration, authentik_id)
+            .await
+            .map_err(map_own_err)?;
+        let mut req = models::PatchedOutpostRequest {
             name: Some(outpost.spec.name.clone()),
             r#type: Some(outpost_type(&outpost.spec.r#type)),
             providers: None,
@@ -96,6 +101,18 @@ impl AuthentikHttpGateway {
             config: Some(outpost_config(&outpost.spec.config)),
             managed: None,
         };
+        let mut drift = Drift::default();
+        drift.keep("name", &mut req.name, &remote.name);
+        drift.keep("type", &mut req.r#type, &remote.r#type);
+        // Authentik completes the config with every default it has: only
+        // the keys the spec sets are compared. On a drift the spec's config
+        // is still what gets written, as before.
+        drift.keep_with("config", &mut req.config, &remote.config, |d, r| {
+            same_subset(d, r)
+        });
+        if !must_write("outpost", authentik_id, &drift) {
+            return Ok(());
+        }
         outposts_api::outposts_instances_partial_update(
             &self.configuration,
             authentik_id,

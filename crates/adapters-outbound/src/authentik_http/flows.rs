@@ -6,8 +6,10 @@ use application::ports::GatewayError;
 use authentik_client::apis::flows_api;
 use authentik_client::models;
 
+use domain::drift::Drift;
+
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err};
+use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_flow_impl(
@@ -44,7 +46,10 @@ impl AuthentikHttpGateway {
         authentik_id: &str,
         flow: &AuthentikFlow,
     ) -> Result<(), GatewayError> {
-        let req = models::PatchedFlowRequest {
+        let remote = flows_api::flows_instances_retrieve(&self.configuration, authentik_id)
+            .await
+            .map_err(map_own_err)?;
+        let mut req = models::PatchedFlowRequest {
             name: Some(flow.spec.name.clone()),
             slug: Some(flow.spec.slug.clone()),
             title: Some(flow.spec.title.clone()),
@@ -60,6 +65,36 @@ impl AuthentikHttpGateway {
             denied_action: flow.spec.denied_action.as_ref().map(map_denied_action),
             authentication: flow.spec.authentication.as_ref().map(map_authentication),
         };
+        let mut drift = Drift::default();
+        drift.keep("name", &mut req.name, &remote.name);
+        drift.keep("slug", &mut req.slug, &remote.slug);
+        drift.keep("title", &mut req.title, &remote.title);
+        drift.keep("designation", &mut req.designation, &remote.designation);
+        drift.keep_opt("background", &mut req.background, &remote.background);
+        drift.keep_opt(
+            "policy_engine_mode",
+            &mut req.policy_engine_mode,
+            &remote.policy_engine_mode,
+        );
+        drift.keep_opt(
+            "compatibility_mode",
+            &mut req.compatibility_mode,
+            &remote.compatibility_mode,
+        );
+        drift.keep_opt("layout", &mut req.layout, &remote.layout);
+        drift.keep_opt(
+            "denied_action",
+            &mut req.denied_action,
+            &remote.denied_action,
+        );
+        drift.keep_opt(
+            "authentication",
+            &mut req.authentication,
+            &remote.authentication,
+        );
+        if !must_write("flow", authentik_id, &drift) {
+            return Ok(());
+        }
         flows_api::flows_instances_partial_update(&self.configuration, authentik_id, Some(req))
             .await
             .map(|_| ())

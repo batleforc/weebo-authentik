@@ -5,8 +5,10 @@ use application::ports::{GatewayError, Oauth2Credentials, Oauth2ProviderUpsertRe
 use authentik_client::apis::{crypto_api, propertymappings_api, providers_api};
 use authentik_client::models;
 
+use domain::drift::{Drift, same_set};
+
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, parse_i32};
+use super::shared::{ignore_not_found, map_err, map_own_err, must_write, parse_i32};
 
 impl AuthentikHttpGateway {
     /// Certificate key pairs are always a lookup of an existing
@@ -162,7 +164,10 @@ impl AuthentikHttpGateway {
             }
             Some(id) => {
                 let id = parse_i32(id)?;
-                let req = models::PatchedOAuth2ProviderRequest {
+                let remote = providers_api::providers_oauth2_retrieve(&self.configuration, id)
+                    .await
+                    .map_err(map_own_err)?;
+                let mut req = models::PatchedOAuth2ProviderRequest {
                     name: Some(name.to_string()),
                     authentication_flow: None,
                     authorization_flow: Some(authorization_flow),
@@ -190,9 +195,68 @@ impl AuthentikHttpGateway {
                     jwt_federation_sources: None,
                     jwt_federation_providers: None,
                 };
-                providers_api::providers_oauth2_partial_update(&self.configuration, id, Some(req))
+                let mut drift = Drift::default();
+                drift.keep("name", &mut req.name, &remote.name);
+                drift.keep(
+                    "authorization_flow",
+                    &mut req.authorization_flow,
+                    &remote.authorization_flow,
+                );
+                drift.keep(
+                    "invalidation_flow",
+                    &mut req.invalidation_flow,
+                    &remote.invalidation_flow,
+                );
+                drift.keep_with(
+                    "property_mappings",
+                    &mut req.property_mappings,
+                    &remote.property_mappings,
+                    |d, r| same_set(d, r.as_deref().unwrap_or_default()),
+                );
+                drift.keep_opt("client_type", &mut req.client_type, &remote.client_type);
+                drift.keep_with(
+                    "grant_types",
+                    &mut req.grant_types,
+                    &remote.grant_types,
+                    |d, r| same_set(d, r.as_deref().unwrap_or_default()),
+                );
+                drift.keep_opt("client_id", &mut req.client_id, &remote.client_id);
+                drift.keep_opt(
+                    "access_token_validity",
+                    &mut req.access_token_validity,
+                    &remote.access_token_validity,
+                );
+                drift.keep_opt("signing_key", &mut req.signing_key, &remote.signing_key);
+                // Two types (request vs response) for the same pair: compared
+                // as a set of (matching mode, URL).
+                drift.keep_with(
+                    "redirect_uris",
+                    &mut req.redirect_uris,
+                    &remote.redirect_uris,
+                    |d, r| {
+                        let d: Vec<_> = d
+                            .iter()
+                            .map(|u| (u.matching_mode, u.url.as_str()))
+                            .collect();
+                        let r: Vec<_> = r
+                            .iter()
+                            .map(|u| (u.matching_mode, u.url.as_str()))
+                            .collect();
+                        same_set(&d, &r)
+                    },
+                );
+                if must_write("oauth2_provider", &id.to_string(), &drift) {
+                    providers_api::providers_oauth2_partial_update(
+                        &self.configuration,
+                        id,
+                        Some(req),
+                    )
                     .await
                     .map_err(map_own_err)?
+                } else {
+                    // In sync: the credentials are the ones just read.
+                    remote
+                }
             }
         };
 
@@ -254,7 +318,10 @@ impl AuthentikHttpGateway {
             }
             Some(id) => {
                 let id = parse_i32(id)?;
-                let req = models::PatchedProxyProviderRequest {
+                let remote = providers_api::providers_proxy_retrieve(&self.configuration, id)
+                    .await
+                    .map_err(map_own_err)?;
+                let mut req = models::PatchedProxyProviderRequest {
                     name: Some(name.to_string()),
                     authentication_flow: None,
                     authorization_flow: Some(authorization_flow),
@@ -276,6 +343,34 @@ impl AuthentikHttpGateway {
                     access_token_validity: None,
                     refresh_token_validity: None,
                 };
+                let mut drift = Drift::default();
+                drift.keep("name", &mut req.name, &remote.name);
+                drift.keep(
+                    "authorization_flow",
+                    &mut req.authorization_flow,
+                    &remote.authorization_flow,
+                );
+                drift.keep(
+                    "invalidation_flow",
+                    &mut req.invalidation_flow,
+                    &remote.invalidation_flow,
+                );
+                drift.keep_opt(
+                    "internal_host",
+                    &mut req.internal_host,
+                    &remote.internal_host,
+                );
+                drift.keep(
+                    "external_host",
+                    &mut req.external_host,
+                    &remote.external_host,
+                );
+                // Each save of a proxy provider makes Authentik rebuild its
+                // outpost permissions and push the outpost an update: the
+                // write avoided here is the costliest of the operator.
+                if !must_write("proxy_provider", &id.to_string(), &drift) {
+                    return Ok(remote.pk.to_string());
+                }
                 providers_api::providers_proxy_partial_update(&self.configuration, id, Some(req))
                     .await
                     .map_err(map_own_err)?

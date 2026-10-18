@@ -433,6 +433,9 @@ async fn an_application_deleted_out_of_band_is_still_released() {
     mock.mock_get_application("longhorn", 404, serde_json::json!({"detail": "Not found."}))
         .await;
     // The recreated application reuses the recorded provider.
+    // An update reads the provider first, and writes only what drifted.
+    mock.mock_get("/providers/proxy/43/", 200, proxy_provider_43())
+        .await;
     mock.mock_patch("/providers/proxy/43/", 200, proxy_provider_43())
         .await;
     mock.mock_delete("/providers/all/43/", 204).await;
@@ -577,6 +580,9 @@ async fn an_application_created_before_a_failing_step_is_recorded() {
     mock.mock_get("/flows/instances/", 200, flows_list()).await;
     mock.mock_post("/providers/proxy/", 201, proxy_provider_43())
         .await;
+    // An update reads the provider first, and writes only what drifted.
+    mock.mock_get("/providers/proxy/43/", 200, proxy_provider_43())
+        .await;
     mock.mock_patch("/providers/proxy/43/", 200, proxy_provider_43())
         .await;
     let application = serde_json::json!({
@@ -640,6 +646,9 @@ async fn a_provider_recorded_without_its_application_is_deleted_with_the_cr() {
     let mock = AuthentikMock::start().await;
     mock.mock_get("/flows/instances/", 200, flows_list()).await;
     mock.mock_post("/providers/proxy/", 201, proxy_provider_43())
+        .await;
+    // An update reads the provider first, and writes only what drifted.
+    mock.mock_get("/providers/proxy/43/", 200, proxy_provider_43())
         .await;
     mock.mock_patch("/providers/proxy/43/", 200, proxy_provider_43())
         .await;

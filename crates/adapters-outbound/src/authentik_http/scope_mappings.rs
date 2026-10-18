@@ -3,8 +3,10 @@ use application::ports::GatewayError;
 use authentik_client::apis::propertymappings_api;
 use authentik_client::models;
 
+use domain::drift::Drift;
+
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err};
+use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_scope_mapping_impl(
@@ -40,13 +42,28 @@ impl AuthentikHttpGateway {
         // description-less CR silently wiping one; matching the CRD's
         // `Option` to the patch's is the same choice `brands` makes for
         // its unmodeled fields.
-        let req = models::PatchedScopeMappingRequest {
+        let remote = propertymappings_api::propertymappings_provider_scope_retrieve(
+            &self.configuration,
+            authentik_id,
+        )
+        .await
+        .map_err(map_own_err)?;
+        let mut req = models::PatchedScopeMappingRequest {
             managed: None,
             name: Some(mapping.spec.name.clone()),
             expression: Some(mapping.spec.expression.clone()),
             scope_name: Some(mapping.spec.scope_name.clone()),
             description: mapping.spec.description.clone(),
         };
+        let mut drift = Drift::default();
+        drift.keep("name", &mut req.name, &remote.name);
+        // Byte for byte: Authentik stores the expression as sent.
+        drift.keep("expression", &mut req.expression, &remote.expression);
+        drift.keep("scope_name", &mut req.scope_name, &remote.scope_name);
+        drift.keep_opt("description", &mut req.description, &remote.description);
+        if !must_write("scope_mapping", authentik_id, &drift) {
+            return Ok(());
+        }
         propertymappings_api::propertymappings_provider_scope_partial_update(
             &self.configuration,
             authentik_id,

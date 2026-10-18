@@ -132,9 +132,20 @@ async fn syncs_the_binding_once_the_application_has_synced() {
     // The controller's own successful status patch is itself a watch
     // event, which re-triggers a reconcile — that second pass now reads
     // back `status.authentikId` and takes the *update* path
-    // (`upsert_policy_binding(Some(id), ...)`), so the PATCH endpoint
-    // needs a mock too, or that idempotent re-reconcile 404s and flips
-    // `Ready` back to `False` right after this test observed `True`.
+    // (`upsert_policy_binding(Some(id), ...)`): it reads the binding,
+    // finds it as desired and writes nothing (RFC 0003). Unmocked, that
+    // read would 404 and flip `Ready` back to `False` right after this
+    // test observed `True`.
+    mock.mock_get(
+        &format!("/policies/bindings/{binding_pk}/"),
+        200,
+        serde_json::json!({
+            "pk": binding_pk, "policy_obj": null, "group_obj": null, "user_obj": null,
+            "group": group_pk, "target": app_pk, "order": 0,
+            "negate": false, "enabled": true,
+        }),
+    )
+    .await;
     mock.mock_patch(
         &format!("/policies/bindings/{binding_pk}/"),
         200,
@@ -222,6 +233,15 @@ async fn syncs_the_binding_once_the_application_has_synced() {
     let (status, reason, authentik_id) = wait_for_ready_status(&policies, "harbor-access").await;
     assert_eq!(status, "True", "reason={reason}");
     assert_eq!(authentik_id.as_deref(), Some(binding_pk));
+    // Re-reconciles of an unchanged binding read it, never write it.
+    let patched = mock
+        .server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .any(|r| r.method.as_str() == "PATCH");
+    assert!(!patched, "an unchanged binding is never PATCHed");
 
     // Torn down together, the application first (the common case): the
     // binding is still deleted, on the instance the policy recorded.
