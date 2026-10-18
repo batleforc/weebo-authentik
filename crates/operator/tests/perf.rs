@@ -82,6 +82,14 @@ async fn fake_authentik() -> MockServer {
         .respond_with(CreateGroup)
         .mount(&server)
         .await;
+    // An update reads the group before writing what drifted. This fake
+    // keeps no state: the name it echoes never matches, so every update
+    // still writes — the load measured stays the read *and* the write.
+    Mock::given(method("GET"))
+        .and(path_regex(r"^/api/v3/core/groups/[^/]+/$"))
+        .respond_with(UpdateGroup)
+        .mount(&server)
+        .await;
     Mock::given(method("PATCH"))
         .and(path_regex(r"^/api/v3/core/groups/[^/]+/$"))
         .respond_with(UpdateGroup)

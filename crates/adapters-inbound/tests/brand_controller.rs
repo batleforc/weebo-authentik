@@ -59,6 +59,13 @@ async fn sole_default_brand_becomes_ready_and_default() {
     .await;
     mock.mock_get("/core/brands/", 200, empty_paginated_list())
         .await;
+    // Re-reconciles read the brand before writing only what drifted.
+    mock.mock_get(
+        &format!("/core/brands/{expected_pk}/"),
+        200,
+        serde_json::json!({"brand_uuid": expected_pk, "domain": "weebo.example.com", "default": true}),
+    )
+    .await;
     mock.mock_patch(
         &format!("/core/brands/{expected_pk}/"),
         200,
@@ -112,6 +119,12 @@ async fn two_default_brands_conflict_loser_errored_without_touching_the_gateway(
     .await;
     mock.mock_get("/core/brands/", 200, empty_paginated_list())
         .await;
+    mock.mock_get(
+        &format!("/core/brands/{winner_pk}/"),
+        200,
+        serde_json::json!({"brand_uuid": winner_pk, "domain": "weebo-first.example.com", "default": true}),
+    )
+    .await;
     mock.mock_patch(
         &format!("/core/brands/{winner_pk}/"),
         200,
@@ -195,6 +208,12 @@ async fn a_brand_created_before_a_failing_default_toggle_is_recorded() {
     mock.mock_post(
         "/core/brands/",
         201,
+        serde_json::json!({"brand_uuid": pk, "domain": "weebo.example.com"}),
+    )
+    .await;
+    mock.mock_get(
+        &format!("/core/brands/{pk}/"),
+        200,
         serde_json::json!({"brand_uuid": pk, "domain": "weebo.example.com"}),
     )
     .await;

@@ -3,8 +3,10 @@ use application::ports::GatewayError;
 use authentik_client::apis::core_api;
 use authentik_client::models;
 
+use domain::drift::{Drift, same_set};
+
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, parse_i32};
+use super::shared::{ignore_not_found, map_err, map_own_err, must_write, parse_i32};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_user_impl(
@@ -43,7 +45,10 @@ impl AuthentikHttpGateway {
         for name in &user.spec.group_refs {
             groups.push(self.resolve_group_by_name(name).await?);
         }
-        let req = models::PatchedUserRequest {
+        let remote = core_api::core_users_retrieve(&self.configuration, id)
+            .await
+            .map_err(map_own_err)?;
+        let mut req = models::PatchedUserRequest {
             username: Some(user.spec.username.clone()),
             name: Some(user.spec.name.clone()),
             is_active: Some(user.spec.is_active),
@@ -55,6 +60,17 @@ impl AuthentikHttpGateway {
             path: None,
             r#type: None,
         };
+        let mut drift = Drift::default();
+        drift.keep("username", &mut req.username, &remote.username);
+        drift.keep("name", &mut req.name, &remote.name);
+        drift.keep_opt("is_active", &mut req.is_active, &remote.is_active);
+        drift.keep_with("groups", &mut req.groups, &remote.groups, |d, r| {
+            same_set(d, r.as_deref().unwrap_or_default())
+        });
+        drift.keep_opt("email", &mut req.email, &remote.email);
+        if !must_write("user", authentik_id, &drift) {
+            return Ok(());
+        }
         core_api::core_users_partial_update(&self.configuration, id, Some(req))
             .await
             .map(|_| ())

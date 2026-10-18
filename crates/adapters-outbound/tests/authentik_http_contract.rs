@@ -1023,3 +1023,153 @@ async fn attach_outpost_moves_the_provider_off_any_other_outpost() {
         ]
     );
 }
+
+// --- RFC 0003 (weebo-si): an update reads, compares, and writes only what
+// drifted. Before it, every reconcile PATCHed every object, unchanged.
+
+/// The PATCHes the gateway sent, path and body.
+async fn patches(mock: &AuthentikMock) -> Vec<(String, serde_json::Value)> {
+    mock.server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.method.as_str() == "PATCH")
+        .map(|r| (r.url.path().to_string(), r.body_json().unwrap()))
+        .collect()
+}
+
+const GROUP_PK: &str = "11111111-1111-1111-1111-111111111111";
+
+fn remote_group(name: &str) -> serde_json::Value {
+    serde_json::json!({
+        "pk": GROUP_PK, "num_pk": 1, "name": name, "is_superuser": false,
+        "parents": [], "attributes": {}, "roles_obj": [], "children": [],
+        "parents_obj": null, "users_obj": null, "inherited_roles_obj": null,
+        "children_obj": null,
+    })
+}
+
+#[tokio::test]
+async fn an_unchanged_group_is_read_but_never_patched() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_get(
+        &format!("/core/groups/{GROUP_PK}/"),
+        200,
+        remote_group("weebo-user"),
+    )
+    .await;
+
+    gateway(&mock)
+        .update_group(GROUP_PK, &group_cr(None))
+        .await
+        .expect("an in-sync group is not an error");
+    assert!(patches(&mock).await.is_empty());
+}
+
+#[tokio::test]
+async fn a_drifted_group_gets_a_patch_of_the_drifted_field_only() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_get(
+        &format!("/core/groups/{GROUP_PK}/"),
+        200,
+        remote_group("renamed-by-hand"),
+    )
+    .await;
+    mock.mock_patch(
+        &format!("/core/groups/{GROUP_PK}/"),
+        200,
+        remote_group("weebo-user"),
+    )
+    .await;
+
+    gateway(&mock)
+        .update_group(GROUP_PK, &group_cr(None))
+        .await
+        .expect("the drift is corrected");
+    assert_eq!(
+        patches(&mock).await,
+        vec![(
+            format!("/api/v3/core/groups/{GROUP_PK}/"),
+            serde_json::json!({"name": "weebo-user"})
+        )]
+    );
+}
+
+/// In sync: no PATCH, and the credentials written to the secret targets
+/// are the ones read back — a skipped write must not lose them.
+#[tokio::test]
+async fn an_unchanged_oauth2_provider_returns_its_credentials_without_a_patch() {
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await;
+    mock.mock_get(
+        "/providers/oauth2/9/",
+        200,
+        serde_json::json!({
+            "pk": 9,
+            "name": "angos",
+            "authorization_flow": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "invalidation_flow": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "property_mappings": [],
+            "component": "ak-provider-oauth2-form",
+            "assigned_application_slug": "angos",
+            "assigned_application_name": "angos",
+            "assigned_backchannel_application_slug": null,
+            "assigned_backchannel_application_name": null,
+            "verbose_name": "OAuth2/OpenID Provider",
+            "verbose_name_plural": "OAuth2/OpenID Providers",
+            "meta_model_name": "authentik_providers_oauth2.oauth2provider",
+            "client_type": "confidential",
+            "client_id": "angos",
+            "client_secret": "angos-client-secret",
+            "redirect_uris": [],
+        }),
+    )
+    .await;
+
+    let result = gateway(&mock)
+        .upsert_oauth2_provider(Some("9"), "angos", "angos", &oauth2_spec(vec![]))
+        .await
+        .expect("an in-sync provider is not an error");
+    assert!(patches(&mock).await.is_empty());
+    assert_eq!(result.authentik_id, "9");
+    assert_eq!(result.credentials.client_id, "angos");
+    assert_eq!(result.credentials.client_secret, "angos-client-secret");
+}
+
+#[tokio::test]
+async fn an_unchanged_proxy_provider_is_never_patched() {
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await; // the two flow lookups
+    mock.mock_get(
+        "/providers/proxy/43/",
+        200,
+        serde_json::json!({
+            "pk": 43, "name": "longhorn", "component": "ak-provider-proxy-form",
+            "authorization_flow": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "invalidation_flow": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "assigned_application_slug": null, "assigned_application_name": null,
+            "assigned_backchannel_application_slug": null, "assigned_backchannel_application_name": null,
+            "verbose_name": "Proxy Provider", "verbose_name_plural": "Proxy Providers",
+            "meta_model_name": "authentik_providers_proxy.proxyprovider",
+            "client_id": "embedded", "internal_host": "http://longhorn.internal",
+            "external_host": "https://longhorn.example.com",
+            "redirect_uris": [], "outpost_set": [],
+        }),
+    )
+    .await;
+    let spec = api::application::ProxyProviderSpec {
+        internal_host: "http://longhorn.internal".to_string(),
+        external_host: "https://longhorn.example.com".to_string(),
+        authorization_flow: "default-authorization-flow".to_string(),
+        invalidation_flow: "default-invalidation-flow".to_string(),
+        outpost_ref: None,
+    };
+
+    let pk = gateway(&mock)
+        .upsert_proxy_provider(Some("43"), "longhorn", &spec)
+        .await
+        .expect("an in-sync provider is not an error");
+    assert_eq!(pk, "43");
+    assert!(patches(&mock).await.is_empty());
+}

@@ -3,8 +3,10 @@ use application::ports::{GatewayError, RemoteApplication};
 use authentik_client::apis::core_api;
 use authentik_client::models;
 
+use domain::drift::Drift;
+
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err};
+use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_application_impl(
@@ -38,7 +40,10 @@ impl AuthentikHttpGateway {
         app: &AuthentikApplication,
         provider_id: i32,
     ) -> Result<(), GatewayError> {
-        let req = models::PatchedApplicationRequest {
+        let remote = core_api::core_applications_retrieve(&self.configuration, authentik_id)
+            .await
+            .map_err(map_own_err)?;
+        let mut req = models::PatchedApplicationRequest {
             name: Some(app.spec.name.clone()),
             slug: Some(app.spec.slug.clone()),
             provider: Some(Some(provider_id)),
@@ -52,6 +57,14 @@ impl AuthentikHttpGateway {
             group: None,
             meta_hide: None,
         };
+        let mut drift = Drift::default();
+        drift.keep("name", &mut req.name, &remote.name);
+        drift.keep("slug", &mut req.slug, &remote.slug);
+        drift.keep_opt("provider", &mut req.provider, &remote.provider);
+        drift.keep_opt("meta_icon", &mut req.meta_icon, &remote.meta_icon);
+        if !must_write("application", authentik_id, &drift) {
+            return Ok(());
+        }
         core_api::core_applications_partial_update(&self.configuration, authentik_id, Some(req))
             .await
             .map(|_| ())

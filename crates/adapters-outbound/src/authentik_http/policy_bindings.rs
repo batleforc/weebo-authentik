@@ -2,8 +2,10 @@ use application::ports::GatewayError;
 use authentik_client::apis::{core_api, policies_api};
 use authentik_client::models;
 
+use domain::drift::Drift;
+
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err};
+use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
 
 impl AuthentikHttpGateway {
     pub(super) async fn upsert_policy_binding_impl(
@@ -47,7 +49,10 @@ impl AuthentikHttpGateway {
                     .pk
             }
             Some(id) => {
-                let req = models::PatchedPolicyBindingRequest {
+                let remote = policies_api::policies_bindings_retrieve(&self.configuration, id)
+                    .await
+                    .map_err(map_own_err)?;
+                let mut req = models::PatchedPolicyBindingRequest {
                     policy: None,
                     group: Some(Some(group)),
                     user: None,
@@ -58,6 +63,15 @@ impl AuthentikHttpGateway {
                     timeout: None,
                     failure_result: None,
                 };
+                let mut drift = Drift::default();
+                drift.keep_opt("group", &mut req.group, &remote.group);
+                drift.keep("target", &mut req.target, &remote.target);
+                drift.keep_opt("negate", &mut req.negate, &remote.negate);
+                drift.keep_opt("enabled", &mut req.enabled, &remote.enabled);
+                drift.keep("order", &mut req.order, &remote.order);
+                if !must_write("policy_binding", id, &drift) {
+                    return Ok(remote.pk.to_string());
+                }
                 policies_api::policies_bindings_partial_update(&self.configuration, id, Some(req))
                     .await
                     .map_err(map_own_err)?

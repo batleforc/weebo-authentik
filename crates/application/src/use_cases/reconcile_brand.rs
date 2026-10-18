@@ -137,14 +137,16 @@ async fn toggle_default(
 ) -> Result<(), GatewayError> {
     let current = gateway.get_default_brand().await?;
     if become_default {
-        // Only disable the currently-default brand if it isn't already
-        // this one (idempotent re-reconciles shouldn't toggle it off and
-        // back on) — see `.prompt/plan.md`, "Election du brand par
-        // defaut", point 2: an unmanaged/native default gets disabled
-        // before this CR's brand is enabled.
-        if let Some(current) = current
-            && current != own_id
-        {
+        // Already the default: nothing to write. Every reconcile used to
+        // re-PATCH `default: true` onto it anyway, one of the two writes a
+        // cycle the brand got (RFC 0003 of weebo-si).
+        if current.as_deref() == Some(own_id) {
+            return Ok(());
+        }
+        // Another brand is the default — see `.prompt/plan.md`, "Election
+        // du brand par defaut", point 2: an unmanaged/native default gets
+        // disabled before this CR's brand is enabled.
+        if let Some(current) = current {
             gateway.set_brand_default(&current, false).await?;
         }
         gateway.set_brand_default(own_id, true).await
@@ -229,6 +231,32 @@ mod tests {
         assert_eq!(
             *gateway.set_brand_default_calls.lock().unwrap(),
             vec![("b1".to_string(), false)]
+        );
+    }
+
+    #[tokio::test]
+    async fn the_default_brand_staying_default_writes_nothing() {
+        let gateway = crate::test_support::FakeGateway {
+            update_result: Some(Ok(())),
+            get_default_brand_result: Some(Ok(Some("b1".to_string()))),
+            ..Default::default()
+        };
+        let outcome = reconcile_brand(&brand(), Some("b1"), true, &gateway).await;
+        assert!(matches!(outcome, ReconcileOutcome::Synced { .. }));
+        assert!(gateway.set_brand_default_calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn another_default_is_disabled_before_this_one_is_enabled() {
+        let gateway = crate::test_support::FakeGateway {
+            update_result: Some(Ok(())),
+            get_default_brand_result: Some(Ok(Some("native".to_string()))),
+            ..Default::default()
+        };
+        reconcile_brand(&brand(), Some("b1"), true, &gateway).await;
+        assert_eq!(
+            *gateway.set_brand_default_calls.lock().unwrap(),
+            vec![("native".to_string(), false), ("b1".to_string(), true)]
         );
     }
 
