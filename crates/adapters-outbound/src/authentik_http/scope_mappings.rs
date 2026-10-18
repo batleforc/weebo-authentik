@@ -3,7 +3,7 @@ use application::ports::GatewayError;
 use authentik_client::apis::propertymappings_api;
 use authentik_client::models;
 
-use domain::drift::Drift;
+use domain::drift::{Drift, same_trimmed};
 
 use super::AuthentikHttpGateway;
 use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
@@ -57,10 +57,22 @@ impl AuthentikHttpGateway {
         };
         let mut drift = Drift::default();
         drift.keep("name", &mut req.name, &remote.name);
-        // Byte for byte: Authentik stores the expression as sent.
-        drift.keep("expression", &mut req.expression, &remote.expression);
+        // Authentik trims the text fields it stores: a block-scalar
+        // expression (`|`, so ending in `\n`) never reads back as sent, and
+        // compared byte for byte it drifted on every reconcile.
+        drift.keep_with(
+            "expression",
+            &mut req.expression,
+            &remote.expression,
+            |d, r| same_trimmed(d, r),
+        );
         drift.keep("scope_name", &mut req.scope_name, &remote.scope_name);
-        drift.keep_opt("description", &mut req.description, &remote.description);
+        drift.keep_with(
+            "description",
+            &mut req.description,
+            &remote.description,
+            |d, r| r.as_deref().is_some_and(|r| same_trimmed(d, r)),
+        );
         if !must_write("scope_mapping", authentik_id, &drift) {
             return Ok(());
         }

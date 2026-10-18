@@ -1067,6 +1067,56 @@ async fn an_unchanged_group_is_read_but_never_patched() {
     assert!(patches(&mock).await.is_empty());
 }
 
+const SCOPE_MAPPING_PK: &str = "55555555-5555-5555-5555-555555555555";
+
+/// A CR's expression written as a YAML block scalar (`|`) ends in `\n`;
+/// Authentik stores it trimmed. v0.18.2 compared byte for byte and PATCHed
+/// every scope mapping on every reconcile.
+#[tokio::test]
+async fn a_scope_mapping_expression_trimmed_by_authentik_is_not_a_drift() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_get(
+        &format!("/propertymappings/provider/scope/{SCOPE_MAPPING_PK}/"),
+        200,
+        scope_mapping_response("rustfs policies"),
+    )
+    .await;
+    let mut cr = scope_mapping("rustfs policies");
+    cr.spec.expression = "return {\"groups\": []}\n".to_string();
+
+    gateway(&mock)
+        .update_scope_mapping(SCOPE_MAPPING_PK, &cr)
+        .await
+        .expect("an in-sync scope mapping is not an error");
+    assert!(patches(&mock).await.is_empty());
+}
+
+/// Trimming is only how the comparison reads the stored value: a real
+/// change is still corrected, and with the spec's value as written.
+#[tokio::test]
+async fn a_changed_scope_mapping_expression_is_patched_as_written() {
+    let mock = AuthentikMock::start().await;
+    let path = format!("/propertymappings/provider/scope/{SCOPE_MAPPING_PK}/");
+    mock.mock_get(&path, 200, scope_mapping_response("rustfs policies"))
+        .await;
+    mock.mock_patch(&path, 200, scope_mapping_response("rustfs policies"))
+        .await;
+    let mut cr = scope_mapping("rustfs policies");
+    cr.spec.expression = "return {\"groups\": [\"admins\"]}\n".to_string();
+
+    gateway(&mock)
+        .update_scope_mapping(SCOPE_MAPPING_PK, &cr)
+        .await
+        .expect("the drift is corrected");
+    assert_eq!(
+        patches(&mock).await,
+        vec![(
+            format!("/api/v3{path}"),
+            serde_json::json!({"expression": "return {\"groups\": [\"admins\"]}\n"})
+        )]
+    );
+}
+
 #[tokio::test]
 async fn a_drifted_group_gets_a_patch_of_the_drifted_field_only() {
     let mock = AuthentikMock::start().await;

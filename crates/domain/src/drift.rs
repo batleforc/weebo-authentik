@@ -95,6 +95,17 @@ where
         .all(|(k, v)| remote.get(k).is_some_and(|r| r == v))
 }
 
+/// Equal once leading and trailing whitespace is ignored — for a text field
+/// Authentik trims before storing it (Django REST Framework's `CharField`
+/// default, `trim_whitespace`): a CR's YAML block scalar (`|`) ends with a
+/// `\n` that never comes back, and a byte-for-byte comparison drifted on
+/// every reconcile (v0.18.2, every `AuthentikScopeMapping`'s `expression`).
+/// The PATCH still carries the spec's value untouched; only the comparison
+/// is done on the stored form.
+pub fn same_trimmed(desired: &str, remote: &str) -> bool {
+    desired.trim() == remote.trim()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +171,14 @@ mod tests {
         assert!(same_subset(&HashMap::from([("log_level", 1)]), &remote));
         assert!(!same_subset(&HashMap::from([("log_level", 3)]), &remote));
         assert!(!same_subset(&HashMap::from([("missing", 1)]), &remote));
+    }
+
+    #[test]
+    fn trimmed_text_ignores_only_the_outer_whitespace() {
+        assert!(same_trimmed("return {}\n", "return {}"));
+        assert!(same_trimmed("  return {}\n\n", "return {}"));
+        assert!(!same_trimmed("return  {}", "return {}"));
+        assert!(!same_trimmed("return {}\nreturn 1\n", "return {}"));
     }
 
     #[test]
