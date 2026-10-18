@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.18.2](https://github.com/batleforc/weebo-authentik/compare/89b4917a16290e32d534c6e7877148ad1871df5a..v0.18.2) - 2026-10-18
+#### Bug Fixes
+- (**gateway**) write only what drifted, never an unchanged object (#18) - ([89b4917](https://github.com/batleforc/weebo-authentik/commit/89b4917a16290e32d534c6e7877148ad1871df5a)) - Maxime, Claude Opus 5.5 (1M context)
+#### Documentation
+- (**perf**) resource budget measured on 2026-10-18 (#6) - ([faa7392](https://github.com/batleforc/weebo-authentik/commit/faa7392a60a1c73922daaa3c8942ac93117665b8)) - github-actions[bot], Claude Opus 5.5 (1M context), Max Batleforc, Claude Opus 5.5 (1M context), github-actions[bot]
+
+- - -
+
 ## [v0.18.1](https://github.com/batleforc/weebo-authentik/compare/e194a54523ca3ddbbbacb2047994e5e12fc0c7c7..v0.18.1) - 2026-10-15
 #### Bug Fixes
 - (**application**) record a brand before switching the default; delete a recorded provider of any kind (#16) - ([e194a54](https://github.com/batleforc/weebo-authentik/commit/e194a54523ca3ddbbbacb2047994e5e12fc0c7c7)) - Maxime, Claude Opus 5.5
