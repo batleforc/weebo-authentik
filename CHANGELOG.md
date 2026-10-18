@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.18.3](https://github.com/batleforc/weebo-authentik/compare/da986b0e73268d8397f6f80cc480b9afadff507b..v0.18.3) - 2026-10-18
+#### Bug Fixes
+- (**gateway**) compare a scope mapping's text fields as Authentik stores them, trimmed (#19) - ([da986b0](https://github.com/batleforc/weebo-authentik/commit/da986b0e73268d8397f6f80cc480b9afadff507b)) - Maxime, Claude Opus 5.5 (1M context)
+
+- - -
+
 ## [v0.18.2](https://github.com/batleforc/weebo-authentik/compare/89b4917a16290e32d534c6e7877148ad1871df5a..v0.18.2) - 2026-10-18
 #### Bug Fixes
 - (**gateway**) write only what drifted, never an unchanged object (#18) - ([89b4917](https://github.com/batleforc/weebo-authentik/commit/89b4917a16290e32d534c6e7877148ad1871df5a)) - Maxime, Claude Opus 5.5 (1M context)
