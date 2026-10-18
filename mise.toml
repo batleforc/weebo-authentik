@@ -20,3 +20,4 @@ kind = "latest"
 trivy = "latest"
 # actionlint shells out to shellcheck for every `run:` script
 shellcheck = "latest"
+gh = "latest"
