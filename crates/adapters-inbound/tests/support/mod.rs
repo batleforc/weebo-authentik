@@ -46,12 +46,20 @@ pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
     let gateway_factory = Arc::new(StaticGatewayFactory::new(Arc::new(gateway)));
     let secrets = Arc::new(kubernetes_secret_store(client.clone()));
     let secrets_factory = Arc::new(StaticSecretStoreFactory::new(secrets));
+    // The binary's shared watches and store-backed policy reads.
+    let scope = weebo_kit_runtime::WatchScope::cluster();
+    let health = Arc::new(weebo_kit_runtime::Health::default());
+    let watches = adapters_inbound::controller::spawn_watches(&client, &scope, &health);
+    let mut policies = KubePolicySource::new(client.clone());
+    if let Some(shared) = watches.get::<api::AuthentikNamespacePolicy>() {
+        policies = policies.with_store(shared.store());
+    }
     Arc::new(Ctx {
         client: client.clone(),
         instances: gateway_factory.clone(),
         gateway_factory,
         secrets_factory,
-        policies: Arc::new(KubePolicySource::new(client.clone())),
+        policies: Arc::new(policies),
         recorder: kube::runtime::events::Recorder::new(
             client.clone(),
             kube::runtime::events::Reporter {
@@ -60,8 +68,9 @@ pub fn new_ctx(client: kube::Client, mock: &AuthentikMock) -> Arc<Ctx> {
             },
         ),
         shutdown: adapters_inbound::controller::Shutdown::never(),
-        health: Arc::new(weebo_kit_runtime::Health::default()),
-        scope: weebo_kit_runtime::WatchScope::cluster(),
+        health,
+        scope,
+        watches,
     })
 }
 

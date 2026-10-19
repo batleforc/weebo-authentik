@@ -13,7 +13,9 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api = ctx.scope.api::<AuthentikInstance>(client.clone());
     let health = ctx.health.clone();
-    let results = super::controller(api, &ctx.scope)
+    let results = ctx
+        .watches
+        .controller(api, &ctx.scope)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikInstance", health, results).await;

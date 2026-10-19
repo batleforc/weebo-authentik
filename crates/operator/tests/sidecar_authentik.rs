@@ -317,6 +317,7 @@ fn new_ctx(client: kube::Client) -> Arc<Ctx> {
         shutdown: adapters_inbound::controller::Shutdown::never(),
         health: Arc::new(weebo_kit_runtime::Health::default()),
         scope: weebo_kit_runtime::WatchScope::cluster(),
+        watches: Default::default(),
     })
 }
 
