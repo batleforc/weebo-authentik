@@ -73,6 +73,10 @@ references:
 
 # -- Reconciles run at once per kind (env WEEBO_RECONCILE_CONCURRENCY).
 reconcileConcurrency: 4
+# -- tokio worker threads (env WEEBO_WORKER_THREADS). Not one per core:
+# each worker keeps its own allocator arena, and the idle memory grows with
+# them; reconciles wait on the network, not on CPU.
+workerThreads: 4
 # -- `text` or `json` log lines (env LOG_FORMAT).
 logFormat: text
 

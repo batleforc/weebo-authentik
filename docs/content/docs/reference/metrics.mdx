@@ -60,6 +60,7 @@ Served on every replica, on the admission webhook's HTTPS port
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `WEEBO_RECONCILE_CONCURRENCY` | 4 | Reconciles running at once, per controller: a startup sweep can't flood the remote system or the apiserver |
+| `WEEBO_WORKER_THREADS` | 4 | tokio worker threads (chart: `workerThreads`). Not one per core: each worker keeps its own allocator arena and the idle memory grows with them, while reconciles wait on the network, not on CPU |
 | `WEEBO_WATCH_NAMESPACE` | the whole cluster | The namespaced kinds of this namespace only (chart: `watch.namespace`); the cluster-scoped kinds stay watched cluster-wide |
 | `WEEBO_WATCH_CLUSTER_KINDS` | `true` | `false` (chart: `watch.clusterKinds`, with a namespace): full namespaced — no cluster-scoped kind is watched, objects use the LocalInstances of the namespace, the operator runs on Roles only |
 | `WEEBO_CROSS_NAMESPACE_REFS` | `false` | `true` (chart: `references.crossNamespace`): a CR may reference a CR of another namespace that shares itself with it (`spec.sharedWith`); never with `WEEBO_WATCH_NAMESPACE` |

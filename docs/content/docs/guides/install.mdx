@@ -54,7 +54,9 @@ reconciles at a time. A replica that loses the lease exits immediately —
 Kubernetes restarts it, and another replica takes over; on a rollout
 (SIGTERM) the leader finishes its in-flight reconciles and hands the lease
 over at once. Each controller runs at most `WEEBO_RECONCILE_CONCURRENCY`
-reconciles at a time (default 4).
+reconciles at a time (default 4), on `WEEBO_WORKER_THREADS` tokio workers
+(chart: `workerThreads`, default 4: not one per core, each worker keeps its
+own allocator arena and reconciles wait on the network, not on CPU).
 
 ## Deleting a CR whose cleanup can't succeed
 
