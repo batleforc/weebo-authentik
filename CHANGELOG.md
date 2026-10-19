@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.19.4](https://github.com/batleforc/weebo-authentik/compare/3de4c60b88fd1672b80f64e96fc6eacd14be3070..v0.19.4) - 2026-10-19
+#### Miscellaneous Chores
+- (**kit**) weebo-operator-kit v0.21.0, kit's without_selector instead of unselected (#27) - ([3de4c60](https://github.com/batleforc/weebo-authentik/commit/3de4c60b88fd1672b80f64e96fc6eacd14be3070)) - Maxime, Claude Opus 5.5 (1M context)
+
+- - -
+
 ## [v0.19.3](https://github.com/batleforc/weebo-authentik/compare/6498176e01b128d02ab6e00f2a1a3efb02401b55..v0.19.3) - 2026-10-19
 #### Refactoring
 - (**controller**) one shared watch per kind (kit v0.20.0) (#26) - ([dbd0cdf](https://github.com/batleforc/weebo-authentik/commit/dbd0cdfbcf52520b1534e9f701c0f3039d8189bd)) - Maxime, Claude Opus 5.5 (1M context)
