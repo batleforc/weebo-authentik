@@ -12,6 +12,9 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api = ctx.scope.api::<AuthentikNamespacePolicy>(client.clone());
     let health = ctx.health.clone();
+    // Its own watch, on the scope: the policies' shared watch has every
+    // policy (the checks read them all), and only the selected ones are
+    // this operator's to reconcile.
     let results = super::controller(api, &ctx.scope)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);

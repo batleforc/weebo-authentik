@@ -50,7 +50,11 @@ template fails to render without it.
 `replicaCount` defaults to `2`. The webhook is active on every replica
 (stateless); the operator's reconcilers use a `coordination.k8s.io`
 `Lease` (weebo-operator-kit's leader election) so only the elected leader
-reconciles at a time. A replica that loses the lease exits immediately —
+reconciles at a time. Every replica watches each kind once (one watch per
+kind, shared by its controllers and its reads) and campaigns for the lease
+only once those watches have listed (30 s at most): a standby keeps them
+warm, and a new leader starts from stores already listed. A replica that
+loses the lease exits immediately —
 Kubernetes restarts it, and another replica takes over; on a rollout
 (SIGTERM) the leader finishes its in-flight reconciles and hands the lease
 over at once. Each controller runs at most `WEEBO_RECONCILE_CONCURRENCY`

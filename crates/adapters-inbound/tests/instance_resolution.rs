@@ -92,6 +92,7 @@ async fn a_local_instance_binds_its_applications_outside_the_namespace_policy() 
         shutdown: adapters_inbound::controller::Shutdown::never(),
         health: Arc::new(weebo_kit_runtime::Health::default()),
         scope: weebo_kit_runtime::WatchScope::cluster(),
+        watches: Default::default(),
     });
 
     let pp = PostParams::default();

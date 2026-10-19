@@ -19,7 +19,7 @@ use super::{Ctx, Error, FINALIZER, error_policy};
 pub async fn run(client: Client, ctx: Arc<Ctx>) {
     let api = ctx.scope.api::<AuthentikAccessPolicy>(client.clone());
     let health = ctx.health.clone();
-    let results = super::on_policy_change(super::controller(api, &ctx.scope), client, &ctx.scope)
+    let results = super::on_policy_change(ctx.watches.controller(api, &ctx.scope), &client, &ctx)
         .graceful_shutdown_on(ctx.shutdown.wait())
         .run(reconcile, error_policy, ctx);
     super::drive("AuthentikAccessPolicy", health, results).await;

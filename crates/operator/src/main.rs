@@ -7,11 +7,13 @@ use adapters_outbound::{
     AuthentikGatewayFactory, AuthentikInstances, AuthentikSecretStoreFactory, KubePolicySource,
 };
 use api::namespace_policy::NamespaceRule;
-use api::{AuthentikApplication, AuthentikInstance, AuthentikLocalInstance};
+use api::{
+    AuthentikApplication, AuthentikInstance, AuthentikLocalInstance, AuthentikNamespacePolicy,
+};
 use application::ports::{GatewayFactory, InstanceDirectory, PolicySource, SecretStoreFactory};
 use kube::Client;
 use kube::runtime::events::{Recorder, Reporter};
-use weebo_kit_runtime::store::spawn_reflector;
+use weebo_kit_runtime::shared::{LISTED_TIMEOUT, SharedWatch};
 use weebo_kit_runtime::{Health, WatchScope, leader, telemetry, webhook_server};
 
 /// Default `LEASE_NAME`: what every release used before it became
@@ -107,24 +109,16 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
         "watch scope"
     );
 
-    // Both factories and every instanceRef resolution read the instances;
-    // rather than a per-call apiserver GET/LIST, they share one
-    // reflector-backed `Store` per kind (no AuthentikInstance without
-    // cluster-scoped kinds).
-    let cluster_store = scope.cluster_kinds().then(|| {
-        spawn_reflector(
-            scope.api::<AuthentikInstance>(client.clone()),
-            &scope,
-            health.clone(),
-            "AuthentikInstance reflector",
-        )
-    });
-    let local_store = spawn_reflector(
-        scope.api::<AuthentikLocalInstance>(client.clone()),
-        &scope,
-        health.clone(),
-        "AuthentikLocalInstance reflector",
-    );
+    // One watch per kind, shared by every controller, by the policy
+    // re-checks and by the instance and policy reads (every resolution reads
+    // the instances: from memory, not a call per reconcile). Started before
+    // campaigning for the lease: a standby keeps them warm, and the
+    // controllers start from stores that already listed.
+    let watches = controller::spawn_watches(&client, &scope, &health);
+    let cluster_store = watches.get::<AuthentikInstance>().map(SharedWatch::store);
+    let local_store = watches
+        .get::<AuthentikLocalInstance>()
+        .map(SharedWatch::store);
     let instances = Arc::new(
         AuthentikInstances::new(client.clone())
             .with_scope(
@@ -132,7 +126,7 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
                 scope.selector().cloned(),
                 scope.cluster_kinds(),
             )
-            .with_stores(cluster_store, Some(local_store)),
+            .with_stores(cluster_store, local_store),
     );
 
     // Resolves an AuthentikGateway per resolved instance (url from the
@@ -154,9 +148,14 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
     let directory: Arc<dyn InstanceDirectory> = instances;
 
     // Every AuthentikNamespacePolicy, read by the webhook and re-checked by
-    // the AuthentikApplication/AuthentikAccessPolicy reconcilers.
-    let policies: Arc<dyn PolicySource<NamespaceRule>> =
-        Arc::new(KubePolicySource::new(client.clone()));
+    // the AuthentikApplication/AuthentikAccessPolicy reconcilers: from the
+    // policies' shared watch (every policy, whatever its labels), none
+    // without cluster-scoped kinds.
+    let mut policy_source = KubePolicySource::new(client.clone());
+    if let Some(shared) = watches.get::<AuthentikNamespacePolicy>() {
+        policy_source = policy_source.with_store(shared.store());
+    }
+    let policies: Arc<dyn PolicySource<NamespaceRule>> = Arc::new(policy_source);
 
     let holder_id = std::env::var("HOSTNAME").unwrap_or_else(|_| uuid::Uuid::new_v4().to_string());
     let ctx = Arc::new(Ctx {
@@ -175,6 +174,7 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
         shutdown: shutdown.clone(),
         health: health.clone(),
         scope: scope.clone(),
+        watches,
     });
 
     // The webhook serves on every replica, before and regardless of
@@ -202,9 +202,16 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
 
     // The controllers, in contrast, must only run on one replica at a
     // time: two active reconcilers could both attempt-create the same
-    // Authentik object concurrently.
+    // Authentik object concurrently. The replica campaigns once its shared
+    // watches listed (their LISTs done before the lease, not in the
+    // leader's first minute), or after LISTED_TIMEOUT: a watch that can't
+    // list is reported by /livez, not waited for.
+    let campaign = async {
+        ctx.watches.wait_listed(LISTED_TIMEOUT).await;
+        leader::acquire_leadership(&client, holder_id, DEFAULT_LEASE_NAME).await
+    };
     let leadership = tokio::select! {
-        leadership = leader::acquire_leadership(&client, holder_id, DEFAULT_LEASE_NAME) => leadership,
+        leadership = campaign => leadership,
         () = shutdown.wait() => {
             webhook.stopped().await;
             return Ok(());
