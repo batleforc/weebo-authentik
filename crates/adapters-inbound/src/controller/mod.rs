@@ -83,21 +83,14 @@ pub struct Ctx {
     pub watches: SharedWatches,
 }
 
-/// `scope` without its label selector: its namespace only.
-pub fn unselected(scope: &WatchScope) -> WatchScope {
-    match scope.watched_namespace() {
-        Some(ns) => WatchScope::namespace(ns),
-        None => WatchScope::cluster(),
-    }
-}
-
 /// One watch per kind, on `scope`, for every controller, the instance
 /// stores and the policy reads; the cluster-scoped kinds only when the
-/// scope watches them. `AuthentikNamespacePolicy` is watched without the
-/// label selector: the policy checks read every policy, whichever release
-/// selects it, so a change to any of them re-checks the CRs (its own
-/// controller keeps a watch on the scope). Spawned before the lease is
-/// campaigned for: a standby keeps them warm.
+/// scope watches them. `AuthentikNamespacePolicy` is watched both without
+/// the label selector (`scope.without_selector()`: the policy checks read
+/// every policy, whichever release selects it, so a change to any of them
+/// re-checks the CRs) and through it (its controller, which reconciles
+/// only the selected ones) — one watch when there is no selector. Spawned
+/// before the lease is campaigned for: a standby keeps them warm.
 pub fn spawn_watches(client: &Client, scope: &WatchScope, health: &Arc<Health>) -> SharedWatches {
     let mut w = SharedWatches::default();
     let (c, s, h) = (client, scope, health);
@@ -144,12 +137,18 @@ pub fn spawn_watches(client: &Client, scope: &WatchScope, health: &Arc<Health>) 
             h,
             "AuthentikBrand watch",
         );
-        let all = unselected(s);
+        let all = s.without_selector();
         w.spawn(
             all.api::<api::AuthentikNamespacePolicy>(c.clone()),
             &all,
             h,
             "AuthentikNamespacePolicy watch",
+        );
+        w.spawn(
+            s.api::<api::AuthentikNamespacePolicy>(c.clone()),
+            s,
+            h,
+            "AuthentikNamespacePolicy selected watch",
         );
     }
     w.spawn(
@@ -271,8 +270,9 @@ where
 /// change rarely, and the check is a local list. On the policies' shared
 /// watch (every policy, whatever its labels) when there is one, else its
 /// own watch without the label selector. Without cluster-scoped kinds
-/// (full namespaced) there is no policy to watch: every CR is bound to a
-/// local instance, which the policy doesn't govern.
+/// (full namespaced) there is no policy to watch (`watches_in` skips the
+/// cluster-scoped kind): every CR is bound to a local instance, which the
+/// policy doesn't govern.
 pub fn on_policy_change<K>(
     controller: kube::runtime::Controller<K>,
     client: &Client,
@@ -281,14 +281,10 @@ pub fn on_policy_change<K>(
 where
     K: Resource<DynamicType = ()> + Clone + Debug + DeserializeOwned + Send + Sync + 'static,
 {
-    // `unselected` drops `cluster_kinds`: checked on the operator's scope.
-    if !ctx.scope.cluster_kinds() {
-        return controller;
-    }
     let governed = controller.store();
     controller.watches_in(
         &ctx.watches,
-        &unselected(&ctx.scope),
+        &ctx.scope.without_selector(),
         client,
         move |_: api::AuthentikNamespacePolicy| {
             governed
