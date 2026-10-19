@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.19.1](https://github.com/batleforc/weebo-authentik/compare/6a5338e7d149c9392c94b50953d0f04f6c60c7f4..v0.19.1) - 2026-10-19
+#### Miscellaneous Chores
+- (**kit**) weebo-operator-kit v0.18.2, 4 tokio workers by default (#22) - ([6a5338e](https://github.com/batleforc/weebo-authentik/commit/6a5338e7d149c9392c94b50953d0f04f6c60c7f4)) - Maxime, Claude Opus 5.5 (1M context)
+
+- - -
+
 ## [v0.19.0](https://github.com/batleforc/weebo-authentik/compare/726f60f43f816942b4ba60f8d5a6cbcd4675d8a7..v0.19.0) - 2026-10-19
 #### Features
 - DriftCorrected Event and remote_writes_total, drift helpers from the kit (v0.18.1) (#20) - ([cf233ab](https://github.com/batleforc/weebo-authentik/commit/cf233abee64b7f4e7b6ca174bb3c32d515dd7af1)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
