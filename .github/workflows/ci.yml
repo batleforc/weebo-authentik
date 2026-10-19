@@ -12,7 +12,7 @@ jobs:
   # with the runner's unused toolchains removed first (this envtest-backed
   # workspace has run out of disk without it).
   checks:
-    uses: batleforc/weebo-operator-kit/.github/workflows/checks.yml@v0.18.1
+    uses: batleforc/weebo-operator-kit/.github/workflows/checks.yml@v0.18.2
     permissions:
       contents: read
     with:

@@ -644,6 +644,12 @@
       "maximum": 64,
       "description": "Reconciles run at once per kind (WEEBO_RECONCILE_CONCURRENCY)."
     },
+    "workerThreads": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64,
+      "description": "tokio worker threads (WEEBO_WORKER_THREADS), 4 by default."
+    },
     "logFormat": {
       "type": "string",
       "enum": [
