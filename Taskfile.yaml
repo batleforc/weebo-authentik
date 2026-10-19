@@ -72,8 +72,8 @@ tasks:
       # CRD reference pages + form schemas of the docs site, and its operator
       # reference (reason codes and metrics read from crates/, the budget from
       # docs/perf/): weebo-crd-docs (@weebo/operator-docs) reads
-      # docs/crd-docs.config.mjs and clears its own previous outputs. Needs
-      # docs/node_modules (npm ci --prefix docs).
+      # docs/crd-docs.config.mjs and clears its own previous outputs.
+      - task: docs:deps
       - mise exec -- npm run gen:crds --prefix docs --silent
 
   lint:
@@ -97,8 +97,24 @@ tasks:
     cmds:
       - task: helm:lint
 
+  docs:deps:
+    desc: "Install the docs site's npm dependencies (from the lockfile) when missing"
+    status:
+      - test -d docs/node_modules
+    cmds:
+      - mise exec -- npm ci --prefix docs --no-fund
+
   docs:
-    desc: "Run the Fumadocs documentation site in dev mode"
+    desc: "Run the Fumadocs documentation site in dev mode (http://localhost:3000)"
+    deps: [docs:deps]
     dir: docs
     cmds:
-      - npm run dev
+      - mise exec -- npm run dev
+
+  docs:build:
+    desc: "Production build + lint of the documentation site"
+    deps: [docs:deps]
+    dir: docs
+    cmds:
+      - mise exec -- npm run lint
+      - mise exec -- npm run build
