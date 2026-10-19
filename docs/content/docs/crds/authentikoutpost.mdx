@@ -34,7 +34,7 @@ spec:
 | --- | --- | --- | --- | --- |
 | `config` | `object` | no |  | Passthrough to the Authentik API — deliberately not modeled field by field. `x-kubernetes-preserve-unknown-fields` is required here: a bare `serde_json::Value` schema has no `type`, which a real structural-schema apiserver rejects outright ("must not be empty for specified object fields") — caught by the layer-3 envtest integration test, not by `cargo check`. |
 | `name` | `string` | yes |  |  |
-| `type` | `string` | yes |  |  |
+| `type` | `string` | yes |  | Values: `"ldap"`, `"radius"`, `"proxy"` |
 
 ## Build a manifest
 

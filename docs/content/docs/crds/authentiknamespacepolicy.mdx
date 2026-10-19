@@ -39,7 +39,15 @@ spec:
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `rules` | `object[]` | yes |  |  |
+| [`rules`](#spec.rules) | `object[]` | yes |  |  |
+
+### `spec.rules[]` [#spec.rules]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `allowedKinds` | `string[]` | yes |  | Values: `"AuthentikApplication"`, `"AuthentikAccessPolicy"` |
+| `effect` | `string` | yes |  | Values: `"Allow"`, `"Deny"` |
+| `namespaces` | `string[]` | yes |  | Exact namespace names, `*`, or a prefix glob such as `team-*`. |
 
 ## Build a manifest
 

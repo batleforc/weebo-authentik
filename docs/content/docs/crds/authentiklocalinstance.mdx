@@ -39,10 +39,54 @@ spec:
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `sharedWith` | `object` | no |  | Other namespaces (or cluster-scoped objects) allowed to use this instance — and its token. Unset: this namespace only. |
-| `tls` | `object` | no | `{"insecureSkipVerify":false}` | TLS verification for the API connection above; the CA `Secret` lives in this namespace. |
-| `tokenSecretRef` | `object` | yes |  | The API token the operator authenticates with, in a `Secret` of this namespace labelled `authentik.weebo.io/instance-token: "true"`. Read on every reconcile: rotating it needs no restart. |
+| [`sharedWith`](#spec.sharedWith) | `object` | no |  | Other namespaces (or cluster-scoped objects) allowed to use this instance — and its token. Unset: this namespace only. |
+| [`tls`](#spec.tls) | `object` | no | `{"insecureSkipVerify":false}` | TLS verification for the API connection above; the CA `Secret` lives in this namespace. |
+| [`tokenSecretRef`](#spec.tokenSecretRef) | `object` | yes |  | The API token the operator authenticates with, in a `Secret` of this namespace labelled `authentik.weebo.io/instance-token: "true"`. Read on every reconcile: rotating it needs no restart. |
 | `url` | `string` | yes |  | Base **web** URL of the Authentik instance, e.g. `https://login.example.com` — not the `/api/v3` REST endpoint, which is derived from it. |
+
+### `spec.sharedWith` [#spec.sharedWith]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `clusterScoped` | `boolean` | no |  | Cluster-scoped objects may use this instance. |
+| [`namespaceSelector`](#spec.sharedWith.namespaceSelector) | `object` | no |  | Namespaces whose labels match this selector may use this instance. An empty selector (`{}`) matches every namespace: the instance — and the token it holds — is then shared with the whole cluster. |
+| `namespaces` | `string[]` | no |  | Namespaces whose objects may use this instance. |
+
+### `spec.sharedWith.namespaceSelector` [#spec.sharedWith.namespaceSelector]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| [`matchExpressions`](#spec.sharedWith.namespaceSelector.matchExpressions) | `object[]` | no |  | matchExpressions is a list of label selector requirements. The requirements are ANDed. |
+| `matchLabels` | `map[string]` | no |  | matchLabels is a map of \{key,value\} pairs. A single \{key,value\} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed. |
+
+### `spec.sharedWith.namespaceSelector.matchExpressions[]` [#spec.sharedWith.namespaceSelector.matchExpressions]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | yes |  | key is the label key that the selector applies to. |
+| `operator` | `string` | yes |  | operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist. |
+| `values` | `string[]` | no |  | values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch. |
+
+### `spec.tls` [#spec.tls]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| [`caSecretRef`](#spec.tls.caSecretRef) | `object` | no |  | Optional custom CA certificate (a PEM bundle under `key`) to verify the instance's TLS with, read from a `Secret` of the instance's own namespace. Added on top of the platform trust store. |
+| `insecureSkipVerify` | `boolean` | no | `false` | Skip certificate verification entirely — insecure, intended only for throwaway/self-signed instances. Prefer `caSecretRef` below. |
+
+### `spec.tls.caSecretRef` [#spec.tls.caSecretRef]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | yes |  |  |
+| `name` | `string` | yes |  |  |
+
+### `spec.tokenSecretRef` [#spec.tokenSecretRef]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | yes |  |  |
+| `name` | `string` | yes |  |  |
 
 ## Build a manifest
 

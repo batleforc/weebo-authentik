@@ -31,10 +31,74 @@ spec:
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `secretStore` | `object` | no | `{"backend":"kubernetes"}` | Where this instance's oauth2 application credentials are written: the backend of the implicit target of an `AuthentikApplication` without `secretTargets` (default `kubernetes`), and the Vault connection every Vault target uses. |
-| `tls` | `object` | no | `{"insecureSkipVerify":false}` | TLS verification for the API connection above — a private CA to trust (`tls.caSecretRef`), or the `tls.insecureSkipVerify` escape hatch. Defaults to plain platform-trust-store verification. |
-| `tokenSecretRef` | `object` | yes |  | A key inside a Kubernetes `Secret` in an explicit namespace — used by cluster-scoped CRDs, which have no namespace of their own to default to. |
+| [`secretStore`](#spec.secretStore) | `object` | no | `{"backend":"kubernetes"}` | Where this instance's oauth2 application credentials are written: the backend of the implicit target of an `AuthentikApplication` without `secretTargets` (default `kubernetes`), and the Vault connection every Vault target uses. |
+| [`tls`](#spec.tls) | `object` | no | `{"insecureSkipVerify":false}` | TLS verification for the API connection above — a private CA to trust (`tls.caSecretRef`), or the `tls.insecureSkipVerify` escape hatch. Defaults to plain platform-trust-store verification. |
+| [`tokenSecretRef`](#spec.tokenSecretRef) | `object` | yes |  | A key inside a Kubernetes `Secret` in an explicit namespace — used by cluster-scoped CRDs, which have no namespace of their own to default to. |
 | `url` | `string` | yes |  | Base **web** URL of the Authentik instance, e.g. `https://login.example.com` — not the `/api/v3` REST endpoint, which is derived from it (see [`split_urls`]). This is the root the per-application OIDC issuers hang off, `<url>/application/o/<slug>/`, so it is what oauth2 consumers end up trusting. |
+
+### `spec.secretStore` [#spec.secretStore]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `backend` | `string` | no | `"kubernetes"` | Values: `"kubernetes"`, `"vault"` |
+| [`vault`](#spec.secretStore.vault) | `object` | no |  |  |
+
+### `spec.secretStore.vault` [#spec.secretStore.vault]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `address` | `string` | yes |  | Vault server address, e.g. `https://vault.example.com:8200`. |
+| [`caSecretRef`](#spec.secretStore.vault.caSecretRef) | `object` | no |  | Optional custom CA certificate to verify Vault's TLS with, read from a Kubernetes `Secret` (the referenced `key` must hold a PEM bundle). Use this to trust a private CA (e.g. openbao-tls) without mounting it into the operator pod — the operator reads the Secret via the API and hands the PEM to its Vault client. When unset, the system trust store is used. Only consulted for `https://` Vault addresses. |
+| `kubernetesAuthMount` | `string` | no | `"kubernetes"` | Mount path of Vault's Kubernetes auth backend. Defaults to `kubernetes`, Vault's own default mount name. |
+| `kubernetesAuthRole` | `string` | yes |  | Vault Kubernetes-auth role this operator authenticates as — its own ServiceAccount JWT is exchanged for a Vault token via `auth/<kubernetesAuthMount>/login`. See `.prompt/plan.md`'s note on `vault.tf`'s OIDC federation for why a Vault-aware `SecretStore` exists at all (unrelated to this auth step, which is the operator authenticating *to* Vault, not Vault federating Authentik as an OIDC provider). |
+| `mount` | `string` | yes |  | KV v2 secrets engine mount (e.g. `secret`) credentials are written under. |
+| [`pathGrants`](#spec.secretStore.vault.pathGrants) | `object[]` | no |  | Paths outside `<pathPrefix>/<namespace>/` that the `AuthentikApplication`s of the listed namespaces may write to (an application publishing its credentials where its consumer already reads them). A grant opens its paths to everyone allowed to create an `AuthentikApplication` in a covered namespace; it never hands over a value another CR owns. The Vault policy of `kubernetesAuthRole` stays the hard bound: restrict it to the same paths.<br /><br />Constraints: `maxItems: 32` |
+| `pathPrefix` | `string` | no | `"weebo-authentik"` | Path prefix under `mount` — a target's default KV path is `<pathPrefix>/<namespace>/<name>` (`<namespace>/<name>` when empty), and an `AuthentikApplication` may only write under `<pathPrefix>/<its namespace>/`, unless `pathGrants` opens a path to it.<br /><br />An empty prefix makes every namespace's subtree a top-level folder of the mount: a namespace named like a folder that holds other values (one a grant opens, `shared/` say) owns that folder — its objects write there without any grant. Keep a prefix unless the mount is reserved to per-namespace folders and no namespace can be created with the name of another top-level folder. |
+
+### `spec.secretStore.vault.caSecretRef` [#spec.secretStore.vault.caSecretRef]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | yes |  |  |
+| `name` | `string` | yes |  |  |
+| `namespace` | `string` | yes |  |  |
+
+### `spec.secretStore.vault.pathGrants[]` [#spec.secretStore.vault.pathGrants]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `clusterScoped` | `boolean` | no |  | The grant opens `paths` to cluster-scoped objects (instead of `namespaces`). |
+| `namespaces` | `string[]` | no |  | Namespaces whose objects may write `paths`: exact names, `*`, or a prefix glob such as `team-*`. `team-*` opens the paths to every matching namespace.<br /><br />Constraints: `maxItems: 64` |
+| `paths` | `string[]` | yes |  | Path patterns under the mount, compared segment by segment: a literal segment matches itself, `+` exactly one segment, and a last `*` one or more. Each holds at least one literal segment, e.g. `shared/auth`, `+/auth`, `platform/*`. Prefer exact paths where values not written by the operator live: a covered object may take over a value no object owns yet.<br /><br />Constraints: `minItems: 1`, `maxItems: 64` |
+
+**Rules**
+
+- a grant names namespaces or is clusterScoped, not both — `(has(self.namespaces) && size(self.namespaces) > 0) != (has(self.clusterScoped) && self.clusterScoped)`
+- `paths[]`: a path pattern has no "." or ".." segment — `!self.matches('(^|/)\\.\\.?(/|$)')`
+- `paths[]`: a path pattern has at least one literal segment — `self.matches('(^|/)[^/*+]+(/|$)')`
+
+### `spec.tls` [#spec.tls]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| [`caSecretRef`](#spec.tls.caSecretRef) | `object` | no |  | Optional custom CA certificate to verify the instance's TLS with, read from a Kubernetes `Secret` (the referenced `key` must hold a PEM bundle). Use this to trust a private CA without mounting it into the operator pod — the operator reads the Secret via the API and hands the PEM to its HTTP client. It is added *on top of* the platform trust store, so publicly-signed endpoints keep working. When unset, only the platform trust store (plus the usual `SSL_CERT_FILE`/`SSL_CERT_DIR` env vars) is used. |
+| `insecureSkipVerify` | `boolean` | no | `false` | Skip certificate verification entirely — insecure, intended only for throwaway/self-signed instances. Prefer `caSecretRef` below, which trusts a private CA without turning verification off. |
+
+### `spec.tls.caSecretRef` [#spec.tls.caSecretRef]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | yes |  |  |
+| `name` | `string` | yes |  |  |
+| `namespace` | `string` | yes |  |  |
+
+### `spec.tokenSecretRef` [#spec.tokenSecretRef]
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `key` | `string` | yes |  |  |
+| `name` | `string` | yes |  |  |
+| `namespace` | `string` | yes |  |  |
 
 ## Build a manifest
 
