@@ -44,14 +44,14 @@ spec:
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `authentication` | `string` | no |  | Required level of authentication to access the flow. Defaults to Authentik's own default when unset. |
+| `authentication` | `string` | no |  | Required level of authentication to access the flow. Defaults to Authentik's own default when unset.<br /><br />Values: `"none"`, `"require_authenticated"`, `"require_unauthenticated"`, `"require_superuser"`, `"require_redirect"`, `"require_outpost"`, `"require_token"` |
 | `background` | `string` | no |  | Background image shown during flow execution (a URL or a static path served by Authentik). |
 | `compatibilityMode` | `boolean` | no |  | Increases compatibility with mobile password managers. |
-| `deniedAction` | `string` | no |  | What happens when the flow denies access to a user. |
-| `designation` | `string` | yes |  | What the flow is used for (authentication, authorization, …). |
-| `layout` | `string` | no |  | Visual layout of the flow's pages. |
+| `deniedAction` | `string` | no |  | What happens when the flow denies access to a user.<br /><br />Values: `"message_continue"`, `"message"`, `"continue"` |
+| `designation` | `string` | yes |  | What the flow is used for (authentication, authorization, …).<br /><br />Values: `"authentication"`, `"authorization"`, `"invalidation"`, `"enrollment"`, `"unenrollment"`, `"recovery"`, `"stage_configuration"` |
+| `layout` | `string` | no |  | Visual layout of the flow's pages.<br /><br />Values: `"stacked"`, `"content_left"`, `"content_right"`, `"sidebar_left"`, `"sidebar_right"`, `"sidebar_left_frame_background"`, `"sidebar_right_frame_background"` |
 | `name` | `string` | yes |  | Internal name of the flow. |
-| `policyEngineMode` | `string` | no |  | How the flow's bound policies are combined. Defaults to Authentik's own default (`any`) when unset. |
+| `policyEngineMode` | `string` | no |  | How the flow's bound policies are combined. Defaults to Authentik's own default (`any`) when unset.<br /><br />Values: `"all"`, `"any"` |
 | `slug` | `string` | yes |  | Visible in the URL and the identity every other CRD uses to reference this flow (`AuthentikBrand.flow*`, `Oauth2ProviderSpec.authorizationFlow`, …). Changing it renames the flow in place: every CR referencing it by the old slug must follow. |
 | `title` | `string` | yes |  | Title shown to users on the flow's pages. |
 
