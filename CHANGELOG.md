@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.19.0](https://github.com/batleforc/weebo-authentik/compare/726f60f43f816942b4ba60f8d5a6cbcd4675d8a7..v0.19.0) - 2026-10-19
+#### Features
+- DriftCorrected Event and remote_writes_total, drift helpers from the kit (v0.18.1) (#20) - ([cf233ab](https://github.com/batleforc/weebo-authentik/commit/cf233abee64b7f4e7b6ca174bb3c32d515dd7af1)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
+- update lock - ([726f60f](https://github.com/batleforc/weebo-authentik/commit/726f60f43f816942b4ba60f8d5a6cbcd4675d8a7)) - Max Batleforc
+
+- - -
+
 ## [v0.18.3](https://github.com/batleforc/weebo-authentik/compare/da986b0e73268d8397f6f80cc480b9afadff507b..v0.18.3) - 2026-10-18
 #### Bug Fixes
 - (**gateway**) compare a scope mapping's text fields as Authentik stores them, trimmed (#19) - ([da986b0](https://github.com/batleforc/weebo-authentik/commit/da986b0e73268d8397f6f80cc480b9afadff507b)) - Maxime, Claude Opus 5.5 (1M context)
