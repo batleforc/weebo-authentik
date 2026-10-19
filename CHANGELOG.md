@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.19.3](https://github.com/batleforc/weebo-authentik/compare/6498176e01b128d02ab6e00f2a1a3efb02401b55..v0.19.3) - 2026-10-19
+#### Refactoring
+- (**controller**) one shared watch per kind (kit v0.20.0) (#26) - ([dbd0cdf](https://github.com/batleforc/weebo-authentik/commit/dbd0cdfbcf52520b1534e9f701c0f3039d8189bd)) - Maxime, Claude Opus 5.5 (1M context)
+#### Miscellaneous Chores
+- (**docs**) docs:deps and docs:build tasks, as the other operators (#24) - ([6498176](https://github.com/batleforc/weebo-authentik/commit/6498176e01b128d02ab6e00f2a1a3efb02401b55)) - Maxime, Claude Opus 5.5 (1M context)
+- (**kit**) weebo-operator-kit v0.20.0 (#25) - ([c4b171c](https://github.com/batleforc/weebo-authentik/commit/c4b171c046c604752dc2e9553c508e7f14289983)) - Maxime, Claude Opus 5.5 (1M context)
+
+- - -
+
 ## [v0.19.2](https://github.com/batleforc/weebo-authentik/compare/6d068212b8eba4db52ab977e58f7edd959866620..v0.19.2) - 2026-10-19
 #### Miscellaneous Chores
 - (**kit**) weebo-operator-kit v0.19.1, nested CRD fields in the reference (#23) - ([6d06821](https://github.com/batleforc/weebo-authentik/commit/6d068212b8eba4db52ab977e58f7edd959866620)) - Maxime, Claude Opus 5.5 (1M context)
