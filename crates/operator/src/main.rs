@@ -152,7 +152,7 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
     // policies' shared watch (every policy, whatever its labels), none
     // without cluster-scoped kinds.
     let mut policy_source = KubePolicySource::new(client.clone());
-    if let Some(shared) = watches.get::<AuthentikNamespacePolicy>() {
+    if let Some(shared) = watches.get_in::<AuthentikNamespacePolicy>(&scope.without_selector()) {
         policy_source = policy_source.with_store(shared.store());
     }
     let policies: Arc<dyn PolicySource<NamespaceRule>> = Arc::new(policy_source);
