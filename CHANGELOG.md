@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.19.2](https://github.com/batleforc/weebo-authentik/compare/6d068212b8eba4db52ab977e58f7edd959866620..v0.19.2) - 2026-10-19
+#### Miscellaneous Chores
+- (**kit**) weebo-operator-kit v0.19.1, nested CRD fields in the reference (#23) - ([6d06821](https://github.com/batleforc/weebo-authentik/commit/6d068212b8eba4db52ab977e58f7edd959866620)) - Maxime, Claude Opus 5.5 (1M context)
+
+- - -
+
 ## [v0.19.1](https://github.com/batleforc/weebo-authentik/compare/6a5338e7d149c9392c94b50953d0f04f6c60c7f4..v0.19.1) - 2026-10-19
 #### Miscellaneous Chores
 - (**kit**) weebo-operator-kit v0.18.2, 4 tokio workers by default (#22) - ([6a5338e](https://github.com/batleforc/weebo-authentik/commit/6a5338e7d149c9392c94b50953d0f04f6c60c7f4)) - Maxime, Claude Opus 5.5 (1M context)
