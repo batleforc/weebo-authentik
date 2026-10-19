@@ -8,7 +8,7 @@ use authentik_client::models;
 use domain::drift::{Drift, same_set};
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, must_write, parse_i32};
+use super::shared::{map_err, map_own_err, parse_i32};
 
 impl AuthentikHttpGateway {
     /// Certificate key pairs are always a lookup of an existing
@@ -160,6 +160,7 @@ impl AuthentikHttpGateway {
                 };
                 providers_api::providers_oauth2_create(&self.configuration, req)
                     .await
+                    .inspect(|_| self.created("oauth2_provider"))
                     .map_err(map_err)?
             }
             Some(id) => {
@@ -245,7 +246,7 @@ impl AuthentikHttpGateway {
                         same_set(&d, &r)
                     },
                 );
-                if must_write("oauth2_provider", &id.to_string(), &drift) {
+                if self.must_write("oauth2_provider", &id.to_string(), &drift) {
                     providers_api::providers_oauth2_partial_update(
                         &self.configuration,
                         id,
@@ -313,6 +314,7 @@ impl AuthentikHttpGateway {
                 };
                 providers_api::providers_proxy_create(&self.configuration, req)
                     .await
+                    .inspect(|_| self.created("proxy_provider"))
                     .map_err(map_err)?
                     .pk
             }
@@ -368,7 +370,7 @@ impl AuthentikHttpGateway {
                 // Each save of a proxy provider makes Authentik rebuild its
                 // outpost permissions and push the outpost an update: the
                 // write avoided here is the costliest of the operator.
-                if !must_write("proxy_provider", &id.to_string(), &drift) {
+                if !self.must_write("proxy_provider", &id.to_string(), &drift) {
                     return Ok(remote.pk.to_string());
                 }
                 providers_api::providers_proxy_partial_update(&self.configuration, id, Some(req))
@@ -404,7 +406,10 @@ impl AuthentikHttpGateway {
             }
         };
         match result {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                self.wrote_deleted("provider");
+                Ok(())
+            }
             Err(GatewayError::NotFound(_)) => Ok(()),
             Err(other) => Err(other),
         }
@@ -414,7 +419,8 @@ impl AuthentikHttpGateway {
         &self,
         authentik_id: i32,
     ) -> Result<(), GatewayError> {
-        ignore_not_found(
+        self.gone(
+            "provider",
             providers_api::providers_all_destroy(&self.configuration, authentik_id).await,
         )
     }

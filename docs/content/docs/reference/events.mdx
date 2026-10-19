@@ -18,6 +18,7 @@ CR is deleted.
 | An advisory condition goes away | `Normal` | its code | `Reconcile` | `<type> no longer applies: <message>` |
 | The remote Authentik object was created for this CR. | `Normal` | `Created` | `Reconcile` | what happened, with the remote object's id |
 | The finalizer deleted the remote Authentik object of this CR. | `Normal` | `Deleted` | `Cleanup` | what happened, with the remote object's id |
+| Fields of the CR's Authentik objects no longer held their desired value (changed in Authentik) and were put back; the Event names the objects and fields. | `Normal` | `DriftCorrected` | `Reconcile` | the fields put back |
 | A reconcile stops before writing a status (Kubernetes API call, finalizer…) | `Warning` | `KubernetesApiError`, `AuthentikApiError`, `SecretStoreError` | `Reconcile` | the error |
 | A finalizer cleanup fails | `Warning` | the failure's code | `Cleanup` | the error |
 | The finalizer finishes its cleanup | `Normal` | `Released` | `Cleanup` | `cleanup finished, finalizer released` |

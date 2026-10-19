@@ -5,7 +5,7 @@ use authentik_client::models;
 use domain::drift::Drift;
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
+use super::shared::{map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn upsert_policy_binding_impl(
@@ -45,6 +45,7 @@ impl AuthentikHttpGateway {
                 };
                 policies_api::policies_bindings_create(&self.configuration, req)
                     .await
+                    .inspect(|_| self.created("policy_binding"))
                     .map_err(map_err)?
                     .pk
             }
@@ -69,7 +70,7 @@ impl AuthentikHttpGateway {
                 drift.keep_opt("negate", &mut req.negate, &remote.negate);
                 drift.keep_opt("enabled", &mut req.enabled, &remote.enabled);
                 drift.keep("order", &mut req.order, &remote.order);
-                if !must_write("policy_binding", id, &drift) {
+                if !self.must_write("policy_binding", id, &drift) {
                     return Ok(remote.pk.to_string());
                 }
                 policies_api::policies_bindings_partial_update(&self.configuration, id, Some(req))
@@ -85,7 +86,8 @@ impl AuthentikHttpGateway {
         &self,
         authentik_id: &str,
     ) -> Result<(), GatewayError> {
-        ignore_not_found(
+        self.gone(
+            "policy_binding",
             policies_api::policies_bindings_destroy(&self.configuration, authentik_id).await,
         )
     }

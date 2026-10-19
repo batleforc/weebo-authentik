@@ -22,9 +22,11 @@ use api::{
     AuthentikScopeMapping, AuthentikUser,
 };
 use application::ports::{
-    AuthentikGateway, GatewayError, Oauth2ProviderUpsertResult, RemoteApplication,
+    AuthentikGateway, GatewayError, Oauth2ProviderUpsertResult, RemoteApplication, RemoteWrite,
+    Written,
 };
 use authentik_client::apis::configuration::Configuration;
+use domain::drift::Drift;
 
 /// One instance per `AuthentikInstance` CR — construction (base path/token
 /// pulled from the CR's `tokenSecretRef`) happens in `AuthentikGatewayFactory`
@@ -39,6 +41,8 @@ pub struct AuthentikHttpGateway {
     /// user-facing issuer, never the API base. See the `AUTHENTIK_URL`
     /// note in `upsert_oauth2_provider_impl`.
     web_base_url: String,
+    /// What this gateway wrote, for [`AuthentikGateway::take_writes`].
+    writes: std::sync::Mutex<Vec<Written>>,
 }
 
 impl AuthentikHttpGateway {
@@ -78,12 +82,76 @@ impl AuthentikHttpGateway {
         Self {
             configuration,
             web_base_url: web_base_url.into().trim_end_matches('/').to_string(),
+            writes: std::sync::Mutex::default(),
         }
+    }
+}
+
+impl AuthentikHttpGateway {
+    pub(super) fn wrote(
+        &self,
+        object: &'static str,
+        cause: RemoteWrite,
+        fields: Vec<&'static str>,
+    ) {
+        self.writes
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .push(Written {
+                object,
+                cause,
+                fields,
+            });
+    }
+
+    /// Records the creation of `object`.
+    fn created(&self, object: &'static str) {
+        self.wrote(object, RemoteWrite::Created, Vec::new());
+    }
+
+    /// After comparing a PATCH with the remote object (`domain::drift`):
+    /// `true` when something drifted and the PATCH must go out — recorded
+    /// and logged with the drifted fields. `false`: nothing to write.
+    fn must_write(&self, object: &'static str, authentik_id: &str, drift: &Drift) -> bool {
+        if drift.is_empty() {
+            tracing::debug!(object, authentik_id, "in sync, no write");
+            return false;
+        }
+        tracing::info!(
+            object,
+            authentik_id,
+            fields = ?drift.fields(),
+            "drift corrected"
+        );
+        self.wrote(object, RemoteWrite::Drift, drift.fields().to_vec());
+        true
+    }
+
+    /// Records the deletion of `object`.
+    fn wrote_deleted(&self, object: &'static str) {
+        self.wrote(object, RemoteWrite::Deleted, Vec::new());
+    }
+
+    /// A delete's result, a 404 counting as done (`ignore_not_found`); the
+    /// deletion recorded when there was something to delete.
+    fn gone<T>(
+        &self,
+        object: &'static str,
+        result: Result<(), authentik_client::apis::Error<T>>,
+    ) -> Result<(), GatewayError> {
+        if result.is_ok() {
+            self.wrote_deleted(object);
+        }
+        shared::ignore_not_found(result)
     }
 }
 
 #[async_trait::async_trait]
 impl AuthentikGateway for AuthentikHttpGateway {
+    fn take_writes(&self) -> Vec<Written> {
+        std::mem::take(&mut *self.writes.lock().unwrap_or_else(|p| p.into_inner()))
+    }
+
     async fn create_application(
         &self,
         app: &AuthentikApplication,

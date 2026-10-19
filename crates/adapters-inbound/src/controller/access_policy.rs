@@ -86,13 +86,21 @@ async fn apply(
         (None, Some(application), Some(Ok(bound))) => {
             match ctx.gateway_factory.gateway_for(&bound).await {
                 Ok(gateway) => {
-                    reconcile_access_policy(
+                    let outcome = reconcile_access_policy(
                         policy,
                         &application,
                         authentik_id.as_deref(),
                         gateway.as_ref(),
                     )
-                    .await
+                    .await;
+                    super::report_writes(
+                        "AuthentikAccessPolicy",
+                        &ctx.recorder,
+                        policy,
+                        gateway.as_ref(),
+                    )
+                    .await;
+                    outcome
                 }
                 Err(e) => errored_from_factory_error(e),
             }
@@ -139,6 +147,7 @@ async fn cleanup(
             .delete_policy_binding(id)
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
+        super::count_writes("AuthentikAccessPolicy", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, policy).await;
     Ok(Action::await_change())

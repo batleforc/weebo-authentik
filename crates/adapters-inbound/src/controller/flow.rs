@@ -44,7 +44,11 @@ async fn apply(api: &Api<AuthentikFlow>, flow: &AuthentikFlow, ctx: &Ctx) -> Res
 
     let started = std::time::Instant::now();
     let outcome = match ctx.gateway_factory.default_gateway().await {
-        Ok(gateway) => reconcile_flow(flow, authentik_id.as_deref(), gateway.as_ref()).await,
+        Ok(gateway) => {
+            let outcome = reconcile_flow(flow, authentik_id.as_deref(), gateway.as_ref()).await;
+            super::report_writes("AuthentikFlow", &ctx.recorder, &current, gateway.as_ref()).await;
+            outcome
+        }
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikFlow", started, &outcome);
@@ -69,6 +73,7 @@ async fn cleanup(
             .delete_flow(id)
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
+        super::count_writes("AuthentikFlow", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, flow).await;
     Ok(Action::await_change())

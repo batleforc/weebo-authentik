@@ -11,8 +11,8 @@ use api::AuthentikStatus;
 use api::namespace_policy::NamespaceRule;
 use api::status::Condition;
 use application::ports::{
-    BoundInstance, ClusterError, GatewayFactory, InstanceDirectory, PolicySource,
-    SecretStoreFactory,
+    AuthentikGateway, BoundInstance, ClusterError, GatewayFactory, InstanceDirectory, PolicySource,
+    RemoteWrite, SecretStoreFactory, Written,
 };
 use application::use_cases::ReconcileOutcome;
 use domain::Failure;
@@ -657,14 +657,69 @@ where
 /// real `MeterProvider`. `kind` is the CRD's kind, `started` when that
 /// `apply()` call began.
 pub fn record_reconcile(kind: &'static str, started: Instant, outcome: &ReconcileOutcome) {
-    static METRICS: OnceLock<ReconcileMetrics> = OnceLock::new();
     let reason = match outcome {
         ReconcileOutcome::Synced { .. } => ReasonCode::Reconciled,
         ReconcileOutcome::Errored { reason, .. } => *reason,
     };
-    METRICS
-        .get_or_init(|| ReconcileMetrics::new(FIELD_MANAGER, "weebo_authentik"))
-        .record(kind, reason, started.elapsed());
+    metrics().record(kind, reason, started.elapsed());
+}
+
+fn metrics() -> &'static ReconcileMetrics {
+    static METRICS: OnceLock<ReconcileMetrics> = OnceLock::new();
+    METRICS.get_or_init(|| ReconcileMetrics::new(FIELD_MANAGER, "weebo_authentik"))
+}
+
+/// Counts each write `gateway` made to Authentik
+/// (`weebo_authentik_remote_writes_total{kind, cause}`); returns them.
+/// Flat at rest: a steady `cause="drift"` rate is a field compared wrong
+/// (weebo-si RFC 0003).
+pub fn count_writes(kind: &'static str, gateway: &dyn AuthentikGateway) -> Vec<Written> {
+    let writes = gateway.take_writes();
+    for write in &writes {
+        metrics().record_write(kind, write.cause);
+    }
+    writes
+}
+
+/// The note of a `DriftCorrected` Event: each object put back, with its
+/// fields. `None` when nothing drifted.
+pub fn drift_note(writes: &[Written]) -> Option<String> {
+    let drifted: Vec<String> = writes
+        .iter()
+        .filter(|w| w.cause == RemoteWrite::Drift)
+        .map(|w| format!("{} ({})", w.object, w.fields.join(", ")))
+        .collect();
+    (!drifted.is_empty()).then(|| format!("drift corrected in Authentik: {}", drifted.join("; ")))
+}
+
+/// After a reconcile: [`count_writes`], then a `Normal` `DriftCorrected`
+/// Event naming what was put back — unless the spec just changed (`obj`
+/// read fresh: its `observedGeneration` is the last applied one), which is
+/// applied, not a drift.
+pub async fn report_writes<K>(
+    kind: &'static str,
+    recorder: &Recorder,
+    obj: &K,
+    gateway: &dyn AuthentikGateway,
+) where
+    K: Resource<DynamicType = ()> + HasStatus,
+{
+    let writes = count_writes(kind, gateway);
+    let spec_changed =
+        obj.meta().generation != obj.authentik_status().and_then(|s| s.observed_generation);
+    if spec_changed {
+        return;
+    }
+    if let Some(note) = drift_note(&writes) {
+        events::announce_change(
+            recorder,
+            &obj.object_ref(&()),
+            ReasonCode::DriftCorrected,
+            events::RECONCILE,
+            &note,
+        )
+        .await;
+    }
 }
 
 #[cfg(test)]
@@ -675,6 +730,31 @@ mod tests {
 
     fn at(secs: i64) -> Time {
         Time(Timestamp::from_second(secs).unwrap())
+    }
+
+    #[test]
+    fn a_drift_note_names_each_object_and_its_fields() {
+        let write = |object, cause, fields| Written {
+            object,
+            cause,
+            fields,
+        };
+        assert_eq!(
+            drift_note(&[write("application", RemoteWrite::Created, vec![])]),
+            None
+        );
+        assert_eq!(
+            drift_note(&[
+                write("oauth2_provider", RemoteWrite::Drift, vec!["redirect_uris"]),
+                write("policy_binding", RemoteWrite::Created, vec![]),
+                write("application", RemoteWrite::Drift, vec!["name", "meta_icon"]),
+            ])
+            .as_deref(),
+            Some(
+                "drift corrected in Authentik: oauth2_provider (redirect_uris); \
+                 application (name, meta_icon)"
+            )
+        );
     }
 
     #[test]

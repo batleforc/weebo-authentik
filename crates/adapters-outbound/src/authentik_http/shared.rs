@@ -57,28 +57,6 @@ fn is_duplicate_conflict(body: &str) -> bool {
     body.to_ascii_lowercase().contains("already exists")
 }
 
-/// After comparing a PATCH with the remote object (`domain::drift`):
-/// `true` when something drifted and the PATCH must go out — logged with
-/// the drifted fields, the only trace of a correction until the outcome
-/// carries it to an Event (RFC 0003, D4). `false`: nothing to write.
-pub(super) fn must_write(
-    kind: &'static str,
-    authentik_id: &str,
-    drift: &domain::drift::Drift,
-) -> bool {
-    if drift.is_empty() {
-        tracing::debug!(kind, authentik_id, "in sync, no write");
-        return false;
-    }
-    tracing::info!(
-        kind,
-        authentik_id,
-        fields = ?drift.fields(),
-        "drift corrected"
-    );
-    true
-}
-
 pub(super) fn parse_i32(id: &str) -> Result<i32, GatewayError> {
     id.parse()
         .map_err(|_| GatewayError::Api(format!("expected an integer id, got {id:?}")))

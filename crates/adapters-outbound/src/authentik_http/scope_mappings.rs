@@ -6,7 +6,7 @@ use authentik_client::models;
 use domain::drift::{Drift, same_trimmed};
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
+use super::shared::{map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_scope_mapping_impl(
@@ -26,6 +26,7 @@ impl AuthentikHttpGateway {
         };
         propertymappings_api::propertymappings_provider_scope_create(&self.configuration, req)
             .await
+            .inspect(|_| self.created("scope_mapping"))
             .map(|m| m.pk.to_string())
             .map_err(map_err)
     }
@@ -73,7 +74,7 @@ impl AuthentikHttpGateway {
             &remote.description,
             |d, r| r.as_deref().is_some_and(|r| same_trimmed(d, r)),
         );
-        if !must_write("scope_mapping", authentik_id, &drift) {
+        if !self.must_write("scope_mapping", authentik_id, &drift) {
             return Ok(());
         }
         propertymappings_api::propertymappings_provider_scope_partial_update(
@@ -90,7 +91,8 @@ impl AuthentikHttpGateway {
         &self,
         authentik_id: &str,
     ) -> Result<(), GatewayError> {
-        ignore_not_found(
+        self.gone(
+            "scope_mapping",
             propertymappings_api::propertymappings_provider_scope_destroy(
                 &self.configuration,
                 authentik_id,

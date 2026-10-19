@@ -6,7 +6,7 @@ use authentik_client::models;
 use domain::drift::{Drift, same_set};
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, must_write};
+use super::shared::{map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     pub(super) async fn create_group_impl(
@@ -39,6 +39,7 @@ impl AuthentikHttpGateway {
         };
         core_api::core_groups_create(&self.configuration, req)
             .await
+            .inspect(|_| self.created("group"))
             .map(|g| g.pk.to_string())
             .map_err(map_err)
     }
@@ -97,7 +98,7 @@ impl AuthentikHttpGateway {
             &remote.attributes,
             |d, r| r.as_ref().map_or(d.is_empty(), |r| d == r),
         );
-        if !must_write("group", authentik_id, &drift) {
+        if !self.must_write("group", authentik_id, &drift) {
             return Ok(());
         }
         core_api::core_groups_partial_update(&self.configuration, authentik_id, Some(req))
@@ -107,6 +108,9 @@ impl AuthentikHttpGateway {
     }
 
     pub(super) async fn delete_group_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {
-        ignore_not_found(core_api::core_groups_destroy(&self.configuration, authentik_id).await)
+        self.gone(
+            "group",
+            core_api::core_groups_destroy(&self.configuration, authentik_id).await,
+        )
     }
 }

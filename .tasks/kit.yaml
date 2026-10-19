@@ -9,6 +9,9 @@ vars:
   KIT_REPO: batleforc/weebo-operator-kit
   # A local checkout to render from instead (KIT_DIR=../weebo-operator-kit).
   KIT_DIR: '{{.KIT_DIR | default ""}}'
+  # The docs site's package manager, for the lockfile kit:sync refreshes:
+  # npm (package-lock.json) or pnpm (pnpm-lock.yaml, workspace included).
+  NPM_CLIENT: '{{.NPM_CLIENT | default "npm"}}'
   # The changelog's repository: origin's name, not the checkout's
   # directory (a clone or worktree may be named otherwise).
   REPOSITORY:
@@ -19,18 +22,22 @@ vars:
 
 tasks:
   cog:
-    desc: "Render cog.toml (and this file) from the kit's templates at the kit tag of Cargo.toml (or KIT_DIR=<checkout>), then reinstall the git hooks"
+    desc: "Render cog.toml (and this file) from the kit's templates at the kit tag of Cargo.toml or the Taskfile's KIT_TAG (or KIT_DIR=<checkout>), then reinstall the git hooks"
     dir: "{{.ROOT_DIR}}"
     vars:
       # The kit tag the workspace builds on (Cargo.toml), or TAG: the
       # hooks, the shared tasks, the workflows and the library chart
-      # follow the kit release the code does. A task-level variable: the
+      # follow the kit release the code does. A repository without a kit
+      # crate pins it in its Taskfile instead (`  KIT_TAG: vX.Y.Z` under
+      # `vars:`, rewritten by pin-kit.sh). A task-level variable: the
       # file-level ones of an included Taskfile don't see the command
       # line's (`task kit:sync TAG=vX.Y.Z`).
       KIT_TAG:
         sh: |
           if [ -n "{{.TAG | default ""}}" ]; then echo "{{.TAG}}"; else
-            sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" | head -n 1
+            tag="$(sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" 2>/dev/null | head -n 1)"
+            [ -n "$tag" ] || tag="$(sed -n -E 's|^ +KIT_TAG: *"?(v[0-9]+\.[0-9]+\.[0-9]+)"? *(#.*)?$|\1|p' "{{.ROOT_DIR}}/Taskfile.yaml" 2>/dev/null | head -n 1)"
+            echo "$tag"
           fi
     cmds:
       - |
@@ -65,18 +72,22 @@ tasks:
       - cog install-hook -a -o
 
   sync:
-    desc: "Pin the repository on the kit release KIT_TAG (TAG=vX.Y.Z, else Cargo.toml's): Cargo.toml, the remote tasks/ includes and their checksums, the reusable workflows, the library chart (and Chart.lock), then cog.toml"
+    desc: "Pin the repository on the kit release KIT_TAG (TAG=vX.Y.Z, else Cargo.toml's, else the Taskfile's KIT_TAG): Cargo.toml, the Taskfile's KIT_TAG, the remote tasks/ includes and their checksums, the reusable workflows, the library chart (and Chart.lock), the docs lockfile (NPM_CLIENT), then cog.toml"
     dir: "{{.ROOT_DIR}}"
     vars:
       # The kit tag the workspace builds on (Cargo.toml), or TAG: the
       # hooks, the shared tasks, the workflows and the library chart
-      # follow the kit release the code does. A task-level variable: the
+      # follow the kit release the code does. A repository without a kit
+      # crate pins it in its Taskfile instead (`  KIT_TAG: vX.Y.Z` under
+      # `vars:`, rewritten by pin-kit.sh). A task-level variable: the
       # file-level ones of an included Taskfile don't see the command
       # line's (`task kit:sync TAG=vX.Y.Z`).
       KIT_TAG:
         sh: |
           if [ -n "{{.TAG | default ""}}" ]; then echo "{{.TAG}}"; else
-            sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" | head -n 1
+            tag="$(sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" 2>/dev/null | head -n 1)"
+            [ -n "$tag" ] || tag="$(sed -n -E 's|^ +KIT_TAG: *"?(v[0-9]+\.[0-9]+\.[0-9]+)"? *(#.*)?$|\1|p' "{{.ROOT_DIR}}/Taskfile.yaml" 2>/dev/null | head -n 1)"
+            echo "$tag"
           fi
     cmds:
       - |
@@ -102,10 +113,14 @@ tasks:
             mise exec -- helm dependency update "$(dirname "$chart")"
           fi
         done
-        # The docs site's package-lock.json follows the @weebo/operator-docs
-        # pin pin-kit.sh just moved.
+        # The docs site's lockfile follows the @weebo/operator-docs pin
+        # pin-kit.sh just moved.
         if [ -f docs/package.json ] && grep -q '"@weebo/operator-docs"' docs/package.json; then
-          (cd docs && mise exec -- npm install --package-lock-only --no-audit --no-fund)
+          case "{{.NPM_CLIENT}}" in
+            npm) (cd docs && mise exec -- npm install --package-lock-only --no-audit --no-fund) ;;
+            pnpm) (cd docs && mise exec -- pnpm install --lockfile-only) ;;
+            *) echo "NPM_CLIENT '{{.NPM_CLIENT}}' is not npm or pnpm" >&2; exit 1 ;;
+          esac
         fi
       - task: cog
         vars: { TAG: "{{.KIT_TAG}}" }

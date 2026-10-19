@@ -17,7 +17,7 @@ use api::group::AuthentikGroupSpec;
 use api::outpost::{AuthentikOutpostSpec, OutpostType};
 use api::scope_mapping::AuthentikScopeMappingSpec;
 use api::{AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost, AuthentikScopeMapping};
-use application::ports::{AuthentikGateway, GatewayError};
+use application::ports::{AuthentikGateway, GatewayError, RemoteWrite, Written};
 use kube::api::ObjectMeta;
 use testkit::authentik_mock::AuthentikMock;
 
@@ -1060,11 +1060,13 @@ async fn an_unchanged_group_is_read_but_never_patched() {
     )
     .await;
 
-    gateway(&mock)
+    let gateway = gateway(&mock);
+    gateway
         .update_group(GROUP_PK, &group_cr(None))
         .await
         .expect("an in-sync group is not an error");
     assert!(patches(&mock).await.is_empty());
+    assert_eq!(gateway.take_writes(), vec![]);
 }
 
 const SCOPE_MAPPING_PK: &str = "55555555-5555-5555-5555-555555555555";
@@ -1133,7 +1135,8 @@ async fn a_drifted_group_gets_a_patch_of_the_drifted_field_only() {
     )
     .await;
 
-    gateway(&mock)
+    let gateway = gateway(&mock);
+    gateway
         .update_group(GROUP_PK, &group_cr(None))
         .await
         .expect("the drift is corrected");
@@ -1144,6 +1147,16 @@ async fn a_drifted_group_gets_a_patch_of_the_drifted_field_only() {
             serde_json::json!({"name": "weebo-user"})
         )]
     );
+    // Reported once, for the counter and the DriftCorrected Event.
+    assert_eq!(
+        gateway.take_writes(),
+        vec![Written {
+            object: "group",
+            cause: RemoteWrite::Drift,
+            fields: vec!["name"],
+        }]
+    );
+    assert_eq!(gateway.take_writes(), vec![]);
 }
 
 /// In sync: no PATCH, and the credentials written to the secret targets

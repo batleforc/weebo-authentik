@@ -1,12 +1,12 @@
 use api::AuthentikBrand;
-use application::ports::GatewayError;
+use application::ports::{GatewayError, RemoteWrite};
 use authentik_client::apis::core_api;
 use authentik_client::models;
 
 use domain::drift::Drift;
 
 use super::AuthentikHttpGateway;
-use super::shared::{map_err, map_own_err, must_write};
+use super::shared::{map_err, map_own_err};
 
 impl AuthentikHttpGateway {
     /// Same as `resolve_flow`, for the optional flow slugs on
@@ -64,6 +64,7 @@ impl AuthentikHttpGateway {
         };
         core_api::core_brands_create(&self.configuration, req)
             .await
+            .inspect(|_| self.created("brand"))
             .map(|b| b.brand_uuid.to_string())
             .map_err(map_err)
     }
@@ -159,7 +160,7 @@ impl AuthentikHttpGateway {
             &mut req.flow_user_settings,
             &remote.flow_user_settings,
         );
-        if !must_write("brand", authentik_id, &drift) {
+        if !self.must_write("brand", authentik_id, &drift) {
             return Ok(());
         }
         core_api::core_brands_partial_update(&self.configuration, authentik_id, Some(req))
@@ -169,7 +170,8 @@ impl AuthentikHttpGateway {
     }
 
     pub(super) async fn delete_brand_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {
-        super::shared::ignore_not_found(
+        self.gone(
+            "brand",
             core_api::core_brands_destroy(&self.configuration, authentik_id).await,
         )
     }
@@ -234,6 +236,7 @@ impl AuthentikHttpGateway {
         };
         core_api::core_brands_partial_update(&self.configuration, authentik_id, Some(req))
             .await
+            .inspect(|_| self.wrote("brand", RemoteWrite::Drift, vec!["default"]))
             .map(|_| ())
             .map_err(map_own_err)
     }

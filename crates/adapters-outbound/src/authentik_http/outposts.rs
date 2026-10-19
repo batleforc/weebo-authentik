@@ -3,14 +3,14 @@ use std::sync::{Arc, LazyLock, Mutex};
 
 use api::AuthentikOutpost;
 use api::outpost::OutpostType;
-use application::ports::GatewayError;
+use application::ports::{GatewayError, RemoteWrite};
 use authentik_client::apis::outposts_api;
 use authentik_client::models;
 
 use domain::drift::{Drift, same_subset};
 
 use super::AuthentikHttpGateway;
-use super::shared::{ignore_not_found, map_err, map_own_err, must_write, parse_i32};
+use super::shared::{map_err, map_own_err, parse_i32};
 
 /// Authentik's outpost embedded with every installation, never created by
 /// this operator — the default target for a proxy provider whose
@@ -81,6 +81,7 @@ impl AuthentikHttpGateway {
         };
         outposts_api::outposts_instances_create(&self.configuration, req)
             .await
+            .inspect(|_| self.created("outpost"))
             .map(|o| o.pk.to_string())
             .map_err(map_err)
     }
@@ -110,7 +111,7 @@ impl AuthentikHttpGateway {
         drift.keep_with("config", &mut req.config, &remote.config, |d, r| {
             same_subset(d, r)
         });
-        if !must_write("outpost", authentik_id, &drift) {
+        if !self.must_write("outpost", authentik_id, &drift) {
             return Ok(());
         }
         outposts_api::outposts_instances_partial_update(
@@ -124,7 +125,8 @@ impl AuthentikHttpGateway {
     }
 
     pub(super) async fn delete_outpost_impl(&self, authentik_id: &str) -> Result<(), GatewayError> {
-        ignore_not_found(
+        self.gone(
+            "outpost",
             outposts_api::outposts_instances_destroy(&self.configuration, authentik_id).await,
         )
     }
@@ -213,6 +215,7 @@ impl AuthentikHttpGateway {
             Some(patch),
         )
         .await
+        .inspect(|_| self.wrote("outpost", RemoteWrite::Drift, vec!["providers"]))
         .map(|_| ())
         .map_err(map_err)
     }

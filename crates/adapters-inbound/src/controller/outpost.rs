@@ -48,7 +48,13 @@ async fn apply(
 
     let started = std::time::Instant::now();
     let outcome = match ctx.gateway_factory.default_gateway().await {
-        Ok(gateway) => reconcile_outpost(outpost, authentik_id.as_deref(), gateway.as_ref()).await,
+        Ok(gateway) => {
+            let outcome =
+                reconcile_outpost(outpost, authentik_id.as_deref(), gateway.as_ref()).await;
+            super::report_writes("AuthentikOutpost", &ctx.recorder, outpost, gateway.as_ref())
+                .await;
+            outcome
+        }
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikOutpost", started, &outcome);
@@ -77,6 +83,7 @@ async fn cleanup(
             .delete_outpost(id)
             .await
             .map_err(|e| Error::Gateway(e.to_string()))?;
+        super::count_writes("AuthentikOutpost", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, outpost).await;
     Ok(Action::await_change())
