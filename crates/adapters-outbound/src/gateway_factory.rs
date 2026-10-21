@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use api::instance::{SecretKeyRef, TlsOptions};
 use application::ports::{AuthentikGateway, BoundInstance, GatewayFactory, GatewayFactoryError};
@@ -100,6 +101,14 @@ impl AuthentikGatewayFactory {
     }
 }
 
+/// A whole Authentik call (same budget as weebo-forgejo's). Without it a
+/// stalled Authentik would hang the reconcile forever, holding its slot,
+/// and a graceful shutdown — which waits for in-flight reconciles — would
+/// never release the leader lease.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+/// Establishing the connection (TCP + TLS) to Authentik.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// The HTTP client the gateway talks to Authentik with, carrying the
 /// instance's `spec.tls`. With neither option set this is the same client
 /// the generated `Configuration` would have built for itself.
@@ -112,7 +121,9 @@ fn build_http_client(
     tls: &TlsOptions,
     ca_pem: Option<&[u8]>,
 ) -> Result<reqwest::Client, GatewayFactoryError> {
-    let mut builder = reqwest::Client::builder();
+    let mut builder = reqwest::Client::builder()
+        .timeout(REQUEST_TIMEOUT)
+        .connect_timeout(CONNECT_TIMEOUT);
     if let Some(pem) = ca_pem {
         // `from_pem_bundle` handles both a single cert and a concatenated
         // chain; each becomes an additional trusted root. Same handling as
