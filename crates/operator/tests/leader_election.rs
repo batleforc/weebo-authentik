@@ -20,6 +20,15 @@ impl Drop for KillOnDrop {
     }
 }
 
+/// A port nothing listens on right now, for the operator's `WEBHOOK_PORT`:
+/// a fixed one (the default 8443) may be held by anything on the machine.
+fn free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .expect("an ephemeral port must be available")
+        .port()
+}
+
 fn wait_for_port(port: u16, child: &mut Child) {
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {
@@ -132,14 +141,15 @@ async fn exactly_one_replica_becomes_leader() {
         )
     };
 
-    let mut replica_a = spawn_replica("replica-a", 18443);
-    let mut replica_b = spawn_replica("replica-b", 18444);
+    let (port_a, port_b) = (free_port(), free_port());
+    let mut replica_a = spawn_replica("replica-a", port_a);
+    let mut replica_b = spawn_replica("replica-b", port_b);
 
     // Both webhooks come up immediately, independent of leader election.
-    wait_for_port(18443, &mut replica_a.0);
-    wait_for_port(18444, &mut replica_b.0);
-    assert_tls_handshake_ok(18443);
-    assert_tls_handshake_ok(18444);
+    wait_for_port(port_a, &mut replica_a.0);
+    wait_for_port(port_b, &mut replica_b.0);
+    assert_tls_handshake_ok(port_a);
+    assert_tls_handshake_ok(port_b);
 
     // Leader election settles quickly (first `try_acquire_or_renew` wins,
     // no pre-existing Lease) — poll rather than a fixed sleep.
