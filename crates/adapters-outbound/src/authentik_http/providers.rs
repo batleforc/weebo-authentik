@@ -261,11 +261,36 @@ impl AuthentikHttpGateway {
             }
         };
 
+        // Credentials missing from the response would be written as is and
+        // the CR reported Synced with an unusable secret: only a public
+        // client may have no secret.
+        let client_id = provider
+            .client_id
+            .filter(|id| !id.is_empty())
+            .ok_or_else(|| {
+                GatewayError::Api(format!(
+                    "oauth2 provider {} came back without a client_id",
+                    provider.pk
+                ))
+            })?;
+        let client_secret = match (
+            provider.client_secret.filter(|s| !s.is_empty()),
+            &spec.client_type,
+        ) {
+            (Some(secret), _) => secret,
+            (None, Oauth2ClientType::Public) => String::new(),
+            (None, Oauth2ClientType::Confidential) => {
+                return Err(GatewayError::Api(format!(
+                    "confidential oauth2 provider {} came back without a client_secret",
+                    provider.pk
+                )));
+            }
+        };
         Ok(Oauth2ProviderUpsertResult {
             authentik_id: provider.pk.to_string(),
             credentials: Oauth2Credentials {
-                client_id: provider.client_id.unwrap_or_default(),
-                client_secret: provider.client_secret.unwrap_or_default(),
+                client_id,
+                client_secret,
                 // The per-application OIDC issuer, NOT the API base path.
                 // Authentik issues tokens under
                 // `<web_base>/application/o/<application_slug>/` (the

@@ -4,11 +4,26 @@
 //! Three call sites want the same read and the same two failure messages:
 //! the instance's API token, its `tls.caSecretRef`, and its
 //! `secretStore.vault.caSecretRef`. They map the failure into different
-//! error enums, so this returns a plain `String` each caller wraps in its
-//! own variant.
+//! error enums, so this returns a [`SecretRefError`] each caller wraps in
+//! its own variant.
 
 use api::instance::SecretKeyRef;
 use kube::Client;
+
+/// Why a [`SecretKeyRef`] could not be read; `what` names the reference.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum SecretRefError {
+    /// The Secret could not be read (missing, forbidden, API error).
+    #[error("{what}: {message}")]
+    Read { what: &'static str, message: String },
+    #[error("{what} {namespace}/{name} has no key {key:?}")]
+    MissingKey {
+        what: &'static str,
+        namespace: String,
+        name: String,
+        key: String,
+    },
+}
 
 /// Returns the raw bytes of `secret_ref`'s key. `what` names the reference's
 /// role in the error message ("secret", "Authentik CA secret", "Vault CA
@@ -22,15 +37,15 @@ use kube::Client;
 pub(crate) async fn read_secret_key(
     client: &Client,
     secret_ref: &SecretKeyRef,
-    what: &str,
-) -> Result<Vec<u8>, String> {
+    what: &'static str,
+) -> Result<Vec<u8>, SecretRefError> {
     weebo_kit_adapters::read_secret_key(client, secret_ref)
         .await
-        .map_err(|e| format!("{what}: {e}"))?
-        .ok_or_else(|| {
-            format!(
-                "{what} {}/{} has no key {:?}",
-                secret_ref.namespace, secret_ref.name, secret_ref.key
-            )
+        .map_err(|message| SecretRefError::Read { what, message })?
+        .ok_or_else(|| SecretRefError::MissingKey {
+            what,
+            namespace: secret_ref.namespace.clone(),
+            name: secret_ref.name.clone(),
+            key: secret_ref.key.clone(),
         })
 }

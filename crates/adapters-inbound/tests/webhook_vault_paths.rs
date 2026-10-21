@@ -4,6 +4,11 @@
 //! `pathGrants` — against a real envtest cluster, whose CRD schema also
 //! refuses an invalid grant.
 
+#![expect(
+    clippy::unwrap_used,
+    reason = "test helpers: a failed step fails the test, with its message"
+)]
+
 use std::sync::Arc;
 
 use adapters_inbound::webhook::{self, InstanceLookup, WebhookState};

@@ -25,6 +25,7 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
+ "weebo-kit-adapters",
  "weebo-kit-api",
  "weebo-kit-runtime",
 ]
@@ -44,7 +45,9 @@ dependencies = [
  "reqwest",
  "reqwest-middleware",
  "serde_json",
+ "sha2",
  "testkit",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "uuid",

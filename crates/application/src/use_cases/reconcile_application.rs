@@ -1,5 +1,5 @@
 use api::AuthentikApplication;
-use api::application::ProviderKind;
+use api::application::{Oauth2ProviderSpec, ProviderKind, ProviderSpec, ProxyProviderSpec};
 use domain::error::ReasonCode;
 
 use crate::ports::{
@@ -23,23 +23,68 @@ fn allows_disruptive_update(app: &AuthentikApplication) -> bool {
     api::ANNOTATIONS.allows_disruptive_update(&app.metadata)
 }
 
-/// Authentik's internal model name for a provider of this kind, as
-/// returned by `RemoteApplication::provider_meta_model_name`. Only
-/// oauth2/proxy are ever created by this operator — `reconcile_application`
-/// rejects saml/ldap before this is reachable.
-fn provider_kind_meta_model_name(kind: &ProviderKind) -> &'static str {
-    match kind {
-        ProviderKind::Oauth2 => "authentik_providers_oauth2.oauth2provider",
-        ProviderKind::Proxy => "authentik_providers_proxy.proxyprovider",
-        ProviderKind::Saml | ProviderKind::Ldap => unreachable!("rejected before this is called"),
-    }
-}
+/// Authentik's internal model names of the providers this operator
+/// creates, as returned by `RemoteApplication::provider_meta_model_name`.
+const OAUTH2_MODEL: &str = "authentik_providers_oauth2.oauth2provider";
+const PROXY_MODEL: &str = "authentik_providers_proxy.proxyprovider";
 
 fn provider_kind_from_meta_model_name(name: &str) -> Option<ProviderKind> {
     match name {
-        "authentik_providers_oauth2.oauth2provider" => Some(ProviderKind::Oauth2),
-        "authentik_providers_proxy.proxyprovider" => Some(ProviderKind::Proxy),
+        OAUTH2_MODEL => Some(ProviderKind::Oauth2),
+        PROXY_MODEL => Some(ProviderKind::Proxy),
         _ => None,
+    }
+}
+
+/// `spec.provider`, validated once: a kind this operator implements, with
+/// its spec. Everything past [`Provider::parse`] trusts it.
+#[derive(Clone, Copy)]
+enum Provider<'a> {
+    Oauth2(&'a Oauth2ProviderSpec),
+    Proxy(&'a ProxyProviderSpec),
+}
+
+impl<'a> Provider<'a> {
+    /// "Exactly one of oauth2/proxy set, matching kind" is schema-valid to
+    /// violate (kube-core can't express it as a hard constraint — see
+    /// `api::application::ProviderSpec`'s doc) and is "validated by the
+    /// reconciler, not the schema" per that same doc — this is that
+    /// validation, like `secret_store_factory.rs` does for the identical
+    /// `SecretStoreSpec` pattern.
+    fn parse(spec: &'a ProviderSpec) -> Result<Self, ReconcileOutcome> {
+        let missing = |field: &str| ReconcileOutcome::Errored {
+            reason: ReasonCode::InvalidProviderSpec,
+            message: format!(
+                "spec.provider.kind is {:?} but spec.provider.{field} is not set",
+                spec.kind
+            ),
+        };
+        match spec.kind {
+            ProviderKind::Oauth2 => spec
+                .oauth2
+                .as_ref()
+                .map(Provider::Oauth2)
+                .ok_or_else(|| missing("oauth2")),
+            ProviderKind::Proxy => spec
+                .proxy
+                .as_ref()
+                .map(Provider::Proxy)
+                .ok_or_else(|| missing("proxy")),
+            ProviderKind::Saml | ProviderKind::Ldap => Err(ReconcileOutcome::Errored {
+                reason: ReasonCode::UnsupportedProviderKind,
+                message: format!(
+                    "provider kind {:?} is a schema-only stub, not implemented by any reconciler",
+                    spec.kind
+                ),
+            }),
+        }
+    }
+
+    fn meta_model_name(self) -> &'static str {
+        match self {
+            Provider::Oauth2(_) => OAUTH2_MODEL,
+            Provider::Proxy(_) => PROXY_MODEL,
+        }
     }
 }
 
@@ -57,14 +102,14 @@ enum ProviderKindChange {
 }
 
 fn classify_provider_kind_change(
-    new_kind: &ProviderKind,
+    new_meta_model_name: &str,
     existing_meta_model_name: Option<&str>,
     disruptive_update_allowed: bool,
 ) -> ProviderKindChange {
     let Some(existing) = existing_meta_model_name else {
         return ProviderKindChange::None;
     };
-    if existing == provider_kind_meta_model_name(new_kind) {
+    if existing == new_meta_model_name {
         return ProviderKindChange::None;
     }
     if disruptive_update_allowed {
@@ -159,46 +204,7 @@ async fn try_reconcile_application(
     secrets: &dyn SecretStore,
     written: &mut Written,
 ) -> Result<ReconcileOutcome, ReconcileOutcome> {
-    if matches!(
-        app.spec.provider.kind,
-        ProviderKind::Saml | ProviderKind::Ldap
-    ) {
-        return Err(ReconcileOutcome::Errored {
-            reason: ReasonCode::UnsupportedProviderKind,
-            message: format!(
-                "provider kind {:?} is a schema-only stub, not implemented by any reconciler",
-                app.spec.provider.kind
-            ),
-        });
-    }
-
-    // "Exactly one of oauth2/proxy set, matching kind" is schema-valid to
-    // violate (kube-core can't express it as a hard constraint — see
-    // `api::application::ProviderSpec`'s doc) and is "validated by the
-    // reconciler, not the schema" per that same doc — this is that
-    // validation. Without it, a schema-valid CR with `kind: oauth2` and no
-    // `oauth2` field would panic below instead of erroring, unlike the
-    // identical `SecretStoreSpec` pattern which `secret_store_factory.rs`
-    // validates correctly.
-    let spec_matches_kind = match app.spec.provider.kind {
-        ProviderKind::Oauth2 => app.spec.provider.oauth2.is_some(),
-        ProviderKind::Proxy => app.spec.provider.proxy.is_some(),
-        ProviderKind::Saml | ProviderKind::Ldap => unreachable!("rejected above"),
-    };
-    if !spec_matches_kind {
-        let field = match app.spec.provider.kind {
-            ProviderKind::Oauth2 => "oauth2",
-            ProviderKind::Proxy => "proxy",
-            ProviderKind::Saml | ProviderKind::Ldap => unreachable!("rejected above"),
-        };
-        return Err(ReconcileOutcome::Errored {
-            reason: ReasonCode::InvalidProviderSpec,
-            message: format!(
-                "spec.provider.kind is {:?} but spec.provider.{field} is not set",
-                app.spec.provider.kind
-            ),
-        });
-    }
+    let provider = Provider::parse(&app.spec.provider)?;
 
     // On update, the current provider FK is read back off the live
     // Authentik application so the right provider gets patched in place
@@ -218,7 +224,7 @@ async fn try_reconcile_application(
         .and_then(|r| r.provider_meta_model_name.as_deref());
 
     let kind_change = classify_provider_kind_change(
-        &app.spec.provider.kind,
+        provider.meta_model_name(),
         existing_meta_model_name,
         allows_disruptive_update(app),
     );
@@ -274,6 +280,7 @@ async fn try_reconcile_application(
     // deletes it.
     let provider_id = upsert_provider(
         app,
+        provider,
         existing_provider_id,
         gateway,
         secrets,
@@ -295,8 +302,7 @@ async fn try_reconcile_application(
     // and left unrecorded would make the next attempt collide with it.
     written.application = Some(new_authentik_id.clone());
 
-    if let ProviderKind::Proxy = app.spec.provider.kind {
-        let spec = app.spec.provider.proxy.as_ref().expect("checked above");
+    if let Provider::Proxy(spec) = provider {
         gateway
             .attach_outpost(spec.outpost_ref.as_deref(), &provider_id.to_string())
             .await
@@ -325,13 +331,23 @@ async fn try_reconcile_application(
 /// one is created.
 async fn upsert_provider(
     app: &AuthentikApplication,
+    provider: Provider<'_>,
     existing: Option<i32>,
     gateway: &dyn AuthentikGateway,
     secrets: &dyn SecretStore,
     upserted: &mut Option<i32>,
 ) -> Result<i32, ReconcileOutcome> {
     if let Some(id) = existing {
-        match upsert_provider_once(app, Some(&id.to_string()), gateway, secrets, upserted).await {
+        match upsert_provider_once(
+            app,
+            provider,
+            Some(&id.to_string()),
+            gateway,
+            secrets,
+            upserted,
+        )
+        .await
+        {
             Ok(pk) => return Ok(pk),
             Err(UpsertError::Gateway(GatewayError::Gone(_))) => {
                 gateway
@@ -342,7 +358,7 @@ async fn upsert_provider(
             Err(e) => return Err(e.into_outcome()),
         }
     }
-    upsert_provider_once(app, None, gateway, secrets, upserted)
+    upsert_provider_once(app, provider, None, gateway, secrets, upserted)
         .await
         .map_err(UpsertError::into_outcome)
 }
@@ -365,16 +381,14 @@ impl UpsertError {
 
 async fn upsert_provider_once(
     app: &AuthentikApplication,
+    provider: Provider<'_>,
     existing: Option<&str>,
     gateway: &dyn AuthentikGateway,
     secrets: &dyn SecretStore,
     upserted: &mut Option<i32>,
 ) -> Result<i32, UpsertError> {
-    match &app.spec.provider.kind {
-        ProviderKind::Oauth2 => {
-            let spec = app.spec.provider.oauth2.as_ref().expect(
-                "kind=oauth2 implies oauth2 spec present, enforced by the reconciler contract",
-            );
+    match provider {
+        Provider::Oauth2(spec) => {
             let result = gateway
                 .upsert_oauth2_provider(existing, &app.spec.name, &app.spec.slug, spec)
                 .await
@@ -387,10 +401,7 @@ async fn upsert_provider_once(
                 .map_err(UpsertError::Outcome)?;
             Ok(pk)
         }
-        ProviderKind::Proxy => {
-            let spec = app.spec.provider.proxy.as_ref().expect(
-                "kind=proxy implies proxy spec present, enforced by the reconciler contract",
-            );
+        Provider::Proxy(spec) => {
             let id = gateway
                 .upsert_proxy_provider(existing, &app.spec.name, spec)
                 .await
@@ -399,7 +410,6 @@ async fn upsert_provider_once(
             *upserted = Some(pk);
             Ok(pk)
         }
-        ProviderKind::Saml | ProviderKind::Ldap => unreachable!("rejected above"),
     }
 }
 
@@ -556,7 +566,7 @@ mod tests {
     #[test]
     fn no_existing_provider_is_not_a_kind_change() {
         assert_eq!(
-            classify_provider_kind_change(&ProviderKind::Oauth2, None, false),
+            classify_provider_kind_change(OAUTH2_MODEL, None, false),
             ProviderKindChange::None
         );
     }
@@ -565,7 +575,7 @@ mod tests {
     fn matching_kind_is_not_a_kind_change() {
         assert_eq!(
             classify_provider_kind_change(
-                &ProviderKind::Oauth2,
+                OAUTH2_MODEL,
                 Some("authentik_providers_oauth2.oauth2provider"),
                 false
             ),
@@ -577,7 +587,7 @@ mod tests {
     fn differing_kind_without_the_annotation_is_denied() {
         assert_eq!(
             classify_provider_kind_change(
-                &ProviderKind::Proxy,
+                PROXY_MODEL,
                 Some("authentik_providers_oauth2.oauth2provider"),
                 false
             ),
@@ -589,7 +599,7 @@ mod tests {
     fn differing_kind_with_the_annotation_is_authorized() {
         assert_eq!(
             classify_provider_kind_change(
-                &ProviderKind::Proxy,
+                PROXY_MODEL,
                 Some("authentik_providers_oauth2.oauth2provider"),
                 true
             ),

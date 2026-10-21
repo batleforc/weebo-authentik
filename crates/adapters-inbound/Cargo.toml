@@ -19,6 +19,7 @@ thiserror = { workspace = true }
 futures = { workspace = true }
 opentelemetry = { workspace = true }
 weebo-kit-runtime = { workspace = true }
+weebo-kit-adapters = { workspace = true }
 k8s-openapi = { workspace = true }
 
 [dev-dependencies]
@@ -29,3 +30,6 @@ tracing-subscriber = { workspace = true }
 rustls = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
+
+[lints]
+workspace = true

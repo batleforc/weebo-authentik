@@ -38,7 +38,7 @@ impl Respond for CreateGroup {
     fn respond(&self, request: &Request) -> ResponseTemplate {
         let name = serde_json::from_slice::<serde_json::Value>(&request.body)
             .ok()
-            .and_then(|b| b["name"].as_str().map(str::to_string))
+            .and_then(|b| b.get("name")?.as_str().map(str::to_string))
             .unwrap_or_default();
         let pk = uuid_like(&name);
         ResponseTemplate::new(201).set_body_json(group_body(&pk, &name))
@@ -204,8 +204,9 @@ async fn cycle(
 #[tokio::test]
 #[ignore = "a perf run (minutes, release build): `task perf`"]
 async fn the_operator_fits_a_small_cluster() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-    let objects = env_or("PERF_OBJECTS", 200) as usize;
+    // An error only says another test of the binary set it up.
+    tracing_subscriber::fmt().with_test_writer().try_init().ok();
+    let objects = usize::try_from(env_or("PERF_OBJECTS", 200)).expect("PERF_OBJECTS fits a usize");
     let idle = Duration::from_secs(env_or("PERF_IDLE_SECS", 30));
     let timeout = Duration::from_secs(300);
 

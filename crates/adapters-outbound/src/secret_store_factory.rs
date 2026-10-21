@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use api::instance::{SecretStoreBackend, VaultSecretStoreSpec};
 use application::ports::{
-    BoundInstance, InstanceVaults, SecretStore, SecretStoreError, SecretStoreFactory,
+    BoundInstance, InstanceError, InstanceVaults, SecretStore, SecretStoreError, SecretStoreFactory,
 };
 use futures::FutureExt;
 use kube::{Client, ResourceExt};
@@ -59,6 +59,7 @@ impl AuthentikSecretStoreFactory {
 /// is read first: its digest is part of the cache key, so a rotated CA is
 /// picked up at once rather than when the login expires. A configured but
 /// unreadable CA is an error, never a fall-back to the system trust store.
+/// The error is a `String`: the kit's `VaultResolver` contract.
 async fn vault_for(
     client: Client,
     logins: Arc<VaultLogins>,
@@ -66,7 +67,11 @@ async fn vault_for(
     spec: VaultSecretStoreSpec,
 ) -> Result<Arc<VaultSecretStore>, String> {
     let ca = match &spec.ca_secret_ref {
-        Some(r) => Some(read_secret_key(&client, r, "Vault CA secret").await?),
+        Some(r) => Some(
+            read_secret_key(&client, r, "Vault CA secret")
+                .await
+                .map_err(|e| e.to_string())?,
+        ),
         None => None,
     };
     let config = VaultConfig {
@@ -139,12 +144,11 @@ impl InstanceVaults for AuthentikSecretStoreFactory {
     async fn vault_of(
         &self,
         bound: &BoundInstance,
-    ) -> Result<Option<Option<VaultSecretStoreSpec>>, String> {
+    ) -> Result<Option<Option<VaultSecretStoreSpec>>, InstanceError> {
         Ok(self
             .instances
             .get(bound)
-            .await
-            .map_err(|e| e.to_string())?
+            .await?
             .map(|resolved| match resolved {
                 Resolved::Cluster(instance) => instance.spec.secret_store.vault,
                 Resolved::Local(_) => None,

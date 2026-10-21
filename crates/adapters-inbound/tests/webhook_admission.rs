@@ -14,6 +14,12 @@
 //! client mid-test — more test-harness complexity than the branch itself
 //! (a one-line `tracing::error!` + fixed deny) warrants.
 
+#![expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "test helpers: a failed step fails the test, with its message"
+)]
+
 use adapters_inbound::webhook::{self, WebhookState};
 use api::AuthentikNamespacePolicy;
 use api::namespace_policy::{AuthentikNamespacePolicySpec, Effect, NamespaceRule, ResourceKind};

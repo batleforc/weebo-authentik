@@ -1,0 +1,7 @@
+# weebo-good-practice: a failing test should fail loudly, so tests may panic;
+# the denies of [workspace.lints] (Cargo.toml) apply to everything else.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+allow-dbg-in-tests = true

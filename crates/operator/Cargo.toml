@@ -27,3 +27,6 @@ wiremock = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 k8s-openapi = { workspace = true }
+
+[lints]
+workspace = true

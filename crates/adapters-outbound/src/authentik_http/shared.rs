@@ -13,6 +13,12 @@ pub(super) fn map_err<T>(err: authentik_client::apis::Error<T>) -> GatewayError 
         if status == 404 {
             return GatewayError::NotFound(resp.content.clone());
         }
+        if status == 401 || status == 403 {
+            return GatewayError::Unauthorized {
+                status,
+                message: resp.content.clone(),
+            };
+        }
     }
     GatewayError::Api(err.to_string())
 }

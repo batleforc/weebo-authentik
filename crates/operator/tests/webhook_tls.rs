@@ -1,9 +1,14 @@
 //! Functional smoke test for the webhook's TLS wiring (`crates/operator/src/main.rs`):
 //! spawns the real compiled `operator` binary against a real (envtest)
 //! control plane and a throwaway self-signed cert, then confirms
-//! `https://127.0.0.1:8443/validate` actually completes a TLS handshake
+//! `https://127.0.0.1:<port>/validate` actually completes a TLS handshake
 //! and returns a real `AdmissionReview` JSON response. No existing test
 //! exercised the operator's HTTP/TLS transport layer at all before this.
+
+#![expect(
+    clippy::expect_used,
+    reason = "test helpers: a failed step fails the test, with its message"
+)]
 
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
@@ -17,9 +22,19 @@ struct KillOnDrop(Child);
 
 impl Drop for KillOnDrop {
     fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+        // Best effort: the process may have exited already.
+        self.0.kill().ok();
+        self.0.wait().ok();
     }
+}
+
+/// A port nothing listens on right now, for the operator's `WEBHOOK_PORT`:
+/// a fixed one (the default 8443) may be held by anything on the machine.
+fn free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .expect("an ephemeral port must be available")
+        .port()
 }
 
 #[tokio::test]
@@ -82,11 +97,13 @@ async fn webhook_serves_real_tls_and_responds() {
         .expect("openssl must be available to generate a throwaway cert");
     assert!(openssl.success(), "openssl cert generation must succeed");
 
+    let port = free_port();
     let mut child = KillOnDrop(
         Command::new(env!("CARGO_BIN_EXE_operator"))
             .env("KUBECONFIG", &kubeconfig_path)
             .env("WEBHOOK_TLS_CERT_FILE", &cert_path)
             .env("WEBHOOK_TLS_KEY_FILE", &key_path)
+            .env("WEBHOOK_PORT", port.to_string())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -97,12 +114,12 @@ async fn webhook_serves_real_tls_and_responds() {
     // — startup time (kube client init, TLS cert load) isn't fixed.
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {
-        if std::net::TcpStream::connect("127.0.0.1:8443").is_ok() {
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
             break;
         }
         assert!(
             Instant::now() < deadline,
-            "operator did not start listening on :8443 in time"
+            "operator did not start listening on :{port} in time"
         );
         assert!(
             child.0.try_wait().unwrap().is_none(),
@@ -119,7 +136,7 @@ async fn webhook_serves_real_tls_and_responds() {
             "5",
             "-X",
             "POST",
-            "https://127.0.0.1:8443/validate",
+            &format!("https://127.0.0.1:{port}/validate"),
             "-H",
             "Content-Type: application/json",
             "--data-binary",

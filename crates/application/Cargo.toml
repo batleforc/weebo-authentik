@@ -19,3 +19,6 @@ weebo-kit-domain = { workspace = true }
 weebo-kit-application = { workspace = true, features = ["test-support"] }
 kube = { workspace = true }
 tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -67,6 +67,37 @@ reqwest-middleware = "0.5"
 envtest = "0.3"
 tower = { version = "0.5", features = ["util"] }
 
+[workspace.lints.rust]
+unsafe_code = "deny"                      # LANG-UNSAFE; "deny", not "forbid": #[expect(unsafe_code, reason)] must stay possible for FFI
+unsafe_op_in_unsafe_fn = "deny"           # default in edition 2024, explicit for 2021 crates
+let_underscore_drop = "warn"
+
+[workspace.lints.clippy]
+# Panics (LANG-LIMIT-PANIC, LANG-LIMIT-PANIC-SRC, LANG-ARRINDEXING). Tests are exempt via clippy.toml.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+indexing_slicing = "deny"
+# Integer overflow (LANG-ARITH): checked_/saturating_/wrapping_ instead of bare operators.
+arithmetic_side_effects = "deny"
+cast_possible_truncation = "deny"
+cast_sign_loss = "deny"
+cast_possible_wrap = "deny"
+# Errors are handled, never dropped.
+let_underscore_must_use = "deny"
+let_underscore_future = "deny"
+# Memory (MEM-FORGET).
+mem_forget = "deny"
+# Every escape hatch carries its justification, and dies with the code it excused.
+allow_attributes = "deny"                 # #[expect], never #[allow]: an expect with nothing to excuse fails
+allow_attributes_without_reason = "deny"
+undocumented_unsafe_blocks = "deny"       # LANG-UNSAFE-ENCP: every unsafe {} has a // SAFETY: comment
+# Left-over debugging.
+dbg_macro = "deny"
+
 # Debug info on test binaries balloons target/ across this many crates
 # (envtest alone links kube-apiserver/etcd); CI runners have run out of
 # disk mid-build over this without it.

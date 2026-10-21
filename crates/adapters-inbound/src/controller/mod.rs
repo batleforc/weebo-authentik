@@ -11,8 +11,8 @@ use api::AuthentikStatus;
 use api::namespace_policy::NamespaceRule;
 use api::status::Condition;
 use application::ports::{
-    AuthentikGateway, BoundInstance, ClusterError, GatewayFactory, InstanceDirectory, PolicySource,
-    RemoteWrite, SecretStoreFactory, Written,
+    AuthentikGateway, BoundInstance, ClusterError, GatewayError, GatewayFactory, InstanceDirectory,
+    PolicySource, RemoteWrite, SecretStoreError, SecretStoreFactory, Written,
 };
 use application::use_cases::ReconcileOutcome;
 use domain::Failure;
@@ -24,6 +24,8 @@ use kube::runtime::events::Recorder;
 use kube::{Client, Resource};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use weebo_kit_adapters::instance::STORE_READY_TIMEOUT;
+use weebo_kit_adapters::wait_synced;
 use weebo_kit_runtime::events;
 use weebo_kit_runtime::metrics::ReconcileMetrics;
 use weebo_kit_runtime::shared::{SharedWatches, WatchesIn};
@@ -192,9 +194,9 @@ pub enum Error {
     #[error("{0}")]
     Finalizer(Box<kube::runtime::finalizer::Error<Error>>),
     #[error("authentik gateway error: {0}")]
-    Gateway(String),
-    #[error("secret store error: {0}")]
-    SecretStore(String),
+    Gateway(#[from] GatewayError),
+    #[error(transparent)]
+    SecretStore(#[from] SecretStoreError),
     /// Reading the cluster for the use-case (the namespace policies) failed.
     #[error(transparent)]
     Cluster(#[from] ClusterError),
@@ -390,6 +392,29 @@ where
     Ok(api.get(&name).await?)
 }
 
+/// Every `K` that `api` would list: from the kind's shared watch of every
+/// object once it has listed — no request — else from the API (a test's
+/// context, an operator with a label selector, which watches only the
+/// objects it selects, or a store that never listed).
+pub(crate) async fn list_all<K>(ctx: &Ctx, api: &Api<K>) -> Result<Vec<Arc<K>>, Error>
+where
+    K: Resource<DynamicType = ()> + Clone + Debug + DeserializeOwned + Send + Sync + 'static,
+{
+    if let Some(watch) = ctx.watches.get_in::<K>(&ctx.scope.without_selector()) {
+        let store = watch.store();
+        if wait_synced(&store, STORE_READY_TIMEOUT).await {
+            return Ok(store.state());
+        }
+    }
+    Ok(api
+        .list(&Default::default())
+        .await?
+        .items
+        .into_iter()
+        .map(Arc::new)
+        .collect())
+}
+
 /// Every CR bound to `instance`, as `Kind/[namespace/]name` — what its
 /// finalizer waits for: their own cleanups need the instance. An
 /// `AuthentikApplication` is bound by its recorded `status.instance`, or
@@ -403,14 +428,14 @@ pub async fn instance_dependents(
     default: bool,
 ) -> Result<Vec<String>, Error> {
     let mut all = Vec::new();
-    let applications = ctx
-        .scope
-        .api::<api::AuthentikApplication>(ctx.client.clone())
-        .list(&Default::default())
-        .await?;
+    let applications = list_all(
+        ctx,
+        &ctx.scope
+            .api::<api::AuthentikApplication>(ctx.client.clone()),
+    )
+    .await?;
     all.extend(
         applications
-            .items
             .iter()
             .filter(|a| {
                 application_bound_to(
@@ -420,19 +445,19 @@ pub async fn instance_dependents(
                     a.authentik_status().and_then(|s| s.instance.as_ref()),
                 )
             })
-            .map(describe),
+            .map(|a| describe(a.as_ref())),
     );
-    let policies = ctx
-        .scope
-        .api::<api::AuthentikAccessPolicy>(ctx.client.clone())
-        .list(&Default::default())
-        .await?;
+    let policies = list_all(
+        ctx,
+        &ctx.scope
+            .api::<api::AuthentikAccessPolicy>(ctx.client.clone()),
+    )
+    .await?;
     all.extend(
         policies
-            .items
             .iter()
             .filter(|p| p.authentik_status().and_then(|s| s.instance.as_ref()) == Some(instance))
-            .map(describe),
+            .map(|p| describe(p.as_ref())),
     );
     if default && ctx.scope.cluster_kinds() {
         all.extend(owning::<api::AuthentikGroup>(ctx).await?);
@@ -449,19 +474,23 @@ pub async fn instance_dependents(
 /// (`status.authentikId`).
 async fn owning<K>(ctx: &Ctx) -> Result<Vec<String>, Error>
 where
-    K: Resource<DynamicType = ()> + HasStatus + Clone + Debug + DeserializeOwned,
+    K: Resource<DynamicType = ()>
+        + HasStatus
+        + Clone
+        + Debug
+        + DeserializeOwned
+        + Send
+        + Sync
+        + 'static,
 {
-    let list = Api::<K>::all(ctx.client.clone())
-        .list(&Default::default())
-        .await?;
+    let list = list_all(ctx, &Api::<K>::all(ctx.client.clone())).await?;
     Ok(list
-        .items
         .iter()
         .filter(|o| {
             o.authentik_status()
                 .is_some_and(|s| s.authentik_id.is_some())
         })
-        .map(describe)
+        .map(|o| describe(o.as_ref()))
         .collect())
 }
 
@@ -686,6 +715,10 @@ where
         .and_then(|id| id.as_str())
         .map(str::to_string);
     if let Some(instance) = instance {
+        #[expect(
+            clippy::expect_used,
+            reason = "BoundInstance is strings and enums only: serializing it cannot fail"
+        )]
         let instance = serde_json::to_value(instance).expect("a BoundInstance serializes");
         fields.insert("instance".into(), instance);
     }
@@ -856,7 +889,7 @@ mod tests {
     #[test]
     fn errors_map_to_a_reason_and_an_action() {
         use kube::runtime::finalizer::Error as Finalizer;
-        let gateway = || Error::Gateway("boom".into());
+        let gateway = || Error::Gateway(GatewayError::Api("boom".into()));
         assert_eq!(
             gateway().reason(),
             (ReasonCode::AuthentikApiError, events::RECONCILE)
@@ -867,7 +900,7 @@ mod tests {
         );
         assert_eq!(
             Error::Finalizer(Box::new(Finalizer::CleanupFailed(Error::SecretStore(
-                "denied".into()
+                SecretStoreError("denied".into())
             ))))
             .reason(),
             (ReasonCode::SecretStoreError, events::CLEANUP)
