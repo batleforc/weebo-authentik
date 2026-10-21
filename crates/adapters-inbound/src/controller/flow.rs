@@ -54,7 +54,7 @@ async fn apply(api: &Api<AuthentikFlow>, flow: &AuthentikFlow, ctx: &Ctx) -> Res
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikFlow", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(flow, &outcome);
     super::patch_reconcile_outcome(api, &ctx.recorder, &current, outcome, "flow synced").await?;
 
     Ok(action)

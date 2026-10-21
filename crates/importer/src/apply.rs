@@ -81,6 +81,7 @@ async fn adopt<K: Seeded>(client: &Client, cr: &K, force: bool) -> Result<Adopti
             force,
         )
         .await
+        .map_err(|e| e.to_string())
 }
 
 async fn adopt_file<K: Seeded>(
@@ -123,10 +124,14 @@ pub async fn apply_dir(client: &Client, dir: &Path, force: bool) -> anyhow::Resu
                 }
                 _ => adopt_file::<AuthentikAccessPolicy>(client, &yaml, force).await,
             };
-            if let Err(e) = &result {
-                eprintln!("error: {}: {e}", path.display());
+            match result {
+                Ok(adoption) => summary.record(&Ok(adoption)),
+                // A parse or not-seeded failure is not an `AdoptError`.
+                Err(e) => {
+                    eprintln!("error: {}: {e}", path.display());
+                    summary.failed = summary.failed.saturating_add(1);
+                }
             }
-            summary.record(&result);
         }
     }
     Ok(summary)

@@ -54,7 +54,7 @@ impl AuthentikGatewayFactory {
         } else {
             read_secret_key(&self.client, secret_ref, "secret")
                 .await
-                .map_err(GatewayFactoryError::ResolutionFailed)?
+                .map_err(|e| GatewayFactoryError::ResolutionFailed(e.to_string()))?
         };
         let token = String::from_utf8(token_bytes).map_err(|e| {
             GatewayFactoryError::ResolutionFailed(format!(
@@ -96,7 +96,7 @@ impl AuthentikGatewayFactory {
         read_secret_key(&self.client, ca_ref, "Authentik CA secret")
             .await
             .map(Some)
-            .map_err(GatewayFactoryError::ResolutionFailed)
+            .map_err(|e| GatewayFactoryError::ResolutionFailed(e.to_string()))
     }
 }
 
@@ -185,7 +185,7 @@ impl GatewayFactory for AuthentikGatewayFactory {
             .instances
             .get(bound)
             .await
-            .map_err(GatewayFactoryError::ResolutionFailed)?
+            .map_err(|e| GatewayFactoryError::ResolutionFailed(e.to_string()))?
             .ok_or_else(|| GatewayFactoryError::InstanceNotFound(bound.to_string()))?
         {
             Resolved::Cluster(instance) => cluster_connection(&instance),
@@ -207,7 +207,7 @@ impl GatewayFactory for AuthentikGatewayFactory {
             .instances
             .cluster_instances()
             .await
-            .map_err(GatewayFactoryError::ResolutionFailed)?;
+            .map_err(|e| GatewayFactoryError::ResolutionFailed(e.to_string()))?;
 
         // The kit's selection; no instance at all is ambiguous too here
         // (`AmbiguousDefaultInstance`), as it always was.

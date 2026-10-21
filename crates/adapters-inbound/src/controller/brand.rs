@@ -90,7 +90,7 @@ async fn apply(
         fields.insert("authentikId".into(), id.into());
     }
     super::record_reconcile("AuthentikBrand", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(brand, &outcome);
     super::patch_reconcile_outcome_with(
         api,
         &ctx.recorder,

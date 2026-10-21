@@ -113,7 +113,7 @@ async fn apply(
         fields.insert("authentikId".into(), id.into());
     }
     super::record_reconcile("AuthentikApplication", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(app, &outcome);
     super::patch_reconcile_outcome_with(
         api,
         &ctx.recorder,

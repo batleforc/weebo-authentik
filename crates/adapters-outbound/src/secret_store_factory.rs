@@ -85,6 +85,7 @@ async fn vault_for(
     logins
         .get(&instance, &config, || async move { Ok(ca) })
         .await
+        .map_err(|e| e.to_string())
 }
 
 #[async_trait::async_trait]
@@ -97,7 +98,7 @@ impl SecretStoreFactory for AuthentikSecretStoreFactory {
             .instances
             .get(bound)
             .await
-            .map_err(SecretStoreError)?
+            .map_err(|e| SecretStoreError(e.to_string()))?
             .ok_or_else(|| SecretStoreError(format!("{bound} not found")))?
         {
             Resolved::Cluster(instance) => instance,
@@ -142,7 +143,8 @@ impl InstanceVaults for AuthentikSecretStoreFactory {
         Ok(self
             .instances
             .get(bound)
-            .await?
+            .await
+            .map_err(|e| e.to_string())?
             .map(|resolved| match resolved {
                 Resolved::Cluster(instance) => instance.spec.secret_store.vault,
                 Resolved::Local(_) => None,

@@ -3047,9 +3047,9 @@ checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.15"
+version = "0.103.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
+checksum = "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -4191,17 +4191,17 @@ dependencies = [
 
 [[package]]
 name = "webpki-root-certs"
-version = "1.0.8"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d46a5a140e6f7afeccd8eae97eff335163939eac8b929834875168b29b3d267"
+checksum = "58ec80e73fd8baf57bf0d9615554c75348bda990d6d5bbeab964dd068319fecb"
 dependencies = [
  "rustls-pki-types",
 ]
 
 [[package]]
 name = "weebo-kit-adapters"
-version = "0.21.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.21.0#4a27b6d79886ba779cd9e3f3b25ab3a6b09dc859"
+version = "0.22.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.22.0#f030431b3d36ae94e1d73ecb3c55860816799186"
 dependencies = [
  "async-trait",
  "futures",
@@ -4223,8 +4223,8 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-api"
-version = "0.21.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.21.0#4a27b6d79886ba779cd9e3f3b25ab3a6b09dc859"
+version = "0.22.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.22.0#f030431b3d36ae94e1d73ecb3c55860816799186"
 dependencies = [
  "k8s-openapi",
  "schemars 1.2.1",
@@ -4233,8 +4233,8 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-application"
-version = "0.21.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.21.0#4a27b6d79886ba779cd9e3f3b25ab3a6b09dc859"
+version = "0.22.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.22.0#f030431b3d36ae94e1d73ecb3c55860816799186"
 dependencies = [
  "async-trait",
  "k8s-openapi",
@@ -4247,13 +4247,13 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-domain"
-version = "0.21.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.21.0#4a27b6d79886ba779cd9e3f3b25ab3a6b09dc859"
+version = "0.22.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.22.0#f030431b3d36ae94e1d73ecb3c55860816799186"
 
 [[package]]
 name = "weebo-kit-perf"
-version = "0.21.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.21.0#4a27b6d79886ba779cd9e3f3b25ab3a6b09dc859"
+version = "0.22.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.22.0#f030431b3d36ae94e1d73ecb3c55860816799186"
 dependencies = [
  "http",
  "k8s-openapi",
@@ -4267,10 +4267,9 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-runtime"
-version = "0.21.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.21.0#4a27b6d79886ba779cd9e3f3b25ab3a6b09dc859"
+version = "0.22.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.22.0#f030431b3d36ae94e1d73ecb3c55860816799186"
 dependencies = [
- "anyhow",
  "async-trait",
  "axum",
  "axum-server",
@@ -4284,6 +4283,7 @@ dependencies = [
  "prometheus",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
@@ -4295,8 +4295,8 @@ dependencies = [
 
 [[package]]
 name = "weebo-kit-testkit"
-version = "0.21.0"
-source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.21.0#4a27b6d79886ba779cd9e3f3b25ab3a6b09dc859"
+version = "0.22.0"
+source = "git+https://github.com/batleforc/weebo-operator-kit?tag=v0.22.0#f030431b3d36ae94e1d73ecb3c55860816799186"
 dependencies = [
  "envtest",
  "kube",

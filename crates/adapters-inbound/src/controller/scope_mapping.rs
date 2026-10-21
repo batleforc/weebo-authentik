@@ -65,7 +65,7 @@ async fn apply(
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikScopeMapping", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(mapping, &outcome);
     super::patch_reconcile_outcome(
         api,
         &ctx.recorder,

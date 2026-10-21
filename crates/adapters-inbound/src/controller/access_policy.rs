@@ -109,7 +109,7 @@ async fn apply(
         (None, _, _) => application_ref_not_found(policy),
     };
     super::record_reconcile("AuthentikAccessPolicy", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(policy, &outcome);
     super::patch_reconcile_outcome_on(
         api,
         &ctx.recorder,

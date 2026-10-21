@@ -47,7 +47,7 @@ async fn apply(
     let started = std::time::Instant::now();
     let outcome = reconcile_namespace_policy(policy);
     super::record_reconcile("AuthentikNamespacePolicy", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(policy, &outcome);
     super::patch_reconcile_outcome(api, &ctx.recorder, policy, outcome, "policy accepted").await?;
 
     Ok(action)

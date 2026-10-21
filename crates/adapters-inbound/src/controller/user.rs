@@ -54,7 +54,7 @@ async fn apply(api: &Api<AuthentikUser>, user: &AuthentikUser, ctx: &Ctx) -> Res
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikUser", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(user, &outcome);
     super::patch_reconcile_outcome(api, &ctx.recorder, user, outcome, "user synced").await?;
 
     Ok(action)

@@ -60,7 +60,7 @@ async fn apply(
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikOutpost", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(outpost, &outcome);
     super::patch_reconcile_outcome(api, &ctx.recorder, outpost, outcome, "outpost synced").await?;
 
     Ok(action)

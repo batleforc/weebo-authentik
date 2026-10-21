@@ -58,7 +58,7 @@ async fn apply(
         Err(e) => errored_from_factory_error(e),
     };
     super::record_reconcile("AuthentikGroup", started, &outcome);
-    let action = super::requeue_after(&outcome);
+    let action = super::requeue_after(group, &outcome);
     super::patch_reconcile_outcome(api, &ctx.recorder, &current, outcome, "group synced").await?;
 
     Ok(action)
