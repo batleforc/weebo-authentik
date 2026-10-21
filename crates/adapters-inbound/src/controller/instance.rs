@@ -47,7 +47,7 @@ async fn cleanup(
     ctx: &Ctx,
 ) -> Result<Action, Error> {
     // The default of the cluster-scoped kinds when it is the only one.
-    let default = api.list(&Default::default()).await?.items.len() == 1;
+    let default = super::list_all(ctx, api).await?.len() == 1;
     super::release_instance(ctx, &BoundInstance::cluster(instance.name_any()), default).await
 }
 

@@ -223,12 +223,17 @@ impl AuthentikHttpGateway {
 
 /// One lock per outpost of an instance (`<api base>|<outpost pk>`), shared
 /// by every gateway of the process — a gateway is built per reconcile.
+/// The keys come from `spec.url`, which tenants control: a lock nobody
+/// holds or waits on (only the map has it) is dropped, so the map stays as
+/// large as the outposts being edited right now.
 fn outpost_lock(base_path: &str, outpost_id: &str) -> Arc<tokio::sync::Mutex<()>> {
     static LOCKS: LazyLock<Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
         LazyLock::new(Default::default);
-    LOCKS
+    let mut locks = LOCKS
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    locks.retain(|_, lock| Arc::strong_count(lock) > 1);
+    locks
         .entry(format!("{base_path}|{outpost_id}"))
         .or_default()
         .clone()

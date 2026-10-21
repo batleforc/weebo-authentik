@@ -19,6 +19,7 @@ thiserror = { workspace = true }
 futures = { workspace = true }
 opentelemetry = { workspace = true }
 weebo-kit-runtime = { workspace = true }
+weebo-kit-adapters = { workspace = true }
 k8s-openapi = { workspace = true }
 
 [dev-dependencies]

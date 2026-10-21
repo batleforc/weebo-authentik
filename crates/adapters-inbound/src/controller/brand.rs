@@ -58,7 +58,7 @@ async fn apply(
     // Election is resolved Kubernetes-side, never against remote
     // Authentik state — see .prompt/plan.md, "Election du brand par
     // defaut".
-    let all = list_default_claimants(api, &this).await?;
+    let all = list_default_claimants(ctx, api, &this).await?;
     let action = plan_brand_action(&this, &all);
 
     let BrandReconciled {
@@ -165,17 +165,20 @@ fn to_input(name: &str, brand: &AuthentikBrand) -> BrandReconcileInput {
     }
 }
 
+/// From the shared store (no LIST per reconcile once it has listed), with
+/// `this` as freshly read rather than the store's possibly older copy.
 async fn list_default_claimants(
+    ctx: &Ctx,
     api: &Api<AuthentikBrand>,
     this: &BrandReconcileInput,
 ) -> Result<Vec<BrandReconcileInput>, Error> {
-    let list = api.list(&Default::default()).await?;
+    let list = super::list_all(ctx, api).await?;
     let mut claimants: Vec<BrandReconcileInput> = list
-        .into_iter()
-        .filter(|b| b.spec.default)
-        .map(|b| to_input(&b.name_any(), &b))
+        .iter()
+        .filter(|b| b.spec.default && b.name_any() != this.name)
+        .map(|b| to_input(&b.name_any(), b))
         .collect();
-    if this.wants_default && !claimants.iter().any(|c| c.name == this.name) {
+    if this.wants_default {
         claimants.push(BrandReconcileInput {
             name: this.name.clone(),
             creation_timestamp: this.creation_timestamp,

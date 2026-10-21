@@ -1,9 +1,11 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use api::instance::{SecretKeyRef, TlsOptions};
 use application::ports::{AuthentikGateway, BoundInstance, GatewayFactory, GatewayFactoryError};
 use kube::{Client, ResourceExt};
+use sha2::{Digest, Sha256};
 use weebo_kit_adapters::{Resolved, TokenSecretError};
 
 use crate::authentik_http::AuthentikHttpGateway;
@@ -16,10 +18,13 @@ use crate::secret_ref::read_secret_key;
 /// The instance itself is read through the kit's `Instances` — served from
 /// live reflector `Store`s when `operator::main` wires them in, or a live
 /// apiserver call otherwise. The `tokenSecretRef` `Secret` is still read
-/// fresh on every call so token rotation is picked up immediately, and the
-/// built HTTP gateway is not cached — which is also what makes an edited
-/// `spec.tls` (or a rotated CA in its `caSecretRef` Secret) take effect on
-/// the next reconcile rather than on the next operator restart. A local
+/// fresh on every call so token rotation is picked up immediately (the
+/// token lives on the gateway, not on the HTTP client, so re-reading it
+/// costs one GET and no client). The CA `Secret` is read on every call
+/// too, but the HTTP client (connection pool, TLS sessions) is reused
+/// while the URL, `spec.tls` and the CA's content stay the same: an edited
+/// `spec.tls` or a rotated CA takes effect on the next reconcile rather
+/// than on the next operator restart. A local
 /// instance's token and CA live in its own namespace, and its token Secret
 /// must be labelled `authentik.weebo.io/instance-token: "true"`: the
 /// operator reads Secrets with its own rights, so without that consent
@@ -28,7 +33,20 @@ use crate::secret_ref::read_secret_key;
 pub struct AuthentikGatewayFactory {
     client: Client,
     instances: Arc<AuthentikInstances>,
+    http_clients: Mutex<HashMap<ClientKey, reqwest::Client>>,
 }
+
+/// What an HTTP client was built from.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ClientKey {
+    url: String,
+    insecure_skip_verify: bool,
+    ca_digest: Option<[u8; 32]>,
+}
+
+/// More distinct (URL, TLS, CA) combinations than instances any cluster
+/// runs: past it the cache starts over rather than grow.
+const MAX_HTTP_CLIENTS: usize = 64;
 
 /// What a gateway is built from, whichever the instance kind.
 struct Connection {
@@ -42,7 +60,39 @@ struct Connection {
 
 impl AuthentikGatewayFactory {
     pub fn new(client: Client, instances: Arc<AuthentikInstances>) -> Self {
-        Self { client, instances }
+        Self {
+            client,
+            instances,
+            http_clients: Mutex::default(),
+        }
+    }
+
+    /// The HTTP client for `instance`, reused while what it was built from
+    /// is unchanged. A changed `spec.tls` or CA replaces the URL's client.
+    fn http_client(
+        &self,
+        instance: &Connection,
+        ca_pem: Option<&[u8]>,
+    ) -> Result<reqwest::Client, GatewayFactoryError> {
+        let key = ClientKey {
+            url: instance.url.clone(),
+            insecure_skip_verify: instance.tls.insecure_skip_verify,
+            ca_digest: ca_pem.map(|pem| Sha256::digest(pem).into()),
+        };
+        let mut clients = self
+            .http_clients
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(client) = clients.get(&key) {
+            return Ok(client.clone());
+        }
+        let client = build_http_client(&instance.tls, ca_pem)?;
+        clients.retain(|k, _| k.url != key.url);
+        if clients.len() >= MAX_HTTP_CLIENTS {
+            clients.clear();
+        }
+        clients.insert(key, client.clone());
+        Ok(client)
     }
 
     async fn build_gateway(
@@ -69,7 +119,7 @@ impl AuthentikGatewayFactory {
         // client — no mounted volume needed, which is what makes this usable
         // from a chart that exposes no `extraVolumes`.
         let ca_pem = self.read_tls_ca(&instance.tls).await?;
-        let http_client = build_http_client(&instance.tls, ca_pem.as_deref())?;
+        let http_client = self.http_client(&instance, ca_pem.as_deref())?;
 
         // `spec.url` is the WEB base; the REST base path is derived from it.
         // Handing the same string to both is what used to put `/api/v3`
