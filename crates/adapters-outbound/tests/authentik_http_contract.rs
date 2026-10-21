@@ -127,6 +127,23 @@ async fn create_group_400_without_already_exists_body_maps_to_api_error() {
     assert!(matches!(err, GatewayError::Api(_)));
 }
 
+/// A refused token is told apart from a server failure.
+#[tokio::test]
+async fn create_group_401_maps_to_unauthorized() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_create_group(401, serde_json::json!({"detail": "Token invalid/expired"}))
+        .await;
+
+    let err = gateway(&mock)
+        .create_group(&group("weebo-user"))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, GatewayError::Unauthorized { status: 401, .. }),
+        "{err:?}"
+    );
+}
+
 #[tokio::test]
 async fn delete_group_on_404_is_idempotent() {
     let mock = AuthentikMock::start().await;

@@ -46,6 +46,10 @@ pub(crate) fn errored_from_gateway_error(err: crate::ports::GatewayError) -> Rec
             reason: ReasonCode::AuthentikApiError,
             message,
         },
+        err @ GatewayError::Unauthorized { .. } => ReconcileOutcome::Errored {
+            reason: ReasonCode::AuthentikApiError,
+            message: err.to_string(),
+        },
     }
 }
 

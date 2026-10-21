@@ -11,8 +11,8 @@ use api::AuthentikStatus;
 use api::namespace_policy::NamespaceRule;
 use api::status::Condition;
 use application::ports::{
-    AuthentikGateway, BoundInstance, ClusterError, GatewayFactory, InstanceDirectory, PolicySource,
-    RemoteWrite, SecretStoreFactory, Written,
+    AuthentikGateway, BoundInstance, ClusterError, GatewayError, GatewayFactory, InstanceDirectory,
+    PolicySource, RemoteWrite, SecretStoreError, SecretStoreFactory, Written,
 };
 use application::use_cases::ReconcileOutcome;
 use domain::Failure;
@@ -194,9 +194,9 @@ pub enum Error {
     #[error("{0}")]
     Finalizer(Box<kube::runtime::finalizer::Error<Error>>),
     #[error("authentik gateway error: {0}")]
-    Gateway(String),
-    #[error("secret store error: {0}")]
-    SecretStore(String),
+    Gateway(#[from] GatewayError),
+    #[error(transparent)]
+    SecretStore(#[from] SecretStoreError),
     /// Reading the cluster for the use-case (the namespace policies) failed.
     #[error(transparent)]
     Cluster(#[from] ClusterError),
@@ -885,7 +885,7 @@ mod tests {
     #[test]
     fn errors_map_to_a_reason_and_an_action() {
         use kube::runtime::finalizer::Error as Finalizer;
-        let gateway = || Error::Gateway("boom".into());
+        let gateway = || Error::Gateway(GatewayError::Api("boom".into()));
         assert_eq!(
             gateway().reason(),
             (ReasonCode::AuthentikApiError, events::RECONCILE)
@@ -896,7 +896,7 @@ mod tests {
         );
         assert_eq!(
             Error::Finalizer(Box::new(Finalizer::CleanupFailed(Error::SecretStore(
-                "denied".into()
+                SecretStoreError("denied".into())
             ))))
             .reason(),
             (ReasonCode::SecretStoreError, events::CLEANUP)

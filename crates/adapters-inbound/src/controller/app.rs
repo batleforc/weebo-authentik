@@ -158,7 +158,7 @@ async fn cleanup(
                 gateway
                     .delete_any_provider(provider_id)
                     .await
-                    .map_err(|e| Error::Gateway(e.to_string()))?;
+                    .map_err(Error::Gateway)?;
             }
             Ok::<(), Error>(())
         };
@@ -186,7 +186,7 @@ async fn cleanup(
                             gateway
                                 .delete_provider(provider_id, provider_kind)
                                 .await
-                                .map_err(|e| Error::Gateway(e.to_string()))?;
+                                .map_err(Error::Gateway)?;
                             // Repointed out of band: the one recorded is
                             // left behind by the application.
                             if recorded_provider != Some(provider_id) {
@@ -202,11 +202,11 @@ async fn cleanup(
                     gateway
                         .delete_application(id)
                         .await
-                        .map_err(|e| Error::Gateway(e.to_string()))?;
+                        .map_err(Error::Gateway)?;
                 }
                 // Already deleted out of band: the provider it left behind.
                 Err(GatewayError::Gone(_)) => delete_recorded_provider.await?,
-                Err(e) => return Err(Error::Gateway(e.to_string())),
+                Err(e) => return Err(Error::Gateway(e)),
             },
             None => delete_recorded_provider.await?,
         }
@@ -217,10 +217,10 @@ async fn cleanup(
                 .secrets_factory
                 .store_for(&bound)
                 .await
-                .map_err(|e| Error::SecretStore(e.to_string()))?;
+                .map_err(Error::SecretStore)?;
             delete_credentials(app, secrets.as_ref())
                 .await
-                .map_err(|e| Error::SecretStore(e.to_string()))?;
+                .map_err(Error::SecretStore)?;
         }
     }
     super::announce_deleted(&ctx.recorder, app).await;

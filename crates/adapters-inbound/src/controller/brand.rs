@@ -142,10 +142,7 @@ async fn cleanup(brand: &AuthentikBrand, ctx: &Ctx) -> Result<Action, Error> {
             .default_gateway()
             .await
             .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
-        gateway
-            .delete_brand(id)
-            .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+        gateway.delete_brand(id).await.map_err(Error::Gateway)?;
         super::count_writes("AuthentikBrand", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, brand).await;

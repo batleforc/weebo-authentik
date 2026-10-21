@@ -71,10 +71,7 @@ async fn cleanup(
             .default_gateway()
             .await
             .map_err(|e| Error::cleanup(errored_from_factory_error(e)))?;
-        gateway
-            .delete_user(id)
-            .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+        gateway.delete_user(id).await.map_err(Error::Gateway)?;
         super::count_writes("AuthentikUser", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, user).await;

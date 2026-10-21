@@ -102,7 +102,7 @@ async fn cleanup(
         gateway
             .delete_scope_mapping(id)
             .await
-            .map_err(|e| Error::Gateway(e.to_string()))?;
+            .map_err(Error::Gateway)?;
         super::count_writes("AuthentikScopeMapping", gateway.as_ref());
     }
     super::announce_deleted(&ctx.recorder, mapping).await;

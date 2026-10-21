@@ -29,6 +29,12 @@ pub enum GatewayError {
     /// recreates it and a cleanup counts it as already deleted.
     #[error("no longer in Authentik: {0}")]
     Gone(String),
+    /// Authentik refused the instance's token (HTTP 401/403): a token
+    /// rotated, revoked or missing a permission, not a server failure.
+    /// Maps to `domain::error::ReasonCode::AuthentikApiError`, with a
+    /// message that says so.
+    #[error("Authentik refused the instance's token (HTTP {status}): {message}")]
+    Unauthorized { status: u16, message: String },
     #[error("authentik API error: {0}")]
     Api(String),
 }
@@ -289,11 +295,22 @@ pub struct Oauth2ProviderUpsertResult {
     pub credentials: Oauth2Credentials,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Oauth2Credentials {
     pub client_id: String,
     pub client_secret: String,
     pub authentik_url: String,
+}
+
+/// The secret never reaches a log line.
+impl std::fmt::Debug for Oauth2Credentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Oauth2Credentials")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"<redacted>")
+            .field("authentik_url", &self.authentik_url)
+            .finish()
+    }
 }
 
 impl Oauth2Credentials {
@@ -346,7 +363,7 @@ pub trait InstanceVaults: Send + Sync {
     async fn vault_of(
         &self,
         instance: &BoundInstance,
-    ) -> Result<Option<Option<api::instance::VaultSecretStoreSpec>>, String>;
+    ) -> Result<Option<Option<api::instance::VaultSecretStoreSpec>>, InstanceError>;
 }
 
 #[derive(Debug, thiserror::Error)]
