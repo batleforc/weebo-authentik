@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.19.6](https://github.com/batleforc/weebo-authentik/compare/407f4783912e484de84da3aee919efc45dbd4b92..v0.19.6) - 2026-10-21
+#### Bug Fixes
+- weebo-good-practice review: house lints, bounded I/O, typed errors (#29) - ([407f478](https://github.com/batleforc/weebo-authentik/commit/407f4783912e484de84da3aee919efc45dbd4b92)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
+
+- - -
+
 ## [v0.19.5](https://github.com/batleforc/weebo-authentik/compare/af227684407ea8676135a5102fca9c4c37926622..v0.19.5) - 2026-10-21
 #### Miscellaneous Chores
 - (**kit**) weebo-operator-kit v0.22.1 (#28) - ([af22768](https://github.com/batleforc/weebo-authentik/commit/af227684407ea8676135a5102fca9c4c37926622)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
