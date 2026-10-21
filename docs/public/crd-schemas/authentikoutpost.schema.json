@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikOutpost",
   "scope": "Cluster",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Deliberately minimal — nothing in the Terraform module being replaced\ncreates a custom outpost, everything attaches to Authentik's embedded\noutpost by default. This CRD exists only to cover the case where a\nproxy provider's `outpostRef` explicitly names one. Cluster-scoped.",
   "properties": {
     "config": {

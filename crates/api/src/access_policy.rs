@@ -24,6 +24,7 @@ use crate::status::AuthentikStatus;
 #[serde(rename_all = "camelCase")]
 pub struct AuthentikAccessPolicySpec {
     /// Name of an `AuthentikApplication` CR in the same namespace.
+    #[schemars(extend("x-weebo-link" = { "to": [{ "group": "authentik.weebo.io", "kind": "AuthentikApplication" }] }))]
     pub application_ref: String,
     /// Group this policy binds, by its **Authentik** name
     /// (`AuthentikGroup.spec.name`), not the name of the CR describing it —

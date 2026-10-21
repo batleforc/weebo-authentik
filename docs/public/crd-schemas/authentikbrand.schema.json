@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikBrand",
   "scope": "Cluster",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Mirrors `authentik_brand`. Cluster-scoped — a brand is tied to a domain\nat the instance level, not to an application namespace. See\n`.prompt/plan.md`, \"Election du brand par defaut\" for the `default`\nfield's reconcile semantics (implemented in `domain::brand_election`,\nwired up in the `application` crate's `reconcile_brand` use-case).",
   "properties": {
     "brandingDefaultFlowBackground": {

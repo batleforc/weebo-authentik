@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikApplication",
   "scope": "Namespaced",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Mirrors `authentik_application` + its `protocol_provider`. Namespaced —\nowned by whichever team/namespace created it, governed by\n`AuthentikNamespacePolicy`.",
   "properties": {
     "instanceRef": {

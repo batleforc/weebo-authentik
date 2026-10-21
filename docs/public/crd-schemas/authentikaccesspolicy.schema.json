@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikAccessPolicy",
   "scope": "Namespaced",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Mirrors `authentik_policy_binding`. Namespaced.\n\n`application_ref` is deliberately a bare name with **no namespace\nfield** — there is no way to express a cross-namespace reference in\nthis schema. The reconciler must resolve it via\n`Api::<AuthentikApplication>::namespaced(policy.metadata.namespace)`,\nnever a cluster-wide client. See `.prompt/plan.md`,\n\"Confinement au namespace, deux couches\".",
   "properties": {
     "applicationRef": {

@@ -168,5 +168,6 @@ pub struct ProxyProviderSpec {
     /// matches current `longhorn.tf` behavior). `Some(name)` => must
     /// resolve to an `AuthentikOutpost` CR.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("x-weebo-link" = { "to": [{ "group": "authentik.weebo.io", "kind": "AuthentikOutpost" }] }))]
     pub outpost_ref: Option<String>,
 }

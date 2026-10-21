@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikFlow",
   "scope": "Cluster",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Mirrors `authentik_flow`. Cluster-scoped — flows are org-wide\nauthentication/authorization pipelines referenced by slug from brands\nand application providers, not owned by a namespace. Only reachable via\ncluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).\n\nFlows are **slug-keyed** in Authentik's API (create returns a `pk`\nUUID, but update/delete operate on the slug), so `status.authentikId`\nstores the slug — same convention as `AuthentikApplication`, whose\napplications API is likewise slug-keyed.\n\nThis CRD manages the flow object itself (name/title/designation/…). Its\n**stage bindings and policies are out of scope** — the Terraform module\nbeing replaced defines a single custom flow (device-code) and otherwise\nreferences Authentik's built-in flows, so slug-referencing from\n`AuthentikBrand`/`AuthentikApplication` remains the norm; this CRD just\nlets that one custom flow (and any future ones) be declared as a CR\ninstead of assumed to pre-exist.",
   "properties": {
     "authentication": {
