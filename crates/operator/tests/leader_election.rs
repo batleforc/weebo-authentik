@@ -4,6 +4,13 @@
 //! becomes — and is recorded as — the leader on the shared `Lease`, while
 //! both keep serving the webhook regardless of who leads.
 
+#![expect(
+    clippy::arithmetic_side_effects,
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "test helpers: a failed step fails the test, with its message"
+)]
+
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -15,8 +22,9 @@ struct KillOnDrop(Child);
 
 impl Drop for KillOnDrop {
     fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+        // Best effort: the process may have exited already.
+        self.0.kill().ok();
+        self.0.wait().ok();
     }
 }
 

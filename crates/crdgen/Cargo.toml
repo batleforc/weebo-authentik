@@ -12,3 +12,6 @@ serde = { workspace = true }
 serde_norway = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
+
+[lints]
+workspace = true

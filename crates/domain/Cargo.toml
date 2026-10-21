@@ -7,3 +7,6 @@ publish.workspace = true
 
 [dependencies]
 weebo-kit-domain = { workspace = true }
+
+[lints]
+workspace = true

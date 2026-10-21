@@ -28,3 +28,6 @@ sha2 = { workspace = true }
 testkit = { workspace = true }
 tokio = { workspace = true }
 wiremock = { workspace = true }
+
+[lints]
+workspace = true

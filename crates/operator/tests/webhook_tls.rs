@@ -5,6 +5,11 @@
 //! and returns a real `AdmissionReview` JSON response. No existing test
 //! exercised the operator's HTTP/TLS transport layer at all before this.
 
+#![expect(
+    clippy::expect_used,
+    reason = "test helpers: a failed step fails the test, with its message"
+)]
+
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -17,8 +22,9 @@ struct KillOnDrop(Child);
 
 impl Drop for KillOnDrop {
     fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+        // Best effort: the process may have exited already.
+        self.0.kill().ok();
+        self.0.wait().ok();
     }
 }
 

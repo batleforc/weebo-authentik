@@ -10,8 +10,14 @@
 //! Not every test binary uses every helper here, hence the blanket
 //! `allow(dead_code)`: per-binary dead-code warnings would otherwise trip
 //! `cargo clippy -D warnings` for whichever helpers a given file doesn't
-//! happen to call.
-#![allow(dead_code)]
+//! happen to call. An `allow`, not an `expect`: a binary that calls every
+//! helper would leave an `expect(dead_code)` unfulfilled.
+#![allow(dead_code, reason = "each test binary uses only some helpers")]
+#![expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test helpers: a failed lookup or a timeout fails the test, with its message"
+)]
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,7 +33,8 @@ use testkit::static_secret_store_factory::StaticSecretStoreFactory;
 /// (`try_init` no-ops after the first call), so every test can call this
 /// unconditionally.
 pub fn init_tracing() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    // An error only says another test of the binary initialized it.
+    tracing_subscriber::fmt().with_test_writer().try_init().ok();
 }
 
 /// Builds the `Ctx` every controller integration test wires up: a real

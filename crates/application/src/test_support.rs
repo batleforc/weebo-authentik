@@ -5,6 +5,11 @@
 //! real `wiremock`/`envtest` I/O for layers 2-3): these tests must stay
 //! synchronous-fast and dependency-free, not spin up a mock HTTP server.
 
+#![expect(
+    clippy::unimplemented,
+    reason = "test double: a call no test scripted fails that test, naming the call"
+)]
+
 use std::collections::VecDeque;
 use std::sync::Mutex;
 

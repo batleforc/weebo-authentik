@@ -13,3 +13,6 @@ schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 weebo-kit-api = { workspace = true }
+
+[lints]
+workspace = true

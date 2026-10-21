@@ -52,7 +52,7 @@ async fn operator() -> anyhow::Result<()> {
 /// the operator.
 async fn migrate_instance_ref() -> anyhow::Result<()> {
     let dry_run = std::env::args().any(|a| a == "--dry-run");
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    install_crypto_provider();
     let client = Client::try_default().await?;
     let kinds = [kube::api::ApiResource::erase::<AuthentikApplication>(&())];
     let migration = weebo_kit_adapters::migrate::migrate_instance_refs(
@@ -75,11 +75,21 @@ async fn migrate_instance_ref() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Both `ring` and `aws-lc-rs` are reachable transitively (`kube`'s
+/// rustls-tls vs. `authentik-client`'s reqwest stack); rustls refuses to
+/// pick a default automatically when more than one is linked.
+fn install_crypto_provider() {
+    // An error only says a provider is already installed: all this needs.
+    if rustls::crypto::ring::default_provider()
+        .install_default()
+        .is_err()
+    {
+        tracing::debug!("a rustls CryptoProvider was already installed");
+    }
+}
+
 async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
-    // Both `ring` and `aws-lc-rs` are reachable transitively (`kube`'s
-    // rustls-tls vs. `authentik-client`'s reqwest stack); rustls refuses
-    // to pick a default automatically when more than one is linked.
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    install_crypto_provider();
 
     telemetry.serve_metrics().await?;
     // `weebo_authentik_leader`: 1 on the replica holding the lease.
@@ -246,6 +256,11 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
     // instead of making the next leader wait out the TTL.
     leadership.release().await;
     // Bounded: the drain started with the signal, long before.
-    let _ = tokio::time::timeout(Duration::from_secs(30), webhook.stopped()).await;
+    if tokio::time::timeout(Duration::from_secs(30), webhook.stopped())
+        .await
+        .is_err()
+    {
+        tracing::warn!("webhook server still draining after 30s: exiting anyway");
+    }
     Ok(())
 }

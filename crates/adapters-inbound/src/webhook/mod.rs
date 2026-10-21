@@ -252,7 +252,10 @@ mod tests {
         async fn policies(
             &self,
         ) -> Result<Vec<Vec<NamespaceRule>>, application::ports::ClusterError> {
-            unreachable!("an unrecognized kind is denied before any policy read")
+            #[expect(clippy::unreachable, reason = "test double: a read fails the test")]
+            {
+                unreachable!("an unrecognized kind is denied before any policy read")
+            }
         }
     }
 

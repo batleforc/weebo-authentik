@@ -5,6 +5,11 @@
 //! `Secret` is ever written for it (see `.prompt/plan.md`: proxy
 //! providers carry no client secret).
 
+#![expect(
+    clippy::unwrap_used,
+    reason = "test helpers: a failed step fails the test, with its message"
+)]
+
 use adapters_inbound::controller;
 use api::AuthentikApplication;
 use api::application::{

@@ -6,6 +6,12 @@
 //! "Modele de status commun" (collision rejection, idempotent delete)
 //! depends on. No real Authentik instance involved, unlike layer 4.
 
+#![expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "test helpers: a failed step fails the test, with its message"
+)]
+
 use adapters_outbound::AuthentikHttpGateway;
 use api::application::{Oauth2ProviderSpec, ProviderKind, RedirectUri};
 use api::brand::AuthentikBrandSpec;

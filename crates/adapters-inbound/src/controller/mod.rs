@@ -715,6 +715,10 @@ where
         .and_then(|id| id.as_str())
         .map(str::to_string);
     if let Some(instance) = instance {
+        #[expect(
+            clippy::expect_used,
+            reason = "BoundInstance is strings and enums only: serializing it cannot fail"
+        )]
         let instance = serde_json::to_value(instance).expect("a BoundInstance serializes");
         fields.insert("instance".into(), instance);
     }

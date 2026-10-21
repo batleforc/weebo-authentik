@@ -28,6 +28,12 @@
 //! must match `BOOTSTRAP_TOKEN` below) — not something a generic CI runner
 //! has, hence `#[ignore]`. Run explicitly via `task test:live-authentik`.
 
+#![expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test helpers: a failed step fails the test, with its message"
+)]
+
 use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -324,7 +330,8 @@ fn new_ctx(client: kube::Client) -> Arc<Ctx> {
 #[tokio::test]
 #[ignore = "needs this repo's Che devworkspace sidecars (devfile.yaml); run via `task test:live-authentik`"]
 async fn group_controller_round_trips_against_real_sidecar_authentik() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    // An error only says another test of the binary set it up.
+    tracing_subscriber::fmt().with_test_writer().try_init().ok();
 
     let pod = workspace_pod_name();
     ensure_ak_running(&pod, "authentik-server", "server");
@@ -360,7 +367,8 @@ async fn group_controller_round_trips_against_real_sidecar_authentik() {
 #[tokio::test]
 #[ignore = "needs this repo's Che devworkspace sidecars (devfile.yaml); run via `task test:live-authentik`"]
 async fn user_controller_round_trips_against_real_sidecar_authentik() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    // An error only says another test of the binary set it up.
+    tracing_subscriber::fmt().with_test_writer().try_init().ok();
 
     let pod = workspace_pod_name();
     ensure_ak_running(&pod, "authentik-server", "server");
@@ -397,7 +405,8 @@ async fn user_controller_round_trips_against_real_sidecar_authentik() {
 #[tokio::test]
 #[ignore = "needs this repo's Che devworkspace sidecars (devfile.yaml); run via `task test:live-authentik`"]
 async fn outpost_controller_round_trips_against_real_sidecar_authentik() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    // An error only says another test of the binary set it up.
+    tracing_subscriber::fmt().with_test_writer().try_init().ok();
 
     let pod = workspace_pod_name();
     ensure_ak_running(&pod, "authentik-server", "server");
@@ -432,7 +441,8 @@ async fn outpost_controller_round_trips_against_real_sidecar_authentik() {
 #[tokio::test]
 #[ignore = "needs this repo's Che devworkspace sidecars (devfile.yaml); run via `task test:live-authentik`"]
 async fn brand_controller_round_trips_against_real_sidecar_authentik() {
-    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    // An error only says another test of the binary set it up.
+    tracing_subscriber::fmt().with_test_writer().try_init().ok();
 
     let pod = workspace_pod_name();
     ensure_ak_running(&pod, "authentik-server", "server");

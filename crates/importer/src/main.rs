@@ -102,7 +102,10 @@ async fn main() -> anyhow::Result<()> {
     // Same "which rustls CryptoProvider" fix applied everywhere else
     // this workspace makes its first TLS connection — see
     // `testkit::envtest::EnvTestCluster::start`.
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    // An error only says a provider is already installed: all this needs.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
 
     let args = Args::parse();
     std::fs::create_dir_all(&args.out)?;
