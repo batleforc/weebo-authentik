@@ -11,7 +11,9 @@ use std::sync::Arc;
 
 use api::namespace_policy::NamespaceRule;
 use api::{AuthentikAccessPolicy, AuthentikApplication};
-use application::ports::{BoundInstance, InstanceDirectory, InstanceVaults, PolicySource};
+use application::ports::{
+    BoundInstance, InstanceDirectory, InstanceError, InstanceVaults, PolicySource, ResolveError,
+};
 use application::use_cases::evaluate_admission::enforce;
 use axum::Router;
 use domain::allow_list::ResourceKind;
@@ -67,7 +69,8 @@ pub fn router(state: WebhookState, health: Arc<Health>, scope: WatchScope) -> Ro
 impl WebhookState {
     /// The application the reviewed CR is about (itself, or the one an
     /// access policy names) and its instance. `None` for what can't be
-    /// resolved.
+    /// resolved: the reconcile re-checks (and reports) it, so the error is
+    /// only logged here.
     async fn resolve(
         &self,
         kind: ResourceKind,
@@ -78,14 +81,35 @@ impl WebhookState {
             return (None, None);
         };
         let application = match kind {
-            ResourceKind::AuthentikApplication => typed::<AuthentikApplication>(object).ok(),
+            ResourceKind::AuthentikApplication => typed::<AuthentikApplication>(object)
+                .inspect_err(|err| {
+                    tracing::warn!(
+                        error = %err,
+                        "AuthentikApplication unreadable: left to the reconcile"
+                    );
+                })
+                .ok(),
             ResourceKind::AuthentikAccessPolicy => {
-                let Ok(policy) = typed::<AuthentikAccessPolicy>(object) else {
-                    return (None, None);
+                let policy = match typed::<AuthentikAccessPolicy>(object) {
+                    Ok(policy) => policy,
+                    Err(err) => {
+                        tracing::warn!(
+                            error = %err,
+                            "AuthentikAccessPolicy unreadable: left to the reconcile"
+                        );
+                        return (None, None);
+                    }
                 };
                 Api::<AuthentikApplication>::namespaced(lookup.client.clone(), namespace)
                     .get_opt(&policy.spec.application_ref)
                     .await
+                    .inspect_err(|err| {
+                        tracing::warn!(
+                            error = %err,
+                            application = %policy.spec.application_ref,
+                            "application unreadable: left to the reconcile"
+                        );
+                    })
                     .ok()
                     .flatten()
             }
@@ -103,6 +127,17 @@ impl WebhookState {
                 .directory
                 .resolve(Some(namespace), Some(&application.spec.instance_ref), None)
                 .await
+                .inspect_err(|err| {
+                    // No instance (yet) is ordinary at admission time.
+                    if !matches!(
+                        err,
+                        InstanceError::Resolve(
+                            ResolveError::NotFound { .. } | ResolveError::NoInstance
+                        )
+                    ) {
+                        tracing::warn!(error = %err, "instance unresolvable: left to the reconcile");
+                    }
+                })
                 .ok(),
         };
         (Some(application), bound)

@@ -1200,6 +1200,44 @@ async fn an_unchanged_oauth2_provider_returns_its_credentials_without_a_patch() 
     assert_eq!(result.credentials.client_secret, "angos-client-secret");
 }
 
+/// A confidential client whose secret is missing must not be written
+/// without `AUTHENTIK_CLIENT_SECRET` and reported Synced.
+#[tokio::test]
+async fn a_confidential_provider_without_a_secret_is_an_error() {
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await;
+    mock.mock_get(
+        "/providers/oauth2/9/",
+        200,
+        serde_json::json!({
+            "pk": 9,
+            "name": "angos",
+            "authorization_flow": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "invalidation_flow": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "property_mappings": [],
+            "component": "ak-provider-oauth2-form",
+            "assigned_application_slug": "angos",
+            "assigned_application_name": "angos",
+            "assigned_backchannel_application_slug": null,
+            "assigned_backchannel_application_name": null,
+            "verbose_name": "OAuth2/OpenID Provider",
+            "verbose_name_plural": "OAuth2/OpenID Providers",
+            "meta_model_name": "authentik_providers_oauth2.oauth2provider",
+            "client_type": "confidential",
+            "client_id": "angos",
+            "client_secret": "",
+            "redirect_uris": [],
+        }),
+    )
+    .await;
+
+    let err = gateway(&mock)
+        .upsert_oauth2_provider(Some("9"), "angos", "angos", &oauth2_spec(vec![]))
+        .await
+        .expect_err("a confidential client needs a secret");
+    assert!(err.to_string().contains("client_secret"), "{err}");
+}
+
 #[tokio::test]
 async fn an_unchanged_proxy_provider_is_never_patched() {
     let mock = AuthentikMock::start().await;
