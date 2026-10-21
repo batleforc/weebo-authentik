@@ -21,7 +21,7 @@ Scope mappings are **pk-keyed** (a UUID), so `status.authentikId`
 stores that pk, unlike the slug-keyed `AuthentikFlow`/
 `AuthentikApplication`.
 
-# Why this kind exists
+\# Why this kind exists
 
 `Oauth2ProviderSpec.property_mappings` resolves entries **by name**
 against `/propertymappings/all/` and never creates one — so until this
@@ -37,7 +37,7 @@ policies`). Sending it the raw `weebo_*` group names cannot work, so a
 mapping owned by this kind rewrites them, per-provider, into the policy
 names that side knows.
 
-# Ordering
+\# Ordering
 
 Nothing here watches `AuthentikApplication`, and an application
 referencing a mapping by a name that does not exist yet fails its

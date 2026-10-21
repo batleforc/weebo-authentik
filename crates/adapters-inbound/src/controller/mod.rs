@@ -344,14 +344,15 @@ pub async fn application_instance(
 /// 5-minute cadence stalls convergence for up to 5 minutes (and times out
 /// the e2e golden-path waits, which poll for ~150s); a short backoff,
 /// matching `error_policy`'s hard-error cadence, lets the dependency
-/// resolve in seconds. Both jittered (the kit's), so CRs created together
-/// don't stay in lockstep.
-pub fn requeue_after(outcome: &ReconcileOutcome) -> Action {
+/// resolve in seconds — doubled per consecutive failure of `obj` (the
+/// kit's per-CR backoff). Both jittered, so CRs created together don't
+/// stay in lockstep.
+pub fn requeue_after<K: Resource>(obj: &K, outcome: &ReconcileOutcome) -> Action {
     let steady = match outcome {
         ReconcileOutcome::Synced { .. } => true,
         ReconcileOutcome::Errored { reason, .. } => needs_a_change(*reason),
     };
-    weebo_kit_runtime::controller::requeue_after(steady, None)
+    weebo_kit_runtime::controller::requeue_after(obj, steady, None)
 }
 
 /// Failures only a change of the CR (spec, annotation), of a namespace

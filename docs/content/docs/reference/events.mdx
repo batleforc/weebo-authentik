@@ -26,8 +26,8 @@ CR is deleted.
 
 ## Repeats
 
-A CR that keeps failing is retried about every 30 s, and warns each
-time. Identical Events (same reason, note and action) are folded into one
+A CR that keeps failing is retried after 30 s, then a delay doubled
+at each retry that fails again (not at each watch event), up to 300 s, and warns each time. Identical Events (same reason, note and action) are folded into one
 series whose count goes up, so a stuck CR shows one line, not hundreds, and
 the apiserver isn't flooded. A note is cut at 1000 characters.
 
