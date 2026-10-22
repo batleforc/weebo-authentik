@@ -153,6 +153,9 @@ pub struct ApplicationReconciled {
     /// created or patched by this reconcile; `None` leaves the recorded one
     /// as it was.
     pub provider_id: Option<String>,
+    /// The issuer written as `AUTHENTIK_URL` (`status.issuerUrl`), once the
+    /// credentials are written; `None` leaves the recorded one as it was.
+    pub issuer_url: Option<String>,
 }
 
 /// [`reconcile_application`], also returning what to record. The provider
@@ -173,6 +176,7 @@ pub async fn reconcile_application_recording(
         outcome,
         authentik_id: written.application,
         provider_id: written.provider.map(|id| id.to_string()),
+        issuer_url: written.issuer,
     }
 }
 
@@ -181,6 +185,8 @@ pub async fn reconcile_application_recording(
 struct Written {
     application: Option<String>,
     provider: Option<i32>,
+    /// The issuer the credentials carry, once written.
+    issuer: Option<String>,
 }
 
 /// The provider recorded in the CR's status, if any.
@@ -284,7 +290,7 @@ async fn try_reconcile_application(
         existing_provider_id,
         gateway,
         secrets,
-        &mut written.provider,
+        written,
     )
     .await?;
 
@@ -321,8 +327,8 @@ async fn try_reconcile_application(
 }
 
 /// Patches the provider `existing` designates, or creates one, and returns
-/// its pk — also set in `upserted` as soon as the provider exists, before
-/// the credentials are written.
+/// its pk — also set in `written` as soon as the provider exists, before
+/// the credentials are written (then the issuer they carry).
 ///
 /// `existing` reads as gone (`Gone`) through the spec's kind endpoint when
 /// it was deleted out of band, or when it is of the other kind
@@ -335,7 +341,7 @@ async fn upsert_provider(
     existing: Option<i32>,
     gateway: &dyn AuthentikGateway,
     secrets: &dyn SecretStore,
-    upserted: &mut Option<i32>,
+    written: &mut Written,
 ) -> Result<i32, ReconcileOutcome> {
     if let Some(id) = existing {
         match upsert_provider_once(
@@ -344,7 +350,7 @@ async fn upsert_provider(
             Some(&id.to_string()),
             gateway,
             secrets,
-            upserted,
+            written,
         )
         .await
         {
@@ -358,7 +364,7 @@ async fn upsert_provider(
             Err(e) => return Err(e.into_outcome()),
         }
     }
-    upsert_provider_once(app, provider, None, gateway, secrets, upserted)
+    upsert_provider_once(app, provider, None, gateway, secrets, written)
         .await
         .map_err(UpsertError::into_outcome)
 }
@@ -385,7 +391,7 @@ async fn upsert_provider_once(
     existing: Option<&str>,
     gateway: &dyn AuthentikGateway,
     secrets: &dyn SecretStore,
-    upserted: &mut Option<i32>,
+    written: &mut Written,
 ) -> Result<i32, UpsertError> {
     match provider {
         Provider::Oauth2(spec) => {
@@ -394,11 +400,17 @@ async fn upsert_provider_once(
                 .await
                 .map_err(UpsertError::Gateway)?;
             let pk = parse_provider_id(&result.authentik_id).map_err(UpsertError::Outcome)?;
-            *upserted = Some(pk);
+            written.provider = Some(pk);
 
-            write_credentials(app, &result.credentials, secrets)
+            // The issuer consumers trust: the spec's, else Authentik's.
+            let mut credentials = result.credentials;
+            if let Some(issuer) = &spec.issuer_url {
+                credentials.authentik_url = issuer.clone();
+            }
+            write_credentials(app, &credentials, secrets)
                 .await
                 .map_err(UpsertError::Outcome)?;
+            written.issuer = Some(credentials.authentik_url);
             Ok(pk)
         }
         Provider::Proxy(spec) => {
@@ -407,7 +419,7 @@ async fn upsert_provider_once(
                 .await
                 .map_err(UpsertError::Gateway)?;
             let pk = parse_provider_id(&id).map_err(UpsertError::Outcome)?;
-            *upserted = Some(pk);
+            written.provider = Some(pk);
             Ok(pk)
         }
     }
@@ -501,6 +513,7 @@ mod tests {
                 property_mappings: vec![],
                 grant_types: vec![],
                 access_token_validity: None,
+                issuer_url: None,
             }),
             proxy: None,
         }
@@ -838,6 +851,37 @@ mod tests {
             create_result: Some(Ok("harbor".to_string())),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn the_issuer_written_is_recorded_and_the_spec_s_overrides_authentik_s() {
+        let secrets = FakeSecretStore::default();
+        let computed = reconcile_application_recording(
+            &app(oauth2_spec(), None),
+            None,
+            &oauth2_gateway(),
+            &secrets,
+        )
+        .await;
+        assert_eq!(
+            computed.issuer_url.as_deref(),
+            Some("https://authentik.example.com")
+        );
+
+        let mut spec = oauth2_spec();
+        if let Some(oauth2) = spec.oauth2.as_mut() {
+            oauth2.issuer_url = Some("https://login.example.com/application/o/harbor/".to_string());
+        }
+        let secrets = FakeSecretStore::default();
+        let overridden =
+            reconcile_application_recording(&app(spec, None), None, &oauth2_gateway(), &secrets)
+                .await;
+        let issuer = "https://login.example.com/application/o/harbor/";
+        assert_eq!(overridden.issuer_url.as_deref(), Some(issuer));
+        let data = secrets
+            .get("team-a/harbor")
+            .expect("implicit target written");
+        assert_eq!(data["AUTHENTIK_URL"], issuer);
     }
 
     #[tokio::test]

@@ -116,6 +116,12 @@
             "invalidationFlow": {
               "type": "string"
             },
+            "issuerUrl": {
+              "description": "The issuer consumers trust, written as `AUTHENTIK_URL` and in\n`status.issuerUrl`, when it is not the one Authentik computes,\n`<instance url>/application/o/<slug>/` — Authentik served under\nanother public URL than the instance's `url`. Unset: computed.",
+              "nullable": true,
+              "pattern": "^https?://",
+              "type": "string"
+            },
             "propertyMappings": {
               "default": [],
               "items": {

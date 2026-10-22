@@ -140,6 +140,7 @@ mod tests {
                         property_mappings: vec![],
                         grant_types: vec![],
                         access_token_validity: None,
+                        issuer_url: None,
                     }),
                     proxy: None,
                 },

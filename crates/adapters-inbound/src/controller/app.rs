@@ -69,11 +69,13 @@ async fn apply(
         outcome,
         authentik_id: None,
         provider_id: None,
+        issuer_url: None,
     };
     let ApplicationReconciled {
         outcome,
         authentik_id: written_id,
         provider_id,
+        issuer_url,
     } = match (refusal, &bound) {
         // Re-checked here too: a policy may have changed since admission.
         (Some(refused), _) => unrecorded(refused),
@@ -111,6 +113,9 @@ async fn apply(
     }
     if let Some(id) = written_id {
         fields.insert("authentikId".into(), id.into());
+    }
+    if let Some(issuer) = issuer_url {
+        fields.insert("issuerUrl".into(), issuer.into());
     }
     super::record_reconcile("AuthentikApplication", started, &outcome);
     let action = super::requeue_after(app, &outcome);

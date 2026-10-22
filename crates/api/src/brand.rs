@@ -19,6 +19,8 @@ use crate::status::AuthentikStatus;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct AuthentikBrandSpec {
+    // Drawn by the docs' CRD IDE (the kit's shared schematic kinds).
+    #[schemars(extend("x-weebo-produces" = { "kind": { "group": "schematic.weebo.io", "kind": "DnsName" }, "name": ["."] }))]
     pub domain: String,
     #[serde(default)]
     pub default: bool,

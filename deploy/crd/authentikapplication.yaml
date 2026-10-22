@@ -139,6 +139,15 @@ spec:
                         type: array
                       invalidationFlow:
                         type: string
+                      issuerUrl:
+                        description: |-
+                          The issuer consumers trust, written as `AUTHENTIK_URL` and in
+                          `status.issuerUrl`, when it is not the one Authentik computes,
+                          `<instance url>/application/o/<slug>/` — Authentik served under
+                          another public URL than the instance's `url`. Unset: computed.
+                        nullable: true
+                        pattern: ^https?://
+                        type: string
                       propertyMappings:
                         default: []
                         items:
@@ -317,6 +326,13 @@ spec:
                 - kind
                 - name
                 type: object
+              issuerUrl:
+                description: |-
+                  Set on an oauth2 `AuthentikApplication` only: the issuer written as
+                  its `AUTHENTIK_URL` (`spec.provider.oauth2.issuerUrl`, else
+                  Authentik's `<instance url>/application/o/<slug>/`).
+                nullable: true
+                type: string
               observedGeneration:
                 format: int64
                 nullable: true

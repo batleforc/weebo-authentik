@@ -43,6 +43,27 @@
       "produces": [
         {
           "kind": {
+            "group": "schematic.weebo.io",
+            "kind": "OidcIssuer"
+          },
+          "each": "spec.provider.oauth2",
+          "name": [
+            "issuerUrl"
+          ],
+          "template": "{/spec.instanceRef>spec.url}/application/o/{/spec.slug}/"
+        },
+        {
+          "kind": {
+            "group": "schematic.weebo.io",
+            "kind": "HttpEndpoint"
+          },
+          "each": "spec.provider.proxy.externalHost",
+          "name": [
+            "."
+          ]
+        },
+        {
+          "kind": {
             "group": "",
             "kind": "Secret"
           },
@@ -75,7 +96,18 @@
           ]
         }
       ],
-      "produces": []
+      "produces": [
+        {
+          "kind": {
+            "group": "schematic.weebo.io",
+            "kind": "DnsName"
+          },
+          "each": "spec.domain",
+          "name": [
+            "."
+          ]
+        }
+      ]
     },
     "AuthentikFlow": {
       "references": [],
@@ -115,7 +147,18 @@
           ]
         }
       ],
-      "produces": []
+      "produces": [
+        {
+          "kind": {
+            "group": "schematic.weebo.io",
+            "kind": "VaultServer"
+          },
+          "each": "spec.secretStore.vault.address",
+          "name": [
+            "."
+          ]
+        }
+      ]
     },
     "AuthentikLocalInstance": {
       "references": [
@@ -153,6 +196,34 @@
       "produces": []
     },
     "AuthentikUser": {
+      "references": [],
+      "produces": []
+    },
+    "Database": {
+      "references": [],
+      "produces": []
+    },
+    "DnsName": {
+      "references": [],
+      "produces": []
+    },
+    "HttpEndpoint": {
+      "references": [],
+      "produces": []
+    },
+    "OidcIssuer": {
+      "references": [],
+      "produces": []
+    },
+    "S3Bucket": {
+      "references": [],
+      "produces": []
+    },
+    "UpstreamRegistry": {
+      "references": [],
+      "produces": []
+    },
+    "VaultServer": {
       "references": [],
       "produces": []
     }
