@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.20.1](https://github.com/batleforc/weebo-authentik/compare/6514d1117dacc186c561d540040915b1c4251254..v0.20.1) - 2026-10-22
+#### Bug Fixes
+- (**ci**) e2e applies only the CRD manifests of deploy/crd/ (#31) - ([6514d11](https://github.com/batleforc/weebo-authentik/commit/6514d1117dacc186c561d540040915b1c4251254)) - Maxime, Claude Opus 5.5 (1M context)
+
+- - -
+
 ## [v0.20.0](https://github.com/batleforc/weebo-authentik/compare/71143645b2217b7814931b25dabce393d49cd012..v0.20.0) - 2026-10-22
 #### Features
 - kit v0.23.0, the CRD IDE in the docs (#30) - ([7114364](https://github.com/batleforc/weebo-authentik/commit/71143645b2217b7814931b25dabce393d49cd012)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
