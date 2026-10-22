@@ -67,6 +67,9 @@ pub struct AuthentikApplicationSpec {
 pub struct ProviderSpec {
     pub kind: ProviderKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    // The docs' CRD IDE draws the issuer (the kit's shared OidcIssuer):
+    // `issuerUrl`, else the one Authentik computes.
+    #[schemars(extend("x-weebo-produces" = { "kind": { "group": "schematic.weebo.io", "kind": "OidcIssuer" }, "name": ["issuerUrl"], "template": "{/spec.instanceRef>spec.url}/application/o/{/spec.slug}/" }))]
     pub oauth2: Option<Oauth2ProviderSpec>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy: Option<ProxyProviderSpec>,
@@ -124,6 +127,13 @@ pub struct Oauth2ProviderSpec {
     /// provider free of surprises.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_token_validity: Option<String>,
+    /// The issuer consumers trust, written as `AUTHENTIK_URL` and in
+    /// `status.issuerUrl`, when it is not the one Authentik computes,
+    /// `<instance url>/application/o/<slug>/` — Authentik served under
+    /// another public URL than the instance's `url`. Unset: computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(regex(pattern = r"^https?://"))]
+    pub issuer_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq, Eq)]
@@ -161,6 +171,8 @@ pub enum MatchingMode {
 #[serde(rename_all = "camelCase")]
 pub struct ProxyProviderSpec {
     pub internal_host: String,
+    // Drawn by the docs' CRD IDE (the kit's shared schematic kinds).
+    #[schemars(extend("x-weebo-produces" = { "kind": { "group": "schematic.weebo.io", "kind": "HttpEndpoint" }, "name": ["."] }))]
     pub external_host: String,
     pub authorization_flow: String,
     pub invalidation_flow: String,

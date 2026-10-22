@@ -615,6 +615,7 @@ async fn upsert_oauth2_provider_surfaces_an_unresolved_authorization_flow() {
         property_mappings: vec![],
         grant_types: vec![],
         access_token_validity: None,
+        issuer_url: None,
     };
 
     let err = gateway(&mock)
@@ -679,6 +680,7 @@ async fn upsert_oauth2_provider_writes_the_per_app_issuer_not_the_api_base() {
         property_mappings: vec![],
         grant_types: vec![],
         access_token_validity: None,
+        issuer_url: None,
     };
 
     let result = gateway(&mock)
@@ -772,6 +774,7 @@ fn oauth2_spec(grant_types: Vec<String>) -> Oauth2ProviderSpec {
         property_mappings: vec![],
         grant_types,
         access_token_validity: None,
+        issuer_url: None,
     }
 }
 

@@ -121,6 +121,13 @@ spec:
                 - kind
                 - name
                 type: object
+              issuerUrl:
+                description: |-
+                  Set on an oauth2 `AuthentikApplication` only: the issuer written as
+                  its `AUTHENTIK_URL` (`spec.provider.oauth2.issuerUrl`, else
+                  Authentik's `<instance url>/application/o/<slug>/`).
+                nullable: true
+                type: string
               observedGeneration:
                 format: int64
                 nullable: true

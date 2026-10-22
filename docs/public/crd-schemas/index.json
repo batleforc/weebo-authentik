@@ -97,5 +97,75 @@
     "served": [
       "v1alpha1"
     ]
+  },
+  {
+    "kind": "Database",
+    "singular": "database",
+    "scope": "Namespaced",
+    "apiVersion": "schematic.weebo.io/v1",
+    "served": [
+      "v1"
+    ],
+    "schematic": true
+  },
+  {
+    "kind": "DnsName",
+    "singular": "dnsname",
+    "scope": "Cluster",
+    "apiVersion": "schematic.weebo.io/v1",
+    "served": [
+      "v1"
+    ],
+    "schematic": true
+  },
+  {
+    "kind": "HttpEndpoint",
+    "singular": "httpendpoint",
+    "scope": "Cluster",
+    "apiVersion": "schematic.weebo.io/v1",
+    "served": [
+      "v1"
+    ],
+    "schematic": true
+  },
+  {
+    "kind": "OidcIssuer",
+    "singular": "oidcissuer",
+    "scope": "Cluster",
+    "apiVersion": "schematic.weebo.io/v1",
+    "served": [
+      "v1"
+    ],
+    "schematic": true
+  },
+  {
+    "kind": "S3Bucket",
+    "singular": "s3bucket",
+    "scope": "Cluster",
+    "apiVersion": "schematic.weebo.io/v1",
+    "served": [
+      "v1"
+    ],
+    "schematic": true
+  },
+  {
+    "kind": "UpstreamRegistry",
+    "singular": "upstreamregistry",
+    "scope": "Cluster",
+    "apiVersion": "schematic.weebo.io/v1",
+    "served": [
+      "v1"
+    ],
+    "schematic": true
+  },
+  {
+    "kind": "VaultServer",
+    "singular": "vaultserver",
+    "scope": "Cluster",
+    "apiVersion": "schematic.weebo.io/v1",
+    "served": [
+      "v1"
+    ],
+    "schematic": true
   }
 ]

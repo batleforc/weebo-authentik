@@ -9,4 +9,14 @@ Add resources, point each reference field (an `instanceRef`, a
 of them writes, and export the whole set as YAML. To start from what runs
 in a cluster, import `kubectl get <kinds> -A -o yaml`.
 
+What lives outside the cluster is drawn too, never exported with the
+manifests: each oauth2 application's OIDC issuer — its
+`provider.oauth2.issuerUrl`, else the one Authentik computes,
+`<instance url>/application/o/<slug>/` — each proxy application's public
+URL, each brand's domain and the Vault server of an instance's secret
+store. An issuer is one node whichever operators trust it: on the
+weebo-operator-kit site, an Angos instance or a ProxyKubeApi naming the
+same issuer meets this application on it. The drawing downloads as
+`schematic.yaml`.
+
 <CrdIde />

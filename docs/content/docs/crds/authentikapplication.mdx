@@ -78,6 +78,7 @@ spec:
 | `clientType` | `string` | no | `"confidential"` | Public clients cannot safely keep a client secret. Existing CRs that omit this field retain the historical confidential-client behavior.<br /><br />Values: `"public"`, `"confidential"` |
 | `grantTypes` | `string[]` | no | `[]` |  |
 | `invalidationFlow` | `string` | yes |  |  |
+| `issuerUrl` | `string` | no |  | The issuer consumers trust, written as `AUTHENTIK_URL` and in `status.issuerUrl`, when it is not the one Authentik computes, `<instance url>/application/o/<slug>/` — Authentik served under another public URL than the instance's `url`. Unset: computed.<br /><br />Constraints: `pattern: ^https?://` |
 | `propertyMappings` | `string[]` | no | `[]` |  |
 | `signingKey` | `string` | no | `"authentik Self-signed Certificate"` | Name of an existing Authentik certificate key pair used to sign tokens. Resolved by name at reconcile time (never created by this operator). Defaults to Authentik's built-in `"authentik Self-signed Certificate"` when the field is omitted; set it explicitly to `null` to create a provider with no signing key. The default is only applied on *absence* — an explicit `null` is preserved — so the importer, which emits `null` for a provider that genuinely has no signing key, keeps migration parity. |
 

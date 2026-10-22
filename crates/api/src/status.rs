@@ -28,6 +28,11 @@ pub struct AuthentikStatus {
     /// band in Authentik.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_id: Option<String>,
+    /// Set on an oauth2 `AuthentikApplication` only: the issuer written as
+    /// its `AUTHENTIK_URL` (`spec.provider.oauth2.issuerUrl`, else
+    /// Authentik's `<instance url>/application/o/<slug>/`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issuer_url: Option<String>,
     #[serde(default)]
     pub conditions: Vec<Condition>,
 }

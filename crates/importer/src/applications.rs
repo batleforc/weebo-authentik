@@ -158,6 +158,7 @@ pub async fn import_applications(
                         // invisible in git, which is what an import is meant to
                         // end.
                         access_token_validity: full.access_token_validity.clone(),
+                        issuer_url: None,
                     }),
                     proxy: None,
                 }
