@@ -117,7 +117,12 @@ jobs:
           EOF
 
       - name: Install CRDs
-        run: mise exec -- kubectl apply -f deploy/crd/
+        # deploy/crd/ also holds links.json (the CRD IDE's links): apply
+        # the CRD manifests only.
+        run: |
+          for f in deploy/crd/*.yaml; do
+            mise exec -- kubectl apply -f "$f"
+          done
 
       - name: Install the operator chart
         # crds.install=false: the CRDs were already applied by the "Install
