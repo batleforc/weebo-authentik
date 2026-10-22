@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.20.0](https://github.com/batleforc/weebo-authentik/compare/71143645b2217b7814931b25dabce393d49cd012..v0.20.0) - 2026-10-22
+#### Features
+- kit v0.23.0, the CRD IDE in the docs (#30) - ([7114364](https://github.com/batleforc/weebo-authentik/commit/71143645b2217b7814931b25dabce393d49cd012)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
+
+- - -
+
 ## [v0.19.6](https://github.com/batleforc/weebo-authentik/compare/407f4783912e484de84da3aee919efc45dbd4b92..v0.19.6) - 2026-10-21
 #### Bug Fixes
 - weebo-good-practice review: house lints, bounded I/O, typed errors (#29) - ([407f478](https://github.com/batleforc/weebo-authentik/commit/407f4783912e484de84da3aee919efc45dbd4b92)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
