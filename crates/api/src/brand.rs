@@ -33,6 +33,7 @@ pub struct AuthentikBrandSpec {
     /// Name of an `AuthentikApplication` CR, same-namespace convention
     /// does not apply here since this CRD is cluster-scoped.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("x-weebo-link" = { "to": [{ "group": "authentik.weebo.io", "kind": "AuthentikApplication" }] }))]
     pub default_application_ref: Option<String>,
     /// Flow slugs, resolved at reconcile time. These reference a flow by
     /// slug whether or not an `AuthentikFlow` CR manages it — the

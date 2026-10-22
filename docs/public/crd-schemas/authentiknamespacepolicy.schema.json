@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikNamespacePolicy",
   "scope": "Cluster",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Namespace allow-list enforced by the admission webhook (and\ndouble-checked by reconcilers). Cluster-scoped. Default-deny: a\n`(namespace, kind)` pair is only allowed if some rule across every\n`AuthentikNamespacePolicy` explicitly allows it — see\n`domain::allow_list::evaluate`, which this CRD's rules map directly\nonto.",
   "properties": {
     "rules": {

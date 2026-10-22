@@ -2,56 +2,100 @@
   {
     "kind": "AuthentikInstance",
     "singular": "authentikinstance",
-    "scope": "Cluster"
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikLocalInstance",
     "singular": "authentiklocalinstance",
-    "scope": "Namespaced"
+    "scope": "Namespaced",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikNamespacePolicy",
     "singular": "authentiknamespacepolicy",
-    "scope": "Cluster"
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikGroup",
     "singular": "authentikgroup",
-    "scope": "Cluster"
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikUser",
     "singular": "authentikuser",
-    "scope": "Cluster"
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikApplication",
     "singular": "authentikapplication",
-    "scope": "Namespaced"
+    "scope": "Namespaced",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikAccessPolicy",
     "singular": "authentikaccesspolicy",
-    "scope": "Namespaced"
+    "scope": "Namespaced",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikScopeMapping",
     "singular": "authentikscopemapping",
-    "scope": "Cluster"
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikBrand",
     "singular": "authentikbrand",
-    "scope": "Cluster"
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikFlow",
     "singular": "authentikflow",
-    "scope": "Cluster"
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   },
   {
     "kind": "AuthentikOutpost",
     "singular": "authentikoutpost",
-    "scope": "Cluster"
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
   }
 ]

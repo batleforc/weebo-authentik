@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikLocalInstance",
   "scope": "Namespaced",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Connection to a real Authentik server, owned by a namespace: its token\nis that namespace's, and only the `AuthentikApplication`s of this\nnamespace use it unless `sharedWith` says otherwise. What an operator\nlimited to one namespace uses. Credentials of the applications bound to\nit are written as Kubernetes `Secret`s only: the operator's Vault\nidentity is shared by every namespace, so a namespace's own instance\ncan't route to Vault.",
   "properties": {
     "sharedWith": {

@@ -1,0 +1,12 @@
+---
+title: CRD IDE
+description: Compose linked Authentik resources and export them as manifests.
+full: true
+---
+
+Add resources, point each reference field (an `instanceRef`, a
+`tokenSecretRef`…) at another resource of the project or at the Secret one
+of them writes, and export the whole set as YAML. To start from what runs
+in a cluster, import `kubectl get <kinds> -A -o yaml`.
+
+<CrdIde />

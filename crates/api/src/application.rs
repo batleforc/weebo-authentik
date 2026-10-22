@@ -41,6 +41,8 @@ pub struct AuthentikApplicationSpec {
     /// `provider.kind: oauth2` — proxy providers carry no client secret, so
     /// this is ignored for them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    // The keys each target holds, for the docs' CRD IDE (as `reconcile_application` writes them).
+    #[schemars(extend("x-weebo-keys" = ["AUTHENTIK_CLIENT_ID", "AUTHENTIK_CLIENT_SECRET", "AUTHENTIK_URL"]))]
     pub secret_targets: Vec<SecretTarget>,
 }
 
@@ -166,5 +168,6 @@ pub struct ProxyProviderSpec {
     /// matches current `longhorn.tf` behavior). `Some(name)` => must
     /// resolve to an `AuthentikOutpost` CR.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("x-weebo-link" = { "to": [{ "group": "authentik.weebo.io", "kind": "AuthentikOutpost" }] }))]
     pub outpost_ref: Option<String>,
 }

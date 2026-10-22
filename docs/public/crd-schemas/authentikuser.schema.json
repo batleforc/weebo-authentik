@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikUser",
   "scope": "Cluster",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Mirrors `authentik_user`. Cluster-scoped, like `AuthentikGroup`.\n\nDeliberately has **no credential/password field** — Authentik owns its\nown invite/reset flows. If a bootstrap password is ever needed it goes\nthrough `SecretStore` (generated, never stored in this spec). See\n`.prompt/plan.md`.",
   "properties": {
     "email": {

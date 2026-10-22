@@ -1,0 +1,160 @@
+{
+  "kinds": {
+    "AuthentikAccessPolicy": {
+      "produces": [],
+      "references": [
+        {
+          "path": "spec.applicationRef",
+          "to": [
+            {
+              "group": "authentik.weebo.io",
+              "kind": "AuthentikApplication"
+            }
+          ]
+        }
+      ]
+    },
+    "AuthentikApplication": {
+      "produces": [
+        {
+          "each": "spec.secretTargets[]",
+          "keyNames": [
+            "AUTHENTIK_CLIENT_ID",
+            "AUTHENTIK_CLIENT_SECRET",
+            "AUTHENTIK_URL"
+          ],
+          "kind": {
+            "group": "",
+            "kind": "Secret"
+          },
+          "name": [
+            "name"
+          ],
+          "namespace": "namespace",
+          "unless": {
+            "equals": "vault",
+            "path": "backend"
+          }
+        }
+      ],
+      "references": [
+        {
+          "path": "spec.instanceRef",
+          "to": [
+            {
+              "group": "authentik.weebo.io",
+              "kind": "AuthentikInstance"
+            },
+            {
+              "group": "authentik.weebo.io",
+              "kind": "AuthentikLocalInstance"
+            }
+          ]
+        },
+        {
+          "path": "spec.provider.proxy.outpostRef",
+          "to": [
+            {
+              "group": "authentik.weebo.io",
+              "kind": "AuthentikOutpost"
+            }
+          ]
+        }
+      ]
+    },
+    "AuthentikBrand": {
+      "produces": [],
+      "references": [
+        {
+          "path": "spec.defaultApplicationRef",
+          "to": [
+            {
+              "group": "authentik.weebo.io",
+              "kind": "AuthentikApplication"
+            }
+          ]
+        }
+      ]
+    },
+    "AuthentikFlow": {
+      "produces": [],
+      "references": []
+    },
+    "AuthentikGroup": {
+      "produces": [],
+      "references": []
+    },
+    "AuthentikInstance": {
+      "produces": [],
+      "references": [
+        {
+          "path": "spec.secretStore.vault.caSecretRef",
+          "to": [
+            {
+              "group": "",
+              "kind": "Secret"
+            }
+          ]
+        },
+        {
+          "path": "spec.tls.caSecretRef",
+          "to": [
+            {
+              "group": "",
+              "kind": "Secret"
+            }
+          ]
+        },
+        {
+          "path": "spec.tokenSecretRef",
+          "to": [
+            {
+              "group": "",
+              "kind": "Secret"
+            }
+          ]
+        }
+      ]
+    },
+    "AuthentikLocalInstance": {
+      "produces": [],
+      "references": [
+        {
+          "path": "spec.tls.caSecretRef",
+          "to": [
+            {
+              "group": "",
+              "kind": "Secret"
+            }
+          ]
+        },
+        {
+          "path": "spec.tokenSecretRef",
+          "to": [
+            {
+              "group": "",
+              "kind": "Secret"
+            }
+          ]
+        }
+      ]
+    },
+    "AuthentikNamespacePolicy": {
+      "produces": [],
+      "references": []
+    },
+    "AuthentikOutpost": {
+      "produces": [],
+      "references": []
+    },
+    "AuthentikScopeMapping": {
+      "produces": [],
+      "references": []
+    },
+    "AuthentikUser": {
+      "produces": [],
+      "references": []
+    }
+  },
+  "version": 1
+}

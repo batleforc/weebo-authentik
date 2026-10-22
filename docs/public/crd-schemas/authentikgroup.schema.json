@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikGroup",
   "scope": "Cluster",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Mirrors `authentik_group`. Cluster-scoped — group hierarchy is an\norg-wide identity concept, not owned by a namespace. Only reachable via\ncluster-scoped RBAC (no `AuthentikNamespacePolicy` governs this kind).",
   "properties": {
     "attributes": {

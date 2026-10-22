@@ -6,6 +6,7 @@
     "guides/install",
     "guides/connect-instance",
     "guides/first-application",
+    "ide",
     "---Guides---",
     "guides/allow-list",
     "guides/build-a-manifest",

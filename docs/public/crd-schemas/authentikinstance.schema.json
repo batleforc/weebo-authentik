@@ -2,6 +2,9 @@
   "apiVersion": "authentik.weebo.io/v1alpha1",
   "kind": "AuthentikInstance",
   "scope": "Cluster",
+  "served": [
+    "v1alpha1"
+  ],
   "description": "Connection to a real Authentik server. Cluster-scoped — an org-wide,\nshared piece of infrastructure, not owned by a single namespace.",
   "properties": {
     "secretStore": {
