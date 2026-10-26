@@ -1,29 +1,29 @@
 {
   "label": "weebo-authentik",
-  "startup_secs": 0.101680952,
-  "shutdown_secs": 0.00991053,
+  "startup_secs": 0.101767103,
+  "shutdown_secs": 0.01060193,
   "background_api_requests_per_min": 20.0,
   "phases": [
     {
       "name": "startup",
       "kind": "idle",
-      "wall_secs": 30.063784372,
+      "wall_secs": 30.051544099,
       "usage": {
         "samples": 121,
-        "rss_peak_mib": 18.21875,
-        "rss_median_mib": 18.21875,
+        "rss_peak_mib": 20.0859375,
+        "rss_median_mib": 20.0703125,
         "cpu_seconds": 0.01,
-        "cpu_mean_millicores": 0.33333185675098537,
-        "cpu_peak_millicores": 39.9556825952699,
-        "rss_slope_mib_per_min": 0.13717710861515078,
-        "fds_max": 28,
+        "cpu_mean_millicores": 0.33332271757142734,
+        "cpu_peak_millicores": 39.912297993582435,
+        "rss_slope_mib_per_min": 0.07169980411904586,
+        "fds_max": 24,
         "threads_max": 5
       },
-      "reconciles": 1.0,
+      "reconciles": 0.0,
       "reconcile_errors": 0.0,
-      "reconcile_p95_secs": 0.00475,
-      "api_requests": 18.97873854266667,
-      "api_requests_per_min": 37.87694517994729,
+      "reconcile_p95_secs": null,
+      "api_requests": 15.982818633666668,
+      "api_requests_per_min": 31.91081013544029,
       "api_top": [
         [
           "PUT leases",
@@ -38,19 +38,11 @@
           2.0
         ],
         [
-          "PATCH authentikinstances",
-          2.0
-        ],
-        [
           "GET endpoints",
           1.0
         ],
         [
           "GET endpointslices",
-          1.0
-        ],
-        [
-          "POST events",
           1.0
         ]
       ],
@@ -60,23 +52,23 @@
     {
       "name": "warm-up burst",
       "kind": "load",
-      "wall_secs": 2.527132345,
+      "wall_secs": 1.5925762799999998,
       "usage": {
-        "samples": 10,
-        "rss_peak_mib": 26.71484375,
-        "rss_median_mib": 26.26953125,
-        "cpu_seconds": 2.83,
-        "cpu_mean_millicores": 1257.6289784707226,
-        "cpu_peak_millicores": 1639.3936276425818,
-        "rss_slope_mib_per_min": 91.12269444415098,
-        "fds_max": 35,
+        "samples": 6,
+        "rss_peak_mib": 28.1484375,
+        "rss_median_mib": 27.390625,
+        "cpu_seconds": 1.49,
+        "cpu_mean_millicores": 1191.7238251538636,
+        "cpu_peak_millicores": 1288.2570785922087,
+        "rss_slope_mib_per_min": 139.32865365108702,
+        "fds_max": 31,
         "threads_max": 5
       },
       "reconciles": 200.0,
       "reconcile_errors": 0.0,
-      "reconcile_p95_secs": 0.03214285714285715,
-      "api_requests": 1200.1576225516667,
-      "api_requests_per_min": 28494.533535440936,
+      "reconcile_p95_secs": 0.023681318681318682,
+      "api_requests": 1199.46914124,
+      "api_requests_per_min": 45189.76539974588,
       "api_top": [
         [
           "PATCH authentikgroups",
@@ -100,40 +92,36 @@
         ],
         [
           "LIST authentikgroups",
-          5.0
+          3.0
         ],
         [
           "GET ",
           1.0
-        ],
-        [
-          "PUT leases",
-          1.0
         ]
       ],
       "objects": 200,
-      "convergence_secs": 2.478567923
+      "convergence_secs": 1.5442422649999998
     },
     {
       "name": "warm-up churn",
       "kind": "load",
-      "wall_secs": 1.7711339069999998,
+      "wall_secs": 1.254279577,
       "usage": {
-        "samples": 7,
-        "rss_peak_mib": 27.28515625,
-        "rss_median_mib": 27.1484375,
-        "cpu_seconds": 2.53,
-        "cpu_mean_millicores": 1704.478735349754,
-        "cpu_peak_millicores": 1843.8663369427468,
-        "rss_slope_mib_per_min": 22.46474054500072,
-        "fds_max": 35,
+        "samples": 6,
+        "rss_peak_mib": 29.11328125,
+        "rss_median_mib": 29.0234375,
+        "cpu_seconds": 1.6400000000000001,
+        "cpu_mean_millicores": 1332.0389834723835,
+        "cpu_peak_millicores": 1523.4094329664442,
+        "rss_slope_mib_per_min": 39.669590710833766,
+        "fds_max": 34,
         "threads_max": 5
       },
       "reconciles": 200.0,
       "reconcile_errors": 0.0,
-      "reconcile_p95_secs": 0.04285714285714286,
-      "api_requests": 598.409622031,
-      "api_requests_per_min": 20272.085120134285,
+      "reconcile_p95_secs": 0.024146341463414635,
+      "api_requests": 601.5819068076667,
+      "api_requests_per_min": 28777.407422029642,
       "api_top": [
         [
           "PATCH authentikgroups",
@@ -149,32 +137,44 @@
         ],
         [
           "LIST authentikgroups",
-          3.0
+          2.0
+        ],
+        [
+          "GET endpoints",
+          1.0
+        ],
+        [
+          "GET endpointslices",
+          1.0
+        ],
+        [
+          "PUT leases",
+          1.0
         ]
       ],
       "objects": 200,
-      "convergence_secs": 1.721277312
+      "convergence_secs": 1.201920058
     },
     {
       "name": "warm-up delete",
       "kind": "load",
-      "wall_secs": 2.221132603,
+      "wall_secs": 1.736182419,
       "usage": {
-        "samples": 9,
-        "rss_peak_mib": 28.125,
-        "rss_median_mib": 27.9375,
-        "cpu_seconds": 2.759999999999999,
-        "cpu_mean_millicores": 1380.3150576020546,
-        "cpu_peak_millicores": 1768.6742364021302,
-        "rss_slope_mib_per_min": 19.258882724758802,
-        "fds_max": 38,
+        "samples": 7,
+        "rss_peak_mib": 29.8203125,
+        "rss_median_mib": 29.78125,
+        "cpu_seconds": 1.54,
+        "cpu_mean_millicores": 1026.5605257832901,
+        "cpu_peak_millicores": 1321.1506323625451,
+        "rss_slope_mib_per_min": 20.79633851415154,
+        "fds_max": 35,
         "threads_max": 5
       },
       "reconciles": 0.0,
       "reconcile_errors": 0.0,
       "reconcile_p95_secs": null,
-      "api_requests": 801.2596224656667,
-      "api_requests_per_min": 21644.622785243046,
+      "api_requests": 798.421272527,
+      "api_requests_per_min": 27592.30587026236,
       "api_top": [
         [
           "POST events",
@@ -194,44 +194,32 @@
         ],
         [
           "LIST authentikgroups",
-          4.0
-        ],
-        [
-          "GET ",
-          1.0
-        ],
-        [
-          "GET leases",
-          1.0
-        ],
-        [
-          "PUT leases",
-          1.0
+          3.0
         ]
       ],
       "objects": 200,
-      "convergence_secs": 2.152619323
+      "convergence_secs": 1.664858684
     },
     {
       "name": "baseline",
       "kind": "idle",
-      "wall_secs": 30.050359159,
+      "wall_secs": 30.053554967,
       "usage": {
         "samples": 120,
-        "rss_peak_mib": 28.125,
-        "rss_median_mib": 28.125,
-        "cpu_seconds": 0.010000000000001563,
-        "cpu_mean_millicores": 0.3361361248808976,
-        "cpu_peak_millicores": 39.919426151229494,
+        "rss_peak_mib": 29.8203125,
+        "rss_median_mib": 29.8203125,
+        "cpu_seconds": 0.019999999999999574,
+        "cpu_mean_millicores": 0.6722778609482642,
+        "cpu_peak_millicores": 40.07895168724365,
         "rss_slope_mib_per_min": 0.0,
-        "fds_max": 33,
+        "fds_max": 31,
         "threads_max": 5
       },
       "reconciles": 0.0,
       "reconcile_errors": 0.0,
       "reconcile_p95_secs": null,
-      "api_requests": 15.983213613666667,
-      "api_requests_per_min": 31.912857072551304,
+      "api_requests": 15.982148344333334,
+      "api_requests_per_min": 31.90733680967001,
       "api_top": [
         [
           "PUT leases",
@@ -260,23 +248,23 @@
     {
       "name": "cycle burst",
       "kind": "load",
-      "wall_secs": 2.049862533,
+      "wall_secs": 2.060097637,
       "usage": {
-        "samples": 9,
-        "rss_peak_mib": 29.5859375,
-        "rss_median_mib": 29.2578125,
-        "cpu_seconds": 2.959999999999999,
-        "cpu_mean_millicores": 1489.4563588350914,
-        "cpu_peak_millicores": 1639.1299629287178,
-        "rss_slope_mib_per_min": 50.52617196064584,
-        "fds_max": 36,
+        "samples": 8,
+        "rss_peak_mib": 31.31640625,
+        "rss_median_mib": 31.23828125,
+        "cpu_seconds": 1.5799999999999992,
+        "cpu_mean_millicores": 903.666983905443,
+        "cpu_peak_millicores": 1242.58252387366,
+        "rss_slope_mib_per_min": 49.43072399240988,
+        "fds_max": 33,
         "threads_max": 5
       },
       "reconciles": 200.0,
       "reconcile_errors": 0.0,
-      "reconcile_p95_secs": 0.03529411764705882,
-      "api_requests": 1198.316712489,
-      "api_requests_per_min": 35075.03629724618,
+      "reconcile_p95_secs": 0.023392857142857146,
+      "api_requests": 1199.3133007876668,
+      "api_requests_per_min": 34929.799808930125,
       "api_top": [
         [
           "PATCH authentikgroups",
@@ -301,31 +289,35 @@
         [
           "LIST authentikgroups",
           4.0
+        ],
+        [
+          "GET ",
+          1.0
         ]
       ],
       "objects": 200,
-      "convergence_secs": 1.999961028
+      "convergence_secs": 2.006410016
     },
     {
       "name": "cycle loaded",
       "kind": "idle",
-      "wall_secs": 30.067087906,
+      "wall_secs": 30.063738512,
       "usage": {
         "samples": 120,
-        "rss_peak_mib": 29.5859375,
-        "rss_median_mib": 29.5859375,
-        "cpu_seconds": 0.0,
-        "cpu_mean_millicores": 0.0,
-        "cpu_peak_millicores": 0.0,
+        "rss_peak_mib": 31.31640625,
+        "rss_median_mib": 31.31640625,
+        "cpu_seconds": 0.010000000000000675,
+        "cpu_mean_millicores": 0.336135022883551,
+        "cpu_peak_millicores": 39.922245199606216,
         "rss_slope_mib_per_min": 0.0,
-        "fds_max": 31,
+        "fds_max": 30,
         "threads_max": 5
       },
       "reconciles": 0.0,
       "reconcile_errors": 0.0,
       "reconcile_p95_secs": null,
-      "api_requests": 15.977637364666666,
-      "api_requests_per_min": 31.883973761512703,
+      "api_requests": 15.978753829333334,
+      "api_requests_per_min": 31.88975414276315,
       "api_top": [
         [
           "PUT leases",
@@ -354,23 +346,23 @@
     {
       "name": "cycle churn",
       "kind": "load",
-      "wall_secs": 2.237453657,
+      "wall_secs": 1.303067121,
       "usage": {
-        "samples": 9,
-        "rss_peak_mib": 29.8828125,
-        "rss_median_mib": 29.84765625,
-        "cpu_seconds": 2.83,
-        "cpu_mean_millicores": 1422.1683199545923,
-        "cpu_peak_millicores": 1756.1061927632088,
-        "rss_slope_mib_per_min": 10.30665104988483,
-        "fds_max": 35,
+        "samples": 5,
+        "rss_peak_mib": 31.77734375,
+        "rss_median_mib": 31.67578125,
+        "cpu_seconds": 1.46,
+        "cpu_mean_millicores": 1460.5260157472012,
+        "cpu_peak_millicores": 1559.1119298447593,
+        "rss_slope_mib_per_min": 25.22917981543579,
+        "fds_max": 32,
         "threads_max": 5
       },
       "reconciles": 200.0,
       "reconcile_errors": 0.0,
-      "reconcile_p95_secs": 0.04,
-      "api_requests": 601.2541821143334,
-      "api_requests_per_min": 16123.351120143445,
+      "reconcile_p95_secs": 0.02346938775510204,
+      "api_requests": 598.565644293,
+      "api_requests_per_min": 27561.08114370879,
       "api_top": [
         [
           "PATCH authentikgroups",
@@ -386,44 +378,32 @@
         ],
         [
           "LIST authentikgroups",
-          4.0
-        ],
-        [
-          "GET ",
-          1.0
-        ],
-        [
-          "GET leases",
-          1.0
-        ],
-        [
-          "PUT leases",
-          1.0
+          2.0
         ]
       ],
       "objects": 200,
-      "convergence_secs": 2.187902058
+      "convergence_secs": 1.229626518
     },
     {
       "name": "cycle delete",
       "kind": "load",
-      "wall_secs": 2.215484178,
+      "wall_secs": 1.689211794,
       "usage": {
-        "samples": 9,
-        "rss_peak_mib": 30.12890625,
-        "rss_median_mib": 30.01953125,
-        "cpu_seconds": 2.66,
-        "cpu_mean_millicores": 1330.0075996634246,
-        "cpu_peak_millicores": 1961.0295640534764,
-        "rss_slope_mib_per_min": 7.96713567817659,
+        "samples": 7,
+        "rss_peak_mib": 31.81640625,
+        "rss_median_mib": 31.8125,
+        "cpu_seconds": 1.6399999999999988,
+        "cpu_mean_millicores": 1092.7103121648015,
+        "cpu_peak_millicores": 1391.388606863251,
+        "rss_slope_mib_per_min": 1.138739960904533,
         "fds_max": 36,
         "threads_max": 5
       },
       "reconciles": 0.0,
       "reconcile_errors": 0.0,
       "reconcile_p95_secs": null,
-      "api_requests": 800.261505274,
-      "api_requests_per_min": 21672.775095051933,
+      "api_requests": 800.436929402,
+      "api_requests_per_min": 28431.139265488695,
       "api_top": [
         [
           "POST events",
@@ -443,40 +423,40 @@
         ],
         [
           "LIST authentikgroups",
-          4.0
+          3.0
         ],
         [
-          "GET endpoints",
+          "GET leases",
           1.0
         ],
         [
-          "GET endpointslices",
+          "PUT leases",
           1.0
         ]
       ],
       "objects": 200,
-      "convergence_secs": 2.164953124
+      "convergence_secs": 1.637261463
     },
     {
       "name": "final",
       "kind": "idle",
-      "wall_secs": 30.051280402,
+      "wall_secs": 30.070362467,
       "usage": {
-        "samples": 120,
-        "rss_peak_mib": 30.12890625,
-        "rss_median_mib": 30.12890625,
+        "samples": 121,
+        "rss_peak_mib": 31.81640625,
+        "rss_median_mib": 31.81640625,
         "cpu_seconds": 0.010000000000001563,
-        "cpu_mean_millicores": 0.33614175864478074,
-        "cpu_peak_millicores": 39.919922710884194,
+        "cpu_mean_millicores": 0.3335261131500044,
+        "cpu_peak_millicores": 39.91514455385978,
         "rss_slope_mib_per_min": 0.0,
-        "fds_max": 31,
+        "fds_max": 30,
         "threads_max": 5
       },
       "reconciles": 0.0,
       "reconcile_errors": 0.0,
       "reconcile_p95_secs": null,
-      "api_requests": 15.982906532666668,
-      "api_requests_per_min": 31.911265647642008,
+      "api_requests": 15.976545844333334,
+      "api_requests_per_min": 31.878323771852926,
       "api_top": [
         [
           "PUT leases",
@@ -503,6 +483,6 @@
       "convergence_secs": null
     }
   ],
-  "measured_at": "2026-10-18T16:18:42.834777569Z",
-  "kit_version": "0.16.0"
+  "measured_at": "2026-10-26T04:32:49.751167626Z",
+  "kit_version": "0.24.0"
 }
