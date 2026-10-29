@@ -24,6 +24,7 @@ fn brand_spec(domain: &str, default: bool) -> AuthentikBrandSpec {
         branding_logo: None,
         branding_favicon: None,
         branding_default_flow_background: None,
+        branding_custom_css: None,
         default_application_ref: None,
         flow_authentication: None,
         flow_invalidation: None,

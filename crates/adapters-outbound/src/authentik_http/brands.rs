@@ -32,7 +32,7 @@ impl AuthentikHttpGateway {
             branding_title: brand.spec.branding_title.clone(),
             branding_logo: brand.spec.branding_logo.clone(),
             branding_favicon: brand.spec.branding_favicon.clone(),
-            branding_custom_css: None,
+            branding_custom_css: brand.spec.branding_custom_css.clone(),
             branding_default_flow_background: brand.spec.branding_default_flow_background.clone(),
             flow_authentication: Some(
                 self.resolve_optional_flow(brand.spec.flow_authentication.as_deref())
@@ -83,7 +83,7 @@ impl AuthentikHttpGateway {
             branding_title: brand.spec.branding_title.clone(),
             branding_logo: brand.spec.branding_logo.clone(),
             branding_favicon: brand.spec.branding_favicon.clone(),
-            branding_custom_css: None,
+            branding_custom_css: brand.spec.branding_custom_css.clone(),
             branding_default_flow_background: brand.spec.branding_default_flow_background.clone(),
             flow_authentication: Some(
                 self.resolve_optional_flow(brand.spec.flow_authentication.as_deref())
@@ -134,6 +134,11 @@ impl AuthentikHttpGateway {
             "branding_default_flow_background",
             &mut req.branding_default_flow_background,
             &remote.branding_default_flow_background,
+        );
+        drift.keep_opt(
+            "branding_custom_css",
+            &mut req.branding_custom_css,
+            &remote.branding_custom_css,
         );
         drift.keep_opt(
             "flow_authentication",
