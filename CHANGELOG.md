@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.22.0](https://github.com/batleforc/weebo-authentik/compare/7853a12d2cd20e18982f3527dc77d54136dfb7bd..v0.22.0) - 2026-10-29
+#### Features
+- brandingCustomCss on AuthentikBrand, tokio and zod past their advisories (#33) - ([7853a12](https://github.com/batleforc/weebo-authentik/commit/7853a12d2cd20e18982f3527dc77d54136dfb7bd)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
+
+- - -
+
 ## [v0.21.0](https://github.com/batleforc/weebo-authentik/compare/2269550c6694121d499464dbc68646ec0db843c4..v0.21.0) - 2026-10-22
 #### Features
 - kit v0.24.0, the issuer override, issuers and public URLs drawn in the CRD IDE (#32) - ([2269550](https://github.com/batleforc/weebo-authentik/commit/2269550c6694121d499464dbc68646ec0db843c4)) - Maxime, Claude Opus 5.5 (1M context)
