@@ -516,6 +516,7 @@ fn brand(domain: &str) -> AuthentikBrand {
             branding_logo: None,
             branding_favicon: None,
             branding_default_flow_background: None,
+            branding_custom_css: None,
             default_application_ref: None,
             flow_authentication: None,
             flow_invalidation: None,
@@ -546,6 +547,90 @@ async fn create_brand_with_no_flow_refs_skips_flow_resolution_entirely() {
         .create_brand(&brand("weebo.example.com"))
         .await;
     assert_eq!(result.unwrap(), expected_pk);
+}
+
+/// The brand's custom CSS is sent on create as written in the spec.
+#[tokio::test]
+async fn create_brand_sends_the_custom_css() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_post(
+        "/core/brands/",
+        201,
+        serde_json::json!({"brand_uuid": BRAND_PK, "domain": "weebo.example.com"}),
+    )
+    .await;
+    let mut cr = brand("weebo.example.com");
+    cr.spec.branding_custom_css = Some(":root { --ak-accent: #c0ffee; }".to_string());
+
+    gateway(&mock).create_brand(&cr).await.unwrap();
+    assert_eq!(
+        create_body(&mock).await["branding_custom_css"],
+        serde_json::json!(":root { --ak-accent: #c0ffee; }")
+    );
+}
+
+const BRAND_PK: &str = "77777777-7777-7777-7777-777777777777";
+
+fn remote_brand(custom_css: &str) -> serde_json::Value {
+    serde_json::json!({
+        "brand_uuid": BRAND_PK, "domain": "weebo.example.com",
+        "branding_custom_css": custom_css,
+        "flow_authentication": null, "flow_invalidation": null,
+        "flow_recovery": null, "flow_unenrollment": null,
+        "flow_user_settings": null,
+    })
+}
+
+/// A custom CSS edited by hand in Authentik is put back, alone in the PATCH.
+#[tokio::test]
+async fn a_drifted_brand_custom_css_gets_a_patch_of_that_field_only() {
+    let mock = AuthentikMock::start().await;
+    let path = format!("/core/brands/{BRAND_PK}/");
+    mock.mock_get(&path, 200, remote_brand("body { color: red; }"))
+        .await;
+    mock.mock_patch(&path, 200, remote_brand("body { color: blue; }"))
+        .await;
+    let mut cr = brand("weebo.example.com");
+    cr.spec.branding_custom_css = Some("body { color: blue; }".to_string());
+
+    let gateway = gateway(&mock);
+    gateway
+        .update_brand(BRAND_PK, &cr)
+        .await
+        .expect("the drift is corrected");
+    assert_eq!(
+        patches(&mock).await,
+        vec![(
+            format!("/api/v3{path}"),
+            serde_json::json!({"branding_custom_css": "body { color: blue; }"})
+        )]
+    );
+    assert_eq!(
+        gateway.take_writes(),
+        vec![Written {
+            object: "brand",
+            cause: RemoteWrite::Drift,
+            fields: vec!["branding_custom_css"],
+        }]
+    );
+}
+
+/// No `brandingCustomCss` in the spec: the live CSS is left untouched.
+#[tokio::test]
+async fn an_absent_brand_custom_css_leaves_the_live_one_alone() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_get(
+        &format!("/core/brands/{BRAND_PK}/"),
+        200,
+        remote_brand("body { color: red; }"),
+    )
+    .await;
+
+    gateway(&mock)
+        .update_brand(BRAND_PK, &brand("weebo.example.com"))
+        .await
+        .expect("an in-sync brand is not an error");
+    assert!(patches(&mock).await.is_empty());
 }
 
 #[tokio::test]

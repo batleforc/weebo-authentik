@@ -475,6 +475,7 @@ async fn brand_controller_round_trips_against_real_sidecar_authentik() {
             branding_logo: None,
             branding_favicon: None,
             branding_default_flow_background: None,
+            branding_custom_css: None,
             default_application_ref: None,
             flow_authentication: None,
             flow_invalidation: None,

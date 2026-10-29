@@ -62,6 +62,7 @@ pub async fn import_brands(
                 branding_logo: brand.branding_logo.clone(),
                 branding_favicon: brand.branding_favicon.clone(),
                 branding_default_flow_background: brand.branding_default_flow_background.clone(),
+                branding_custom_css: brand.branding_custom_css.clone(),
                 // `default_application_ref` is deliberately never
                 // populated: it names an AuthentikApplication CR, but
                 // AuthentikBrand is cluster-scoped with no namespace to
