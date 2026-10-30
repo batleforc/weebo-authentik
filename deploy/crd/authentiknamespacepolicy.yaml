@@ -5,15 +5,12 @@ metadata:
 spec:
   group: authentik.weebo.io
   names:
-    categories: []
     kind: AuthentikNamespacePolicy
     plural: authentiknamespacepolicies
-    shortNames: []
     singular: authentiknamespacepolicy
   scope: Cluster
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Auto-generated derived type for AuthentikNamespacePolicySpec via `CustomResource`

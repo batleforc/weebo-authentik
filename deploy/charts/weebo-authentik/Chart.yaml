@@ -13,5 +13,5 @@ dependencies:
   # Every resource but the CRDs (templates/operator.yaml); its version is
   # the kit's, as in Cargo.toml (`task kit:sync` keeps them in step).
   - name: weebo-operator-lib
-    version: 0.24.0
+    version: 0.25.1
     repository: oci://ghcr.io/batleforc/charts

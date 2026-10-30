@@ -5,15 +5,12 @@ metadata:
 spec:
   group: authentik.weebo.io
   names:
-    categories: []
     kind: AuthentikBrand
     plural: authentikbrands
-    shortNames: []
     singular: authentikbrand
   scope: Cluster
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Auto-generated derived type for AuthentikBrandSpec via `CustomResource`
