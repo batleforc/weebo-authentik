@@ -8,15 +8,12 @@ metadata:
 spec:
   group: authentik.weebo.io
   names:
-    categories: []
     kind: AuthentikOutpost
     plural: authentikoutposts
-    shortNames: []
     singular: authentikoutpost
   scope: Cluster
   versions:
-  - additionalPrinterColumns: []
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Auto-generated derived type for AuthentikOutpostSpec via `CustomResource`

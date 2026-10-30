@@ -41,7 +41,7 @@ jobs:
     needs: e2e
     if: >-
       ${{ !cancelled() && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') }}
-    uses: batleforc/weebo-operator-kit/.github/workflows/publish.yml@v0.24.0
+    uses: batleforc/weebo-operator-kit/.github/workflows/publish.yml@v0.25.1
     permissions:
       contents: write
       packages: write
