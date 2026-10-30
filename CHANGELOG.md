@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.22.1](https://github.com/batleforc/weebo-authentik/compare/3af8635ca8b215d9d9e7c10a10333e292561462e..v0.22.1) - 2026-10-30
+#### Bug Fixes
+- (**deps**) kit v0.25.1, a stuck lease renewal no longer exits the operator (#34) - ([3af8635](https://github.com/batleforc/weebo-authentik/commit/3af8635ca8b215d9d9e7c10a10333e292561462e)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.22.0](https://github.com/batleforc/weebo-authentik/compare/7853a12d2cd20e18982f3527dc77d54136dfb7bd..v0.22.0) - 2026-10-29
 #### Features
 - brandingCustomCss on AuthentikBrand, tokio and zod past their advisories (#33) - ([7853a12](https://github.com/batleforc/weebo-authentik/commit/7853a12d2cd20e18982f3527dc77d54136dfb7bd)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
