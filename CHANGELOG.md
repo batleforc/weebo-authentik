@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.23.0](https://github.com/batleforc/weebo-authentik/compare/2adc4702eb854cc7def4fc4b060804f10bb451d4..v0.23.0) - 2026-11-03
+#### Features
+- AuthentikBlueprint, inline Authentik blueprints for what no kind models (#35) - ([2adc470](https://github.com/batleforc/weebo-authentik/commit/2adc4702eb854cc7def4fc4b060804f10bb451d4)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.22.1](https://github.com/batleforc/weebo-authentik/compare/3af8635ca8b215d9d9e7c10a10333e292561462e..v0.22.1) - 2026-10-30
 #### Bug Fixes
 - (**deps**) kit v0.25.1, a stuck lease renewal no longer exits the operator (#34) - ([3af8635](https://github.com/batleforc/weebo-authentik/commit/3af8635ca8b215d9d9e7c10a10333e292561462e)) - Maxime, Claude Opus 5.5
