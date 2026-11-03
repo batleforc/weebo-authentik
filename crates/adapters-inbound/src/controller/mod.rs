@@ -44,6 +44,7 @@ pub mod access_policy;
 /// module tree, since a local `mod` declaration wins over the extern
 /// prelude for a bare leading path segment.
 pub mod app;
+pub mod blueprint;
 pub mod brand;
 pub mod flow;
 pub mod group;
@@ -132,6 +133,12 @@ pub fn spawn_watches(client: &Client, scope: &WatchScope, health: &Arc<Health>) 
             s,
             h,
             "AuthentikScopeMapping watch",
+        );
+        w.spawn(
+            s.api::<api::AuthentikBlueprint>(c.clone()),
+            s,
+            h,
+            "AuthentikBlueprint watch",
         );
         w.spawn(
             s.api::<api::AuthentikBrand>(c.clone()),
@@ -464,6 +471,7 @@ pub async fn instance_dependents(
         all.extend(owning::<api::AuthentikUser>(ctx).await?);
         all.extend(owning::<api::AuthentikFlow>(ctx).await?);
         all.extend(owning::<api::AuthentikScopeMapping>(ctx).await?);
+        all.extend(owning::<api::AuthentikBlueprint>(ctx).await?);
         all.extend(owning::<api::AuthentikOutpost>(ctx).await?);
         all.extend(owning::<api::AuthentikBrand>(ctx).await?);
     }
@@ -574,6 +582,7 @@ impl_has_status!(
     api::AuthentikUser,
     api::AuthentikOutpost,
     api::AuthentikScopeMapping,
+    api::AuthentikBlueprint,
     api::AuthentikBrand,
     api::AuthentikApplication,
     api::AuthentikAccessPolicy,

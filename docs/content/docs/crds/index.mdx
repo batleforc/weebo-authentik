@@ -20,3 +20,4 @@ the CRDs themselves, so they always match the installed version.
 | [`AuthentikBrand`](/docs/crds/authentikbrand) | Cluster | Mirrors `authentik_brand`. |
 | [`AuthentikFlow`](/docs/crds/authentikflow) | Cluster | Mirrors `authentik_flow`. |
 | [`AuthentikOutpost`](/docs/crds/authentikoutpost) | Cluster | Deliberately minimal — nothing in the Terraform module being replaced creates a custom outpost, everything attaches to Authentik's embedded outpost by default. |
+| [`AuthentikBlueprint`](/docs/crds/authentikblueprint) | Cluster | An Authentik **blueprint**, held inline: a `BlueprintInstance` whose `content` is this CR's, applied by Authentik's own blueprint importer. |

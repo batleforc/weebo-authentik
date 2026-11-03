@@ -14,6 +14,7 @@
 
 use adapters_outbound::AuthentikHttpGateway;
 use api::application::{Oauth2ProviderSpec, ProviderKind, RedirectUri};
+use api::blueprint::AuthentikBlueprintSpec;
 use api::brand::AuthentikBrandSpec;
 use api::flow::{
     AuthentikFlowSpec, FlowAuthentication, FlowDeniedAction, FlowDesignation, FlowLayout,
@@ -22,8 +23,13 @@ use api::flow::{
 use api::group::AuthentikGroupSpec;
 use api::outpost::{AuthentikOutpostSpec, OutpostType};
 use api::scope_mapping::AuthentikScopeMappingSpec;
-use api::{AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost, AuthentikScopeMapping};
-use application::ports::{AuthentikGateway, GatewayError, RemoteWrite, Written};
+use api::{
+    AuthentikBlueprint, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
+    AuthentikScopeMapping,
+};
+use application::ports::{
+    AuthentikGateway, BlueprintApplyStatus, BlueprintState, GatewayError, RemoteWrite, Written,
+};
 use kube::api::ObjectMeta;
 use testkit::authentik_mock::AuthentikMock;
 
@@ -1384,4 +1390,238 @@ async fn an_unchanged_proxy_provider_is_never_patched() {
         .expect("an in-sync provider is not an error");
     assert_eq!(pk, "43");
     assert!(patches(&mock).await.is_empty());
+}
+
+const BLUEPRINT_PK: &str = "66666666-6666-6666-6666-666666666666";
+/// What Authentik stores: the CR's content, trimmed.
+const BLUEPRINT_STORED: &str = "version: 1\nentries: []";
+
+fn blueprint(content: &str) -> AuthentikBlueprint {
+    AuthentikBlueprint {
+        metadata: ObjectMeta {
+            name: Some("admin-step-up".to_string()),
+            ..Default::default()
+        },
+        spec: AuthentikBlueprintSpec {
+            name: "weebo - admin step-up".to_string(),
+            content: content.to_string(),
+            context: None,
+            enabled: None,
+        },
+        status: None,
+    }
+}
+
+fn sha512_hex(text: &str) -> String {
+    use sha2::{Digest, Sha512};
+    format!("{:x}", Sha512::digest(text.as_bytes()))
+}
+
+fn blueprint_response(status: &str, last_applied_hash: &str) -> serde_json::Value {
+    serde_json::json!({
+        "pk": BLUEPRINT_PK,
+        "name": "weebo - admin step-up",
+        "path": "",
+        "context": {},
+        "last_applied": "2026-11-03T15:00:00Z",
+        "last_applied_hash": last_applied_hash,
+        "status": status,
+        "enabled": true,
+        "managed_models": [],
+        "metadata": {},
+        "content": BLUEPRINT_STORED,
+    })
+}
+
+#[tokio::test]
+async fn create_blueprint_success_returns_the_instance_pk() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_post(
+        "/managed/blueprints/",
+        201,
+        blueprint_response("unknown", ""),
+    )
+    .await;
+
+    let gw = gateway(&mock);
+    let result = gw
+        .create_blueprint(&blueprint("version: 1\nentries: []\n"))
+        .await;
+    assert_eq!(result.unwrap(), BLUEPRINT_PK);
+    assert_eq!(
+        gw.take_writes(),
+        vec![Written {
+            object: "blueprint",
+            cause: RemoteWrite::Created,
+            fields: Vec::new(),
+        }]
+    );
+}
+
+/// Authentik runs its importer on the content and refuses an invalid
+/// blueprint with a 400 on `content`: `Invalid`, carrying the log — even
+/// when that log says "already exists" (an entry colliding with an object),
+/// which is not a name collision of the instance.
+#[tokio::test]
+async fn an_invalid_blueprint_maps_to_invalid_with_its_log() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_post(
+        "/managed/blueprints/",
+        400,
+        serde_json::json!({"content": [
+            "Failed to validate blueprint",
+            "- Entry invalid: Group with this name already exists."
+        ]}),
+    )
+    .await;
+
+    let result = gateway(&mock)
+        .create_blueprint(&blueprint("version: 1\nentries: []\n"))
+        .await;
+    match result {
+        Err(GatewayError::Invalid(log)) => {
+            assert!(log.starts_with("Failed to validate blueprint\n"), "{log}");
+        }
+        other => panic!("expected Invalid, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn create_blueprint_name_taken_maps_to_already_exists() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_post(
+        "/managed/blueprints/",
+        400,
+        serde_json::json!({"name": ["blueprint instance with this name already exists."]}),
+    )
+    .await;
+
+    let result = gateway(&mock)
+        .create_blueprint(&blueprint("version: 1\nentries: []\n"))
+        .await;
+    assert!(matches!(result, Err(GatewayError::AlreadyExists(_))));
+}
+
+/// A block-scalar content ends in `\n`; Authentik stores it trimmed.
+#[tokio::test]
+async fn a_blueprint_content_trimmed_by_authentik_is_not_a_drift() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_get(
+        &format!("/managed/blueprints/{BLUEPRINT_PK}/"),
+        200,
+        blueprint_response("successful", &sha512_hex(BLUEPRINT_STORED)),
+    )
+    .await;
+
+    gateway(&mock)
+        .update_blueprint(BLUEPRINT_PK, &blueprint("version: 1\nentries: []\n"))
+        .await
+        .expect("an in-sync blueprint is not an error");
+    assert!(patches(&mock).await.is_empty());
+}
+
+#[tokio::test]
+async fn a_changed_blueprint_content_is_patched_as_written() {
+    let mock = AuthentikMock::start().await;
+    let path = format!("/managed/blueprints/{BLUEPRINT_PK}/");
+    mock.mock_get(&path, 200, blueprint_response("successful", ""))
+        .await;
+    mock.mock_patch(&path, 200, blueprint_response("successful", ""))
+        .await;
+    let content = "version: 1\nentries:\n  - model: authentik_core.group\n";
+
+    gateway(&mock)
+        .update_blueprint(BLUEPRINT_PK, &blueprint(content))
+        .await
+        .expect("the drift is corrected");
+    assert_eq!(
+        patches(&mock).await,
+        vec![(
+            format!("/api/v3{path}"),
+            serde_json::json!({"content": content})
+        )]
+    );
+}
+
+#[tokio::test]
+async fn an_update_on_a_deleted_instance_is_gone() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_get(
+        &format!("/managed/blueprints/{BLUEPRINT_PK}/"),
+        404,
+        serde_json::json!({"detail": "Not found."}),
+    )
+    .await;
+
+    let result = gateway(&mock)
+        .update_blueprint(BLUEPRINT_PK, &blueprint("version: 1\nentries: []\n"))
+        .await;
+    assert!(matches!(result, Err(GatewayError::Gone(_))));
+}
+
+/// `last_applied_hash` is the SHA-512 of the stored content: equal, that
+/// content was applied.
+#[tokio::test]
+async fn the_state_says_whether_the_stored_content_was_applied() {
+    let mock = AuthentikMock::start().await;
+    let path = format!("/managed/blueprints/{BLUEPRINT_PK}/");
+    mock.mock_get(
+        &path,
+        200,
+        blueprint_response("successful", &sha512_hex(BLUEPRINT_STORED)),
+    )
+    .await;
+    assert_eq!(
+        gateway(&mock)
+            .get_blueprint_state(BLUEPRINT_PK)
+            .await
+            .unwrap(),
+        BlueprintState {
+            status: BlueprintApplyStatus::Successful,
+            content_applied: true,
+        }
+    );
+
+    let mock = AuthentikMock::start().await;
+    mock.mock_get(
+        &path,
+        200,
+        blueprint_response("error", &sha512_hex("an older content")),
+    )
+    .await;
+    assert_eq!(
+        gateway(&mock)
+            .get_blueprint_state(BLUEPRINT_PK)
+            .await
+            .unwrap(),
+        BlueprintState {
+            status: BlueprintApplyStatus::Failed,
+            content_applied: false,
+        }
+    );
+}
+
+#[tokio::test]
+async fn apply_blueprint_posts_to_the_apply_action() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_post(
+        &format!("/managed/blueprints/{BLUEPRINT_PK}/apply/"),
+        200,
+        blueprint_response("successful", ""),
+    )
+    .await;
+
+    gateway(&mock)
+        .apply_blueprint(BLUEPRINT_PK)
+        .await
+        .expect("the apply is queued");
+}
+
+#[tokio::test]
+async fn delete_blueprint_on_404_is_idempotent() {
+    let mock = AuthentikMock::start().await;
+    mock.mock_delete("/managed/blueprints/missing/", 404).await;
+
+    let result = gateway(&mock).delete_blueprint("missing").await;
+    assert!(result.is_ok());
 }

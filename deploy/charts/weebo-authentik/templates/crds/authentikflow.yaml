@@ -37,6 +37,11 @@ spec:
               `AuthentikBrand`/`AuthentikApplication` remains the norm; this CRD just
               lets that one custom flow (and any future ones) be declared as a CR
               instead of assumed to pre-exist.
+
+              A flow that needs its stages declared too belongs in an
+              `AuthentikBlueprint`, flow included: this operator creates and never
+              adopts by slug, so a flow cannot be split between an `AuthentikFlow`
+              and a blueprint that binds its stages.
             properties:
               authentication:
                 description: |-

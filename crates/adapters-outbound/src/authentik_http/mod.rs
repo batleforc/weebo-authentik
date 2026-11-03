@@ -6,6 +6,7 @@
 //! inherent methods.
 
 mod applications;
+mod blueprints;
 mod brands;
 mod flows;
 mod groups;
@@ -18,12 +19,12 @@ mod users;
 
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{
-    AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
-    AuthentikScopeMapping, AuthentikUser,
+    AuthentikApplication, AuthentikBlueprint, AuthentikBrand, AuthentikFlow, AuthentikGroup,
+    AuthentikOutpost, AuthentikScopeMapping, AuthentikUser,
 };
 use application::ports::{
-    AuthentikGateway, GatewayError, Oauth2ProviderUpsertResult, RemoteApplication, RemoteWrite,
-    Written,
+    AuthentikGateway, BlueprintState, GatewayError, Oauth2ProviderUpsertResult, RemoteApplication,
+    RemoteWrite, Written,
 };
 use authentik_client::apis::configuration::Configuration;
 use domain::drift::Drift;
@@ -239,6 +240,36 @@ impl AuthentikGateway for AuthentikHttpGateway {
 
     async fn delete_scope_mapping(&self, authentik_id: &str) -> Result<(), GatewayError> {
         self.delete_scope_mapping_impl(authentik_id).await
+    }
+
+    async fn create_blueprint(
+        &self,
+        blueprint: &AuthentikBlueprint,
+    ) -> Result<String, GatewayError> {
+        self.create_blueprint_impl(blueprint).await
+    }
+
+    async fn update_blueprint(
+        &self,
+        authentik_id: &str,
+        blueprint: &AuthentikBlueprint,
+    ) -> Result<(), GatewayError> {
+        self.update_blueprint_impl(authentik_id, blueprint).await
+    }
+
+    async fn get_blueprint_state(
+        &self,
+        authentik_id: &str,
+    ) -> Result<BlueprintState, GatewayError> {
+        self.get_blueprint_state_impl(authentik_id).await
+    }
+
+    async fn apply_blueprint(&self, authentik_id: &str) -> Result<(), GatewayError> {
+        self.apply_blueprint_impl(authentik_id).await
+    }
+
+    async fn delete_blueprint(&self, authentik_id: &str) -> Result<(), GatewayError> {
+        self.delete_blueprint_impl(authentik_id).await
     }
 
     async fn create_user(&self, user: &AuthentikUser) -> Result<String, GatewayError> {

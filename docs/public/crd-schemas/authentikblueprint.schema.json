@@ -1,0 +1,33 @@
+{
+  "apiVersion": "authentik.weebo.io/v1alpha1",
+  "kind": "AuthentikBlueprint",
+  "scope": "Cluster",
+  "served": [
+    "v1alpha1"
+  ],
+  "description": "An Authentik **blueprint**, held inline: a `BlueprintInstance` whose\n`content` is this CR's, applied by Authentik's own blueprint importer.\nCluster-scoped, like `AuthentikFlow`: what a blueprint declares (flows,\nstages, policies, notification rules…) is instance-wide, never owned by\na namespace.\n\nBlueprint instances are **pk-keyed** (a UUID), so `status.authentikId`\nstores that pk.\n\n# Why this kind exists\n\nThe other kinds model one Authentik object each, field by field. Most of\nAuthentik has no kind here — stages and their flow bindings, policies,\nnotification rules and transports, prompts… — and modelling them one by\none never ends: every stage type is its own model. A blueprint covers\nthem all in Authentik's own format, so this kind is the GitOps path for\nwhatever the typed kinds do not cover, without the alternative of\nmounting files into Authentik's worker (no status, invisible to\nKubernetes).\n\n# What `Ready` says\n\nAuthentik validates the content when the instance is written: an\ninvalid blueprint (an unknown model or field, a `!Find` that resolves to\nnothing) is refused on the spot, `Ready: False` with `BlueprintInvalid`\nand Authentik's validation log as the message. Retried with backoff, so\na blueprint that `!Find`s an object another CR has yet to create\nconverges on its own.\n\nApplying is asynchronous (Authentik's worker): after a create or a\ncontent change, the operator asks for an apply and reports\n`BlueprintApplyPending` until the worker has applied **this** content,\nthen `Ready: True`. A failed apply is `BlueprintApplyFailed` and is\nasked for again on each retry; the detail is in Authentik's task log\n(System → Blueprints).\n\n# What it does not do\n\n- **Re-apply unchanged content.** An apply is only asked for when the\n  content stored in Authentik has not been applied yet, so an object\n  the blueprint created and someone edited in the UI keeps that edit\n  until the content changes. Every apply rewrites every entry (and\n  records an event per object), which is why it is not done on every\n  reconcile.\n- **Delete what it created.** Deleting the CR deletes the blueprint\n  instance only; the flows, stages, policies… it applied stay, as they\n  do when a blueprint file is removed. To remove them, mark their\n  entries `state: absent`, let that apply, then delete the CR.",
+  "properties": {
+    "content": {
+      "description": "The blueprint itself, in Authentik's format (`version: 1`,\n`metadata`, `entries`), YAML tags (`!KeyOf`, `!Find`, `!Context`…)\nincluded. Sent verbatim; Authentik validates it on every write.",
+      "type": "string"
+    },
+    "context": {
+      "description": "Values for the blueprint's `!Context` tags, merged over the\n`context` its own content declares.",
+      "type": "object"
+    },
+    "enabled": {
+      "description": "`false` keeps the instance but has Authentik skip it: nothing is\napplied, and what was applied stays as it is. Defaults to `true`.",
+      "nullable": true,
+      "type": "boolean"
+    },
+    "name": {
+      "description": "Authentik-side name of the blueprint instance (unique there). Not\nthe CR's own name, nor the `metadata.name` inside `content`.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "content",
+    "name"
+  ],
+  "type": "object"
+}

@@ -151,6 +151,33 @@ que l'allow-list gouverne).
   `importer::flows::import_flows` émet un CR par flow.
   Historique : ce doc reléguait auparavant Flow à un simple référencement
   par slug sans CRUD dédiée ; la CRD a été ajoutée par la suite.
+- `AuthentikBlueprint` (cluster-scoped, pk-keyed) : un `BlueprintInstance`
+  Authentik à contenu **inline** (`content`, `context`, `enabled`), appliqué
+  par l'importeur de blueprints d'Authentik. Porte tout ce qu'aucune CRD
+  typée ne modélise (stages et leurs bindings, policies, règles et
+  transports de notification…) : les modéliser un par un ne finit jamais
+  (chaque type de stage est son propre modèle). Décisions :
+  - **Validation synchrone** : l'API valide le contenu à chaque écriture
+    (importeur en transaction annulée) ; un 400 sur `content` devient
+    `GatewayError::Invalid` → `BlueprintInvalid`, avec le log de validation,
+    vérifié avant le test "already exists" (le log peut le contenir).
+    Retenté avec backoff : un `!Find` vers un objet qu'une autre CR créera
+    converge seul.
+  - **Apply asynchrone** (worker) : demandé seulement quand le contenu
+    stocké n'a pas été appliqué — `last_applied_hash` = SHA-512 du contenu
+    **stocké** (Authentik le trim : jamais celui de la CR), vérifié en live
+    le 2026-11-03 — puis `BlueprintApplyPending` / `BlueprintApplyFailed`
+    sur la cadence courte jusqu'au résultat. Pas de ré-apply d'un contenu
+    inchangé : chaque apply réécrit chaque entrée et émet un event par
+    objet (même problème de volume que les reconciles qui réécrivaient à
+    l'identique).
+  - `authentikId` enregistré dès la création, même si l'apply est en attente
+    ou a échoué (même schéma que `AuthentikBrand`).
+  - **Suppression** : la CR supprime l'instance seulement ; les objets
+    appliqués restent (comportement natif d'Authentik). Pour les retirer :
+    entrées en `state: absent`, apply, puis suppression de la CR.
+  - Pas d'import : l'importeur n'émet pas de CR pour les instances
+    existantes (celles d'Authentik sont des fichiers, `path`, hors scope).
 - `AuthentikBrand` (cluster-scoped, cf. rectification ci-dessous) :
   correction par rapport à une version précédente de ce doc qui reléguait
   Brand en v2 — Terraform gère bien `authentik_brand` avec un champ
