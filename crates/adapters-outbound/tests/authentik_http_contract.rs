@@ -1625,3 +1625,79 @@ async fn delete_blueprint_on_404_is_idempotent() {
     let result = gateway(&mock).delete_blueprint("missing").await;
     assert!(result.is_ok());
 }
+
+/// `context` is compared with what Authentik stores, and a difference is
+/// patched with the spec's value; `enabled` false is patched too.
+#[tokio::test]
+async fn a_changed_blueprint_context_and_enabled_are_patched() {
+    let mock = AuthentikMock::start().await;
+    let path = format!("/managed/blueprints/{BLUEPRINT_PK}/");
+    let mut remote = blueprint_response("successful", &sha512_hex(BLUEPRINT_STORED));
+    remote["context"] = serde_json::json!({"group": "weebo_admin"});
+    mock.mock_get(&path, 200, remote.clone()).await;
+    mock.mock_patch(&path, 200, remote).await;
+    let mut cr = blueprint("version: 1\nentries: []\n");
+    cr.spec.context = Some(serde_json::json!({"group": "weebo_moderator"}));
+    cr.spec.enabled = Some(false);
+
+    let gw = gateway(&mock);
+    gw.update_blueprint(BLUEPRINT_PK, &cr)
+        .await
+        .expect("the drift is corrected");
+    assert_eq!(
+        patches(&mock).await,
+        vec![(
+            format!("/api/v3{path}"),
+            serde_json::json!({"context": {"group": "weebo_moderator"}, "enabled": false})
+        )]
+    );
+    assert_eq!(
+        gw.take_writes(),
+        vec![Written {
+            object: "blueprint",
+            cause: RemoteWrite::Drift,
+            fields: vec!["context", "enabled"],
+        }]
+    );
+}
+
+/// The same context, and `enabled` left unset by Authentik while the CR
+/// leaves it at its default: nothing to write. An unset context in the CR
+/// leaves the stored one alone.
+#[tokio::test]
+async fn an_unset_remote_enabled_and_an_equal_context_are_not_a_drift() {
+    let mock = AuthentikMock::start().await;
+    let mut remote = blueprint_response("successful", &sha512_hex(BLUEPRINT_STORED));
+    remote["context"] = serde_json::json!({"group": "weebo_admin"});
+    remote["enabled"] = serde_json::Value::Null;
+    mock.mock_get(&format!("/managed/blueprints/{BLUEPRINT_PK}/"), 200, remote)
+        .await;
+    let gw = gateway(&mock);
+
+    let mut same = blueprint("version: 1\nentries: []\n");
+    same.spec.context = Some(serde_json::json!({"group": "weebo_admin"}));
+    gw.update_blueprint(BLUEPRINT_PK, &same)
+        .await
+        .expect("an in-sync blueprint is not an error");
+    // `context: None` in the CR: the stored one is not wiped.
+    gw.update_blueprint(BLUEPRINT_PK, &blueprint("version: 1\nentries: []\n"))
+        .await
+        .expect("an in-sync blueprint is not an error");
+    assert!(patches(&mock).await.is_empty());
+}
+
+/// A `context` that is not an object (a CR written around the schema) is
+/// refused before anything is sent.
+#[tokio::test]
+async fn a_non_object_blueprint_context_is_invalid_and_sends_nothing() {
+    let mock = AuthentikMock::start().await;
+    let mut cr = blueprint("version: 1\nentries: []\n");
+    cr.spec.context = Some(serde_json::json!(["not", "an", "object"]));
+
+    let result = gateway(&mock).create_blueprint(&cr).await;
+    assert!(
+        matches!(result, Err(GatewayError::Invalid(ref m)) if m.contains("spec.context must be an object")),
+        "{result:?}"
+    );
+    assert!(mock.server.received_requests().await.unwrap().is_empty());
+}

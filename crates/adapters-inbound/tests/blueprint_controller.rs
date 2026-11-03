@@ -11,7 +11,7 @@ use sha2::{Digest, Sha512};
 use testkit::authentik_mock::AuthentikMock;
 
 mod support;
-use support::{init_tracing, new_ctx, wait_for};
+use support::{init_tracing, new_ctx, wait_for, wait_for_absence};
 
 const PK: &str = "99999999-9999-9999-9999-999999999999";
 /// What Authentik stores: the CR's content, trimmed.
@@ -196,4 +196,140 @@ async fn blueprint_controller_marks_invalid_content() {
         .status
         .and_then(|s| s.authentik_id);
     assert_eq!(recorded, None);
+}
+
+/// Deleting the CR goes through the finalizer: the instance is deleted in
+/// Authentik, then the CR is released.
+#[tokio::test]
+async fn blueprint_controller_deletes_the_instance_before_releasing_the_cr() {
+    init_tracing();
+
+    let cluster = testkit::envtest::start().await;
+    let client = cluster.client();
+
+    let mock = AuthentikMock::start().await;
+    let applied = format!("{:x}", Sha512::digest(STORED.as_bytes()));
+    mock.mock_post(
+        "/managed/blueprints/",
+        201,
+        blueprint_response("successful", &applied),
+    )
+    .await;
+    mock.mock_get(
+        &format!("/managed/blueprints/{PK}/"),
+        200,
+        blueprint_response("successful", &applied),
+    )
+    .await;
+    mock.mock_delete(&format!("/managed/blueprints/{PK}/"), 204)
+        .await;
+
+    let ctx = new_ctx(client.clone(), &mock);
+    tokio::spawn(controller::blueprint::run(client.clone(), ctx));
+
+    let blueprints: Api<AuthentikBlueprint> = Api::all(client.clone());
+    blueprints
+        .create(&PostParams::default(), &blueprint("deletable"))
+        .await
+        .expect("AuthentikBlueprint CR create must succeed");
+    wait_for(&blueprints, "deletable", |bp| {
+        (bp.status.as_ref()?.authentik_id.as_deref() == Some(PK)).then_some(())
+    })
+    .await;
+
+    blueprints
+        .delete("deletable", &Default::default())
+        .await
+        .expect("CR delete must succeed");
+    wait_for_absence(&blueprints, "deletable").await;
+
+    let deletes = mock
+        .server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| r.method.as_str() == "DELETE")
+        .map(|r| r.url.path().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(deletes, vec![format!("/api/v3/managed/blueprints/{PK}/")]);
+}
+
+/// The asynchronous apply, end to end: the first reconcile finds the
+/// content not applied, asks for it and reports `BlueprintApplyPending`;
+/// the retry (~30 s later, the kit's short cadence) finds the worker's
+/// result and turns `Ready` `True` — without asking for a second apply.
+#[tokio::test]
+async fn blueprint_controller_turns_ready_once_the_pending_apply_lands() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    init_tracing();
+
+    let cluster = testkit::envtest::start().await;
+    let client = cluster.client();
+
+    let mock = AuthentikMock::start().await;
+    let instance = format!("/api/v3/managed/blueprints/{PK}/");
+    mock.mock_post(
+        "/managed/blueprints/",
+        201,
+        blueprint_response("unknown", ""),
+    )
+    .await;
+    mock.mock_post(
+        &format!("/managed/blueprints/{PK}/apply/"),
+        200,
+        blueprint_response("unknown", ""),
+    )
+    .await;
+    // The first read (the first reconcile's state check) still sees the
+    // instance unapplied; every later one sees the worker's result.
+    Mock::given(method("GET"))
+        .and(path(instance.clone()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(blueprint_response("unknown", "")))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&mock.server)
+        .await;
+    let applied = format!("{:x}", Sha512::digest(STORED.as_bytes()));
+    mock.mock_get(
+        &format!("/managed/blueprints/{PK}/"),
+        200,
+        blueprint_response("successful", &applied),
+    )
+    .await;
+
+    let ctx = new_ctx(client.clone(), &mock);
+    tokio::spawn(controller::blueprint::run(client.clone(), ctx));
+
+    let blueprints: Api<AuthentikBlueprint> = Api::all(client.clone());
+    blueprints
+        .create(&PostParams::default(), &blueprint("converging"))
+        .await
+        .expect("AuthentikBlueprint CR create must succeed");
+
+    let (_, reason) = wait_for(&blueprints, "converging", ready).await;
+    assert_eq!(reason, "BlueprintApplyPending");
+
+    // Past the retry: 30 s jittered by up to 20 %.
+    let (status, reason) = testkit::polling::wait_for(
+        &blueprints,
+        "converging",
+        std::time::Duration::from_secs(60),
+        std::time::Duration::from_millis(500),
+        |bp| ready(bp).filter(|(status, _)| status == "True"),
+    )
+    .await;
+    assert_eq!((status.as_str(), reason.as_str()), ("True", "Reconciled"));
+
+    let applies = mock
+        .server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| r.url.path().ends_with("/apply/"))
+        .count();
+    assert_eq!(applies, 1, "the landed apply is not asked for again");
 }

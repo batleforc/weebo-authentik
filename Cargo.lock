@@ -29,6 +29,7 @@ dependencies = [
  "weebo-kit-adapters",
  "weebo-kit-api",
  "weebo-kit-runtime",
+ "wiremock",
 ]
 
 [[package]]
