@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.23.1](https://github.com/batleforc/weebo-authentik/compare/f2582a48068b3c54335629311a51982ea29a4315..v0.23.1) - 2026-11-03
+#### Bug Fixes
+- a proxy provider PATCH always carries internal_host (#37) - ([425c548](https://github.com/batleforc/weebo-authentik/commit/425c548ef5347a0b8f895d28b4ae6f3d4b22b6e1)) - Maxime, Claude Opus 5.5
+#### Tests
+- AuthentikBlueprint deletion, pending-to-ready, context/enabled drift (#36) - ([f2582a4](https://github.com/batleforc/weebo-authentik/commit/f2582a48068b3c54335629311a51982ea29a4315)) - Maxime, Claude Opus 5.5
+
+- - -
+
 ## [v0.23.0](https://github.com/batleforc/weebo-authentik/compare/2adc4702eb854cc7def4fc4b060804f10bb451d4..v0.23.0) - 2026-11-03
 #### Features
 - AuthentikBlueprint, inline Authentik blueprints for what no kind models (#35) - ([2adc470](https://github.com/batleforc/weebo-authentik/commit/2adc4702eb854cc7def4fc4b060804f10bb451d4)) - Maxime, Claude Opus 5.5
