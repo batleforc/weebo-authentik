@@ -20,6 +20,7 @@ export default defineConfig({
     "AuthentikBrand",
     "AuthentikFlow",
     "AuthentikOutpost",
+    "AuthentikBlueprint",
   ],
   // The guide that explains each kind, linked from its reference page.
   guides: {
@@ -98,6 +99,27 @@ export default defineConfig({
       designation: "stage_configuration",
     },
     AuthentikOutpost: { name: "proxy-outpost", type: "proxy" },
+    // A flow and its one MFA stage: what the typed kinds can't express.
+    AuthentikBlueprint: {
+      name: "admin step-up",
+      content: [
+        "version: 1",
+        "metadata:",
+        "  name: admin step-up",
+        "entries:",
+        "  - model: authentik_flows.flow",
+        "    id: flow",
+        "    identifiers: { slug: admin-step-up }",
+        "    attrs: { name: admin-step-up, title: Second factor, designation: authorization }",
+        "  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage",
+        "    id: mfa",
+        "    identifiers: { name: admin-step-up-mfa }",
+        "    attrs: { device_classes: [webauthn, totp], not_configured_action: deny }",
+        "  - model: authentik_flows.flowstagebinding",
+        "    identifiers: { target: !KeyOf flow, stage: !KeyOf mfa, order: 0 }",
+        "",
+      ].join("\n"),
+    },
   },
   // The operator reference pages (content/docs/reference/), generated from
   // the Rust sources: reason codes (crates/domain/src/error.rs), Events,

@@ -15,11 +15,13 @@ use std::sync::Mutex;
 
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{
-    AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
-    AuthentikScopeMapping, AuthentikUser,
+    AuthentikApplication, AuthentikBlueprint, AuthentikBrand, AuthentikFlow, AuthentikGroup,
+    AuthentikOutpost, AuthentikScopeMapping, AuthentikUser,
 };
 
-use crate::ports::{AuthentikGateway, GatewayError, Oauth2ProviderUpsertResult, RemoteApplication};
+use crate::ports::{
+    AuthentikGateway, BlueprintState, GatewayError, Oauth2ProviderUpsertResult, RemoteApplication,
+};
 
 /// Scriptable `AuthentikGateway` double. Every field defaults to `None`; a
 /// method whose field is unset panics naming itself if called — a test
@@ -56,6 +58,9 @@ pub struct FakeGateway {
     /// Consumed first, in order, by `upsert_proxy_provider` — a `Gone` then
     /// the recreate — before falling back to `upsert_proxy_provider_result`.
     pub upsert_proxy_provider_sequence: Mutex<VecDeque<Result<String, GatewayError>>>,
+    pub get_blueprint_state_result: Option<Result<BlueprintState, GatewayError>>,
+    /// Every `apply_blueprint` call's instance pk, in order (always `Ok`).
+    pub applied_blueprints: Mutex<Vec<String>>,
 }
 
 impl FakeGateway {
@@ -78,6 +83,16 @@ impl FakeGateway {
             upsert_policy_binding_result: Some(result),
             ..Default::default()
         }
+    }
+
+    pub fn with_blueprint_state(mut self, result: Result<BlueprintState, GatewayError>) -> Self {
+        self.get_blueprint_state_result = Some(result);
+        self
+    }
+
+    /// The `apply_blueprint` calls so far.
+    pub fn applied(&self) -> Vec<String> {
+        self.applied_blueprints.lock().unwrap().clone()
     }
 
     fn take_create(&self) -> Result<String, GatewayError> {
@@ -184,6 +199,38 @@ impl AuthentikGateway for FakeGateway {
     }
     async fn delete_scope_mapping(&self, _authentik_id: &str) -> Result<(), GatewayError> {
         unimplemented!("delete_scope_mapping not scripted on FakeGateway")
+    }
+
+    async fn create_blueprint(
+        &self,
+        _blueprint: &AuthentikBlueprint,
+    ) -> Result<String, GatewayError> {
+        self.take_create()
+    }
+    async fn update_blueprint(
+        &self,
+        _authentik_id: &str,
+        _blueprint: &AuthentikBlueprint,
+    ) -> Result<(), GatewayError> {
+        self.take_update()
+    }
+    async fn get_blueprint_state(
+        &self,
+        _authentik_id: &str,
+    ) -> Result<BlueprintState, GatewayError> {
+        self.get_blueprint_state_result
+            .clone()
+            .expect("test did not script a get_blueprint_state response on FakeGateway")
+    }
+    async fn apply_blueprint(&self, authentik_id: &str) -> Result<(), GatewayError> {
+        self.applied_blueprints
+            .lock()
+            .unwrap()
+            .push(authentik_id.to_string());
+        Ok(())
+    }
+    async fn delete_blueprint(&self, _authentik_id: &str) -> Result<(), GatewayError> {
+        unimplemented!("delete_blueprint not scripted on FakeGateway")
     }
 
     async fn create_user(&self, _user: &AuthentikUser) -> Result<String, GatewayError> {

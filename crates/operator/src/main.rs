@@ -240,6 +240,7 @@ async fn run(telemetry: &telemetry::Telemetry) -> anyhow::Result<()> {
                 controller::user::run(client.clone(), ctx.clone()),
                 controller::outpost::run(client.clone(), ctx.clone()),
                 controller::scope_mapping::run(client.clone(), ctx.clone()),
+                controller::blueprint::run(client.clone(), ctx.clone()),
                 controller::brand::run(client.clone(), ctx.clone()),
                 controller::namespace_policy::run(client.clone(), ctx.clone()),
             );

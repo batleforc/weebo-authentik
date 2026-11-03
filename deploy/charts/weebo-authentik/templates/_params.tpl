@@ -15,6 +15,7 @@ kinds:
   - authentikflows
   - authentikoutposts
   - authentikscopemappings
+  - authentikblueprints
   - authentikusers
   - authentikbrands
   - authentikapplications

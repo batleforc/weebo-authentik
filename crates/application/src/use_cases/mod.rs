@@ -7,6 +7,7 @@
 pub mod evaluate_admission;
 pub mod reconcile_access_policy;
 pub mod reconcile_application;
+pub mod reconcile_blueprint;
 pub mod reconcile_brand;
 pub mod reconcile_flow;
 pub mod reconcile_group;
@@ -42,6 +43,7 @@ pub(crate) fn errored_from_gateway_error(err: crate::ports::GatewayError) -> Rec
         },
         GatewayError::NotFound(message)
         | GatewayError::Gone(message)
+        | GatewayError::Invalid(message)
         | GatewayError::Api(message) => ReconcileOutcome::Errored {
             reason: ReasonCode::AuthentikApiError,
             message,

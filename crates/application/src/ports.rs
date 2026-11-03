@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use api::application::{Oauth2ProviderSpec, ProviderKind, ProxyProviderSpec};
 use api::{
-    AuthentikApplication, AuthentikBrand, AuthentikFlow, AuthentikGroup, AuthentikOutpost,
-    AuthentikScopeMapping, AuthentikUser,
+    AuthentikApplication, AuthentikBlueprint, AuthentikBrand, AuthentikFlow, AuthentikGroup,
+    AuthentikOutpost, AuthentikScopeMapping, AuthentikUser,
 };
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -35,11 +35,43 @@ pub enum GatewayError {
     /// message that says so.
     #[error("Authentik refused the instance's token (HTTP {status}): {message}")]
     Unauthorized { status: u16, message: String },
+    /// Authentik refused the object's *content* as invalid (HTTP 400 on a
+    /// field it validates in depth — a blueprint's `content`, run through
+    /// its importer). The message is Authentik's validation log. Only
+    /// produced where a use-case reports it with its own reason
+    /// (`reconcile_blueprint`: `BlueprintInvalid`); elsewhere it is an
+    /// `AuthentikApiError` like any other refusal.
+    #[error("Authentik refused the content: {0}")]
+    Invalid(String),
     #[error("authentik API error: {0}")]
     Api(String),
 }
 
 pub use domain::drift::RemoteWrite;
+
+/// What Authentik reports of a blueprint instance's last apply, read back
+/// by [`AuthentikGateway::get_blueprint_state`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlueprintApplyStatus {
+    /// The last apply succeeded (`successful`, or `warning`).
+    Successful,
+    /// The last apply failed (`error`, or `orphaned`).
+    Failed,
+    /// Never applied yet (`unknown`, a freshly created instance).
+    Unknown,
+}
+
+/// A blueprint instance as its last apply left it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlueprintState {
+    pub status: BlueprintApplyStatus,
+    /// Whether the content Authentik stores now is the one its last
+    /// successful apply recorded (`last_applied_hash` is the SHA-512 of
+    /// it). Compared against what Authentik *stores*, never against the
+    /// CR: Authentik trims text fields, so the CR's own bytes would never
+    /// hash the same.
+    pub content_applied: bool,
+}
 
 /// A write the gateway made to Authentik: an object created, put back
 /// after a drift (`fields`: the ones corrected), or deleted. Read by the
@@ -165,6 +197,30 @@ pub trait AuthentikGateway: Send + Sync {
         mapping: &AuthentikScopeMapping,
     ) -> Result<(), GatewayError>;
     async fn delete_scope_mapping(&self, authentik_id: &str) -> Result<(), GatewayError>;
+
+    /// Blueprint instances are pk-keyed (a UUID). Authentik validates the
+    /// content on create and update (its importer, in a rolled-back
+    /// transaction): an invalid one is `GatewayError::Invalid`, carrying the
+    /// validation log. A name already taken is `AlreadyExists`, never
+    /// adopted.
+    async fn create_blueprint(
+        &self,
+        blueprint: &AuthentikBlueprint,
+    ) -> Result<String, GatewayError>;
+    async fn update_blueprint(
+        &self,
+        authentik_id: &str,
+        blueprint: &AuthentikBlueprint,
+    ) -> Result<(), GatewayError>;
+    /// The instance's last apply, as Authentik reports it now.
+    async fn get_blueprint_state(&self, authentik_id: &str)
+    -> Result<BlueprintState, GatewayError>;
+    /// Asks Authentik's worker to apply the instance. Asynchronous: the
+    /// call returns once the task is queued, and the outcome shows in
+    /// [`get_blueprint_state`](Self::get_blueprint_state) later.
+    async fn apply_blueprint(&self, authentik_id: &str) -> Result<(), GatewayError>;
+    /// Deletes the instance only: the objects it applied stay in Authentik.
+    async fn delete_blueprint(&self, authentik_id: &str) -> Result<(), GatewayError>;
 
     /// `user.spec.group_refs` resolved the same way as
     /// `AuthentikGroupSpec.parent_ref` above (by Authentik-side group

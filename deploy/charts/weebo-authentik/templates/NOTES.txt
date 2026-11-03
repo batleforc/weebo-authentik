@@ -25,6 +25,6 @@
    {{ include "weebo-operator.fullname" . }}-argocd-health into `argocd-cm` as
    `resource.customizations.health.authentik.weebo.io_<Kind>` for each kind
    (AuthentikInstance, AuthentikGroup, AuthentikFlow, AuthentikOutpost,
-   AuthentikScopeMapping, AuthentikUser, AuthentikBrand,
+   AuthentikScopeMapping, AuthentikBlueprint, AuthentikUser, AuthentikBrand,
    AuthentikApplication, AuthentikAccessPolicy, AuthentikNamespacePolicy).
    Without it ArgoCD shows them as Progressing forever.

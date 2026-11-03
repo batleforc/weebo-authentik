@@ -36,6 +36,7 @@ fn main() -> anyhow::Result<()> {
     write::<api::AuthentikFlow>(out, &roles, &mut kinds)?;
     write::<api::AuthentikOutpost>(out, &roles, &mut kinds)?;
     write::<api::AuthentikScopeMapping>(out, &roles, &mut kinds)?;
+    write::<api::AuthentikBlueprint>(out, &roles, &mut kinds)?;
     write::<api::AuthentikUser>(out, &roles, &mut kinds)?;
     write::<api::AuthentikBrand>(out, &roles, &mut kinds)?;
     write::<api::AuthentikApplication>(out, &roles, &mut kinds)?;

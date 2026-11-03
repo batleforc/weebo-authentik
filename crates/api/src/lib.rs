@@ -14,6 +14,7 @@ pub const SECRET_OWNER_ANNOTATION: &str = "authentik.weebo.io/owner";
 
 pub mod access_policy;
 pub mod application;
+pub mod blueprint;
 pub mod brand;
 pub mod flow;
 pub mod group;
@@ -26,6 +27,7 @@ pub mod user;
 
 pub use access_policy::AuthentikAccessPolicy;
 pub use application::AuthentikApplication;
+pub use blueprint::AuthentikBlueprint;
 pub use brand::AuthentikBrand;
 pub use flow::AuthentikFlow;
 pub use group::AuthentikGroup;

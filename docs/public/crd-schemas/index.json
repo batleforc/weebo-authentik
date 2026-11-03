@@ -99,6 +99,15 @@
     ]
   },
   {
+    "kind": "AuthentikBlueprint",
+    "singular": "authentikblueprint",
+    "scope": "Cluster",
+    "apiVersion": "authentik.weebo.io/v1alpha1",
+    "served": [
+      "v1alpha1"
+    ]
+  },
+  {
     "kind": "Database",
     "singular": "database",
     "scope": "Namespaced",

@@ -117,6 +117,19 @@ weebo_kit_domain::reason_codes! {
         /// the delete-and-recreate this requires (rotates `client_secret`,
         /// drops outpost bindings — can disrupt active sessions).
         DisruptiveProviderKindChangeNotAllowed,
+        /// Authentik refused an `AuthentikBlueprint`'s content when the
+        /// instance was written: its validation log is the message (an
+        /// unknown model or field, a `!Find` resolving to nothing…). Retried:
+        /// a `!Find` target another CR creates later makes it valid.
+        BlueprintInvalid,
+        /// An `AuthentikBlueprint`'s content is stored but not applied yet:
+        /// the operator asked Authentik's worker to apply it, and checks
+        /// again shortly.
+        BlueprintApplyPending,
+        /// Authentik's worker failed to apply an `AuthentikBlueprint`'s
+        /// content (its task log, System → Blueprints, says why); the apply
+        /// is asked for again on each retry.
+        BlueprintApplyFailed,
     }
 }
 
@@ -153,7 +166,7 @@ mod tests {
     #[test]
     fn every_code_is_pascal_case() {
         weebo_kit_domain::reason::assert_pascal_case(ReasonCode::ALL);
-        assert_eq!(ReasonCode::ALL.len(), 27);
+        assert_eq!(ReasonCode::ALL.len(), 30);
     }
 
     #[test]
