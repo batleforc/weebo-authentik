@@ -398,6 +398,16 @@ impl AuthentikHttpGateway {
                 if !self.must_write("proxy_provider", &id.to_string(), &drift) {
                     return Ok(remote.pk.to_string());
                 }
+                // Back in the PATCH even when it did not drift: Authentik
+                // validates a partial update as if `mode` were `proxy` and
+                // `internal_host` empty whenever the body leaves them out,
+                // and refuses it (400 "Internal host cannot be empty when
+                // forward auth is disabled"). `mode` stays unsent (not
+                // modeled, a forward_single provider keeps its own), so
+                // `internal_host` is what satisfies that check. The drift
+                // recorded above is unchanged: it only goes out, it did not
+                // change.
+                req.internal_host = Some(spec.internal_host.clone());
                 providers_api::providers_proxy_partial_update(&self.configuration, id, Some(req))
                     .await
                     .map_err(map_own_err)?

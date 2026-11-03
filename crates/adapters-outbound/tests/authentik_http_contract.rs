@@ -1392,6 +1392,80 @@ async fn an_unchanged_proxy_provider_is_never_patched() {
     assert!(patches(&mock).await.is_empty());
 }
 
+/// Authentik validates a proxy provider PATCH as if `mode` were `proxy`
+/// and `internal_host` were empty whenever the body leaves them out
+/// (checked live on 2026-11-03, Authentik 2026.8.5):
+///   400 {"internal_host":["Internal host cannot be empty when forward auth is disabled."]}
+/// v0.18.2+ sent only the drifted fields, so changing a proxy provider's
+/// flow alone failed every reconcile. `internal_host` now always goes out
+/// with a PATCH; the mock answers like Authentik when it does not.
+#[tokio::test]
+async fn a_proxy_provider_patch_always_carries_internal_host() {
+    use wiremock::matchers::{body_partial_json, method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    let mock = AuthentikMock::start().await;
+    mock_oauth2_create_path(&mock).await; // the two flow lookups
+    let remote = serde_json::json!({
+        "pk": 43, "name": "longhorn", "component": "ak-provider-proxy-form",
+        // Another flow than the spec's: only authorization_flow drifts.
+        "authorization_flow": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+        "invalidation_flow": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "assigned_application_slug": null, "assigned_application_name": null,
+        "assigned_backchannel_application_slug": null, "assigned_backchannel_application_name": null,
+        "verbose_name": "Proxy Provider", "verbose_name_plural": "Proxy Providers",
+        "meta_model_name": "authentik_providers_proxy.proxyprovider",
+        "client_id": "embedded", "internal_host": "http://longhorn.internal",
+        "external_host": "https://longhorn.example.com",
+        "redirect_uris": [], "outpost_set": [],
+    });
+    mock.mock_get("/providers/proxy/43/", 200, remote.clone())
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/api/v3/providers/proxy/43/"))
+        .and(body_partial_json(
+            serde_json::json!({"internal_host": "http://longhorn.internal"}),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(remote))
+        .with_priority(1)
+        .mount(&mock.server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/api/v3/providers/proxy/43/"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+            "internal_host": ["Internal host cannot be empty when forward auth is disabled."]
+        })))
+        .mount(&mock.server)
+        .await;
+    let spec = api::application::ProxyProviderSpec {
+        internal_host: "http://longhorn.internal".to_string(),
+        external_host: "https://longhorn.example.com".to_string(),
+        authorization_flow: "default-authorization-flow".to_string(),
+        invalidation_flow: "default-invalidation-flow".to_string(),
+        outpost_ref: None,
+    };
+
+    let gw = gateway(&mock);
+    let pk = gw
+        .upsert_proxy_provider(Some("43"), "longhorn", &spec)
+        .await
+        .expect("a flow change on a proxy provider is accepted");
+    assert_eq!(pk, "43");
+    let sent = patches(&mock).await;
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].1["internal_host"], "http://longhorn.internal");
+    // The drift reported is still the flow alone: internal_host goes out
+    // because Authentik needs it, not because it changed.
+    assert_eq!(
+        gw.take_writes(),
+        vec![Written {
+            object: "proxy_provider",
+            cause: RemoteWrite::Drift,
+            fields: vec!["authorization_flow"],
+        }]
+    );
+}
+
 const BLUEPRINT_PK: &str = "66666666-6666-6666-6666-666666666666";
 /// What Authentik stores: the CR's content, trimmed.
 const BLUEPRINT_STORED: &str = "version: 1\nentries: []";
