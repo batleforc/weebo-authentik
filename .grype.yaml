@@ -13,3 +13,13 @@ ignore:
     package:
       name: '^libstdc\+\+$'
       type: rpm
+  # CVE-2026-84243, glibc 2.43-9.2.hum1 of Red Hat Hummingbird's core
+  # runtime: no fix shipped yet, and the latest hi/core-runtime digest
+  # carries the same build (checked on 2026-11-06 with Grype 0.120.1; EPSS
+  # 0.3 %). Accepted on 2026-11-06 for the main image; the `-static` image
+  # carries no glibc. Expires on 2026-12-06: drop it once Red Hat ships the
+  # fix, or re-justify it then.
+  - vulnerability: CVE-2026-84243
+    package:
+      name: '^glibc(-common|-minimal-langpack)?$'
+      type: rpm
