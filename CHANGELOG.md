@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.23.2](https://github.com/batleforc/weebo-authentik/compare/fa03ce36d94cb0c2848c252d3a730d7b7b543422..v0.23.2) - 2026-11-06
+#### Continuous Integration
+- move to the weebo-si-operator GitHub org - ([fa03ce3](https://github.com/batleforc/weebo-authentik/commit/fa03ce36d94cb0c2848c252d3a730d7b7b543422)) - Max Batleforc, Claude Opus 5.5
+
+- - -
+
 ## [v0.23.1](https://github.com/weebo-si-operator/weebo-authentik/compare/f2582a48068b3c54335629311a51982ea29a4315..v0.23.1) - 2026-11-03
 #### Bug Fixes
 - a proxy provider PATCH always carries internal_host (#37) - ([425c548](https://github.com/weebo-si-operator/weebo-authentik/commit/425c548ef5347a0b8f895d28b4ae6f3d4b22b6e1)) - Maxime, Claude Opus 5.5
