@@ -108,6 +108,7 @@ spec:
 | `name` | `string` | yes |  | Kubernetes: the `Secret` name. Vault: names the default path `<pathPrefix>/<namespace>/<name>` when `path` is unset. |
 | `namespace` | `string` | no |  | Kubernetes `Secret` namespace (Vault: the namespace segment of the default path). Defaults to the CR's own namespace; required on cluster-scoped CRs. A namespaced CR may only name its own namespace. |
 | `path` | `string` | no |  | Vault only: explicit KV v2 path under the instance's mount. It must stay under `<pathPrefix>/<namespace>/` (this object's namespace, or the target's on a cluster-scoped object), unless the instance's `pathGrants` open it to this object. |
+| `vaultNamespace` | `string` | no |  | Vault only, with `mount`: the Vault namespace of that additional mount, when the instance lists two additional mounts of the same name in different Vault namespaces. Unset: the only additional mount of that name.<br /><br />Constraints: `pattern: ^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$`, `minLength: 1`, `maxLength: 128` |
 
 ## Build a manifest
 

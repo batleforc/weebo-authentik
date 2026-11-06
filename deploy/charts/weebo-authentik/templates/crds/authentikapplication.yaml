@@ -254,6 +254,17 @@ spec:
                         `pathGrants` open it to this object.
                       nullable: true
                       type: string
+                    vaultNamespace:
+                      description: |-
+                        Vault only, with `mount`: the Vault namespace of that additional
+                        mount, when the instance lists two additional mounts of the same name
+                        in different Vault namespaces. Unset: the only additional mount of
+                        that name.
+                      maxLength: 128
+                      minLength: 1
+                      nullable: true
+                      pattern: ^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$
+                      type: string
                   required:
                   - name
                   type: object

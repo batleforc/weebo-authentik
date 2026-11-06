@@ -209,6 +209,14 @@
             "description": "Vault only: explicit KV v2 path under the instance's mount. It must\nstay under `<pathPrefix>/<namespace>/` (this object's namespace, or\nthe target's on a cluster-scoped object), unless the instance's\n`pathGrants` open it to this object.",
             "nullable": true,
             "type": "string"
+          },
+          "vaultNamespace": {
+            "description": "Vault only, with `mount`: the Vault namespace of that additional\nmount, when the instance lists two additional mounts of the same name\nin different Vault namespaces. Unset: the only additional mount of\nthat name.",
+            "maxLength": 128,
+            "minLength": 1,
+            "nullable": true,
+            "pattern": "^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$",
+            "type": "string"
           }
         },
         "required": [

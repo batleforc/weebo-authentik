@@ -911,6 +911,7 @@ mod tests {
                 namespace: None,
                 path: None,
                 mount: None,
+                vault_namespace: None,
             })
             .to_vec();
         let secrets = FakeSecretStore::default();
@@ -930,6 +931,7 @@ mod tests {
             namespace: Some("kube-system".to_string()),
             path: None,
             mount: None,
+            vault_namespace: None,
         }];
         let secrets = FakeSecretStore::default();
         let outcome = reconcile_application(&application, None, &oauth2_gateway(), &secrets).await;
