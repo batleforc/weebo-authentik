@@ -1,7 +1,7 @@
 # Weebo Authentik
 
-[![CI](https://github.com/batleforc/weebo-authentik/actions/workflows/ci.yml/badge.svg)](https://github.com/batleforc/weebo-authentik/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/batleforc/weebo-authentik/blob/main/Cargo.toml)
+[![CI](https://github.com/weebo-si-operator/weebo-authentik/actions/workflows/ci.yml/badge.svg)](https://github.com/weebo-si-operator/weebo-authentik/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/weebo-si-operator/weebo-authentik/blob/main/Cargo.toml)
 
 A Kubernetes operator that manages [Authentik](https://goauthentik.io/) resources
 as native CRDs — groups, users, applications, access policies, brands, and
@@ -36,7 +36,7 @@ Full field-level reference for every CRD is generated into
 
 ```bash
 # cert-manager is a prerequisite (the webhook's TLS cert is issued by it)
-helm install weebo-authentik oci://ghcr.io/batleforc/charts/weebo-authentik \
+helm install weebo-authentik oci://ghcr.io/weebo-si-operator/charts/weebo-authentik \
   --set certManager.issuerRef.name=<your-issuer> \
   --set certManager.issuerRef.kind=ClusterIssuer
 ```
@@ -99,4 +99,4 @@ for the documented default, and `task doctor` to check your machine matches it.
 
 ## License
 
-[MIT](https://github.com/batleforc/weebo-authentik/blob/main/Cargo.toml)
+[MIT](https://github.com/weebo-si-operator/weebo-authentik/blob/main/Cargo.toml)

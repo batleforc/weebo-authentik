@@ -31,7 +31,7 @@ change; this section is just an index into the repo, not a substitute.
 
 Shared plumbing (reason codes, conditions, secret stores, allow-list
 engine, runtime) comes from
-[weebo-operator-kit](https://github.com/batleforc/weebo-operator-kit)
+[weebo-operator-kit](https://github.com/weebo-si-operator/weebo-operator-kit)
 (`weebo-kit-*` in `Cargo.toml`); its `docs/plan.md` says what belongs there.
 - `docs/` — Fumadocs site on `@weebo/operator-docs` (the kit's
   `packages/operator-docs`: CRD page generator, manifest builder, theme,

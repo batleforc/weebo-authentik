@@ -1,7 +1,7 @@
 import { withOperatorDocs } from '@weebo/operator-docs/next';
 
 // GitHub Pages serves this project repo under a sub-path
-// (https://batleforc.github.io/weebo-authentik/), so the static export bakes
+// (https://weebo-si-operator.github.io/weebo-authentik/), so the static export bakes
 // that in as basePath. It is env-gated — `npm run dev` leaves
 // NEXT_PUBLIC_BASE_PATH unset and the site serves at `/` locally, while CI
 // builds with NEXT_PUBLIC_BASE_PATH=/weebo-authentik. withOperatorDocs passes

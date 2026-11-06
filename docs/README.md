@@ -25,7 +25,7 @@ In the project, you can see:
 
 Everything else the weebo operators' sites share (CRD page generator,
 manifest builder, theme, layouts, docs page, search/llms/OG routes) comes
-from [`@weebo/operator-docs`](https://github.com/batleforc/weebo-operator-kit/tree/main/packages/operator-docs),
+from [`@weebo/operator-docs`](https://github.com/weebo-si-operator/weebo-operator-kit/tree/main/packages/operator-docs),
 the kit release's tarball in `package.json`.
 
 | Route                     | Description                                            |

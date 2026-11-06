@@ -51,8 +51,8 @@ USER 65532:65532
 # publish workflow (build-push-action `labels:`).
 LABEL org.opencontainers.image.title="weebo-authentik-operator" \
       org.opencontainers.image.description="Kubernetes operator managing Authentik objects as CRDs" \
-      org.opencontainers.image.source="https://github.com/batleforc/weebo-authentik" \
-      org.opencontainers.image.url="https://github.com/batleforc/weebo-authentik" \
+      org.opencontainers.image.source="https://github.com/weebo-si-operator/weebo-authentik" \
+      org.opencontainers.image.url="https://github.com/weebo-si-operator/weebo-authentik" \
       org.opencontainers.image.vendor="batleforc"
 
 ENTRYPOINT ["/usr/local/bin/operator"]

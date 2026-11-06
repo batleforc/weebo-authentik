@@ -4,7 +4,7 @@ name: Docs — GitHub Pages
 # One-time manual prerequisite: repo Settings → Pages → Build and deployment →
 # Source must be set to "GitHub Actions" (it cannot be enabled from here).
 #
-# The published URL is https://batleforc.github.io/weebo-authentik/, so the
+# The published URL is https://weebo-si-operator.github.io/weebo-authentik/, so the
 # build bakes in NEXT_PUBLIC_BASE_PATH=/weebo-authentik — the same value
 # next.config.mjs and src/lib/shared.ts read (basePath/assetPrefix for the
 # export, and the runtime prefix for client fetches of public/ assets).

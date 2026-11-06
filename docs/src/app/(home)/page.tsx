@@ -14,7 +14,7 @@ export default function HomePage() {
         { href: '/docs/guides/build-a-manifest', label: 'Build a manifest' },
       ]}
       install={`helm install weebo-authentik \\
-  oci://ghcr.io/batleforc/charts/weebo-authentik \\
+  oci://ghcr.io/weebo-si-operator/charts/weebo-authentik \\
   --namespace weebo-authentik --create-namespace \\
   --set certManager.issuerRef.name=<issuer>`}
       example={{

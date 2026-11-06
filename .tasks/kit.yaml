@@ -6,7 +6,7 @@
 version: "3"
 
 vars:
-  KIT_REPO: batleforc/weebo-operator-kit
+  KIT_REPO: weebo-si-operator/weebo-operator-kit
   # A local checkout to render from instead (KIT_DIR=../weebo-operator-kit).
   KIT_DIR: '{{.KIT_DIR | default ""}}'
   # The docs site's package manager, for the lockfile kit:sync refreshes:
@@ -35,7 +35,7 @@ tasks:
       KIT_TAG:
         sh: |
           if [ -n "{{.TAG | default ""}}" ]; then echo "{{.TAG}}"; else
-            tag="$(sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" 2>/dev/null | head -n 1)"
+            tag="$(sed -n 's|.*github.com/weebo-si-operator/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" 2>/dev/null | head -n 1)"
             [ -n "$tag" ] || tag="$(sed -n -E 's|^ +KIT_TAG: *"?(v[0-9]+\.[0-9]+\.[0-9]+)"? *(#.*)?$|\1|p' "{{.ROOT_DIR}}/Taskfile.yaml" 2>/dev/null | head -n 1)"
             echo "$tag"
           fi
@@ -85,7 +85,7 @@ tasks:
       KIT_TAG:
         sh: |
           if [ -n "{{.TAG | default ""}}" ]; then echo "{{.TAG}}"; else
-            tag="$(sed -n 's|.*github.com/batleforc/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" 2>/dev/null | head -n 1)"
+            tag="$(sed -n 's|.*github.com/weebo-si-operator/weebo-operator-kit", tag = "\([^"]*\)".*|\1|p' "{{.ROOT_DIR}}/Cargo.toml" 2>/dev/null | head -n 1)"
             [ -n "$tag" ] || tag="$(sed -n -E 's|^ +KIT_TAG: *"?(v[0-9]+\.[0-9]+\.[0-9]+)"? *(#.*)?$|\1|p' "{{.ROOT_DIR}}/Taskfile.yaml" 2>/dev/null | head -n 1)"
             echo "$tag"
           fi

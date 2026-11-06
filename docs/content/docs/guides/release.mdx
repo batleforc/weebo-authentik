@@ -17,8 +17,8 @@ Each release publishes two artifacts, versioned together (the version in
 
 | Artifact | Location |
 | --- | --- |
-| Operator image | `ghcr.io/batleforc/weebo-authentik-operator:<version>` |
-| Helm chart (OCI) | `oci://ghcr.io/batleforc/charts/weebo-authentik` |
+| Operator image | `ghcr.io/weebo-si-operator/weebo-authentik-operator:<version>` |
+| Helm chart (OCI) | `oci://ghcr.io/weebo-si-operator/charts/weebo-authentik` |
 
 The image tag defaults to the chart's `appVersion`, so installing chart
 `X.Y.Z` runs operator image `X.Y.Z` with no extra wiring. `:latest` is
@@ -74,7 +74,7 @@ extraEnv:
 ## 2. Install
 
 ```bash
-helm install weebo-authentik oci://ghcr.io/batleforc/charts/weebo-authentik \
+helm install weebo-authentik oci://ghcr.io/weebo-si-operator/charts/weebo-authentik \
   --version <X.Y.Z> \
   --namespace weebo-authentik --create-namespace \
   --values values-prod.yaml
@@ -109,7 +109,7 @@ and one holder on the `Lease`. Next, point it at Authentik:
 ## Day-2: upgrade
 
 ```bash
-helm upgrade weebo-authentik oci://ghcr.io/batleforc/charts/weebo-authentik \
+helm upgrade weebo-authentik oci://ghcr.io/weebo-si-operator/charts/weebo-authentik \
   --version <NEW> \
   --namespace weebo-authentik \
   --values values-prod.yaml

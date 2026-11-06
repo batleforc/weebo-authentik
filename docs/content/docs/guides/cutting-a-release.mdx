@@ -91,8 +91,8 @@ that exact, already-version-synced commit:
 
 | Job | Output |
 | --- | --- |
-| `image` | `ghcr.io/batleforc/weebo-authentik-operator:<version>` |
-| `chart` | `oci://ghcr.io/batleforc/charts/weebo-authentik` (`:<version>`) |
+| `image` | `ghcr.io/weebo-si-operator/weebo-authentik-operator:<version>` |
+| `chart` | `oci://ghcr.io/weebo-si-operator/charts/weebo-authentik` (`:<version>`) |
 
 The image is additionally tagged `:latest` **only** when the pushed tag is
 the highest strict-semver `vX.Y.Z` tag on the remote — so re-publishing an
@@ -109,8 +109,8 @@ git log --oneline -2 origin/main        # 'chore(version): vX.Y.Z [skip ci]'
 gh run list --workflow=publish.yml --limit 3
 
 # Artifacts are pullable at the new version:
-helm pull oci://ghcr.io/batleforc/charts/weebo-authentik --version <X.Y.Z>
-docker pull ghcr.io/batleforc/weebo-authentik-operator:<X.Y.Z>
+helm pull oci://ghcr.io/weebo-si-operator/charts/weebo-authentik --version <X.Y.Z>
+docker pull ghcr.io/weebo-si-operator/weebo-authentik-operator:<X.Y.Z>
 ```
 
 `CHANGELOG.md` should now have a `## [vX.Y.Z]` section, and

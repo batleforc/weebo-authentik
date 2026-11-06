@@ -2,170 +2,170 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
-## [v0.23.1](https://github.com/batleforc/weebo-authentik/compare/f2582a48068b3c54335629311a51982ea29a4315..v0.23.1) - 2026-11-03
+## [v0.23.1](https://github.com/weebo-si-operator/weebo-authentik/compare/f2582a48068b3c54335629311a51982ea29a4315..v0.23.1) - 2026-11-03
 #### Bug Fixes
-- a proxy provider PATCH always carries internal_host (#37) - ([425c548](https://github.com/batleforc/weebo-authentik/commit/425c548ef5347a0b8f895d28b4ae6f3d4b22b6e1)) - Maxime, Claude Opus 5.5
+- a proxy provider PATCH always carries internal_host (#37) - ([425c548](https://github.com/weebo-si-operator/weebo-authentik/commit/425c548ef5347a0b8f895d28b4ae6f3d4b22b6e1)) - Maxime, Claude Opus 5.5
 #### Tests
-- AuthentikBlueprint deletion, pending-to-ready, context/enabled drift (#36) - ([f2582a4](https://github.com/batleforc/weebo-authentik/commit/f2582a48068b3c54335629311a51982ea29a4315)) - Maxime, Claude Opus 5.5
+- AuthentikBlueprint deletion, pending-to-ready, context/enabled drift (#36) - ([f2582a4](https://github.com/weebo-si-operator/weebo-authentik/commit/f2582a48068b3c54335629311a51982ea29a4315)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.23.0](https://github.com/batleforc/weebo-authentik/compare/2adc4702eb854cc7def4fc4b060804f10bb451d4..v0.23.0) - 2026-11-03
+## [v0.23.0](https://github.com/weebo-si-operator/weebo-authentik/compare/2adc4702eb854cc7def4fc4b060804f10bb451d4..v0.23.0) - 2026-11-03
 #### Features
-- AuthentikBlueprint, inline Authentik blueprints for what no kind models (#35) - ([2adc470](https://github.com/batleforc/weebo-authentik/commit/2adc4702eb854cc7def4fc4b060804f10bb451d4)) - Maxime, Claude Opus 5.5
+- AuthentikBlueprint, inline Authentik blueprints for what no kind models (#35) - ([2adc470](https://github.com/weebo-si-operator/weebo-authentik/commit/2adc4702eb854cc7def4fc4b060804f10bb451d4)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.22.1](https://github.com/batleforc/weebo-authentik/compare/3af8635ca8b215d9d9e7c10a10333e292561462e..v0.22.1) - 2026-10-30
+## [v0.22.1](https://github.com/weebo-si-operator/weebo-authentik/compare/3af8635ca8b215d9d9e7c10a10333e292561462e..v0.22.1) - 2026-10-30
 #### Bug Fixes
-- (**deps**) kit v0.25.1, a stuck lease renewal no longer exits the operator (#34) - ([3af8635](https://github.com/batleforc/weebo-authentik/commit/3af8635ca8b215d9d9e7c10a10333e292561462e)) - Maxime, Claude Opus 5.5
+- (**deps**) kit v0.25.1, a stuck lease renewal no longer exits the operator (#34) - ([3af8635](https://github.com/weebo-si-operator/weebo-authentik/commit/3af8635ca8b215d9d9e7c10a10333e292561462e)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.22.0](https://github.com/batleforc/weebo-authentik/compare/7853a12d2cd20e18982f3527dc77d54136dfb7bd..v0.22.0) - 2026-10-29
+## [v0.22.0](https://github.com/weebo-si-operator/weebo-authentik/compare/7853a12d2cd20e18982f3527dc77d54136dfb7bd..v0.22.0) - 2026-10-29
 #### Features
-- brandingCustomCss on AuthentikBrand, tokio and zod past their advisories (#33) - ([7853a12](https://github.com/batleforc/weebo-authentik/commit/7853a12d2cd20e18982f3527dc77d54136dfb7bd)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
+- brandingCustomCss on AuthentikBrand, tokio and zod past their advisories (#33) - ([7853a12](https://github.com/weebo-si-operator/weebo-authentik/commit/7853a12d2cd20e18982f3527dc77d54136dfb7bd)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
 
 - - -
 
-## [v0.21.0](https://github.com/batleforc/weebo-authentik/compare/2269550c6694121d499464dbc68646ec0db843c4..v0.21.0) - 2026-10-22
+## [v0.21.0](https://github.com/weebo-si-operator/weebo-authentik/compare/2269550c6694121d499464dbc68646ec0db843c4..v0.21.0) - 2026-10-22
 #### Features
-- kit v0.24.0, the issuer override, issuers and public URLs drawn in the CRD IDE (#32) - ([2269550](https://github.com/batleforc/weebo-authentik/commit/2269550c6694121d499464dbc68646ec0db843c4)) - Maxime, Claude Opus 5.5 (1M context)
+- kit v0.24.0, the issuer override, issuers and public URLs drawn in the CRD IDE (#32) - ([2269550](https://github.com/weebo-si-operator/weebo-authentik/commit/2269550c6694121d499464dbc68646ec0db843c4)) - Maxime, Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.20.1](https://github.com/batleforc/weebo-authentik/compare/6514d1117dacc186c561d540040915b1c4251254..v0.20.1) - 2026-10-22
+## [v0.20.1](https://github.com/weebo-si-operator/weebo-authentik/compare/6514d1117dacc186c561d540040915b1c4251254..v0.20.1) - 2026-10-22
 #### Bug Fixes
-- (**ci**) e2e applies only the CRD manifests of deploy/crd/ (#31) - ([6514d11](https://github.com/batleforc/weebo-authentik/commit/6514d1117dacc186c561d540040915b1c4251254)) - Maxime, Claude Opus 5.5 (1M context)
+- (**ci**) e2e applies only the CRD manifests of deploy/crd/ (#31) - ([6514d11](https://github.com/weebo-si-operator/weebo-authentik/commit/6514d1117dacc186c561d540040915b1c4251254)) - Maxime, Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.20.0](https://github.com/batleforc/weebo-authentik/compare/71143645b2217b7814931b25dabce393d49cd012..v0.20.0) - 2026-10-22
+## [v0.20.0](https://github.com/weebo-si-operator/weebo-authentik/compare/71143645b2217b7814931b25dabce393d49cd012..v0.20.0) - 2026-10-22
 #### Features
-- kit v0.23.0, the CRD IDE in the docs (#30) - ([7114364](https://github.com/batleforc/weebo-authentik/commit/71143645b2217b7814931b25dabce393d49cd012)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
+- kit v0.23.0, the CRD IDE in the docs (#30) - ([7114364](https://github.com/weebo-si-operator/weebo-authentik/commit/71143645b2217b7814931b25dabce393d49cd012)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.19.6](https://github.com/batleforc/weebo-authentik/compare/407f4783912e484de84da3aee919efc45dbd4b92..v0.19.6) - 2026-10-21
+## [v0.19.6](https://github.com/weebo-si-operator/weebo-authentik/compare/407f4783912e484de84da3aee919efc45dbd4b92..v0.19.6) - 2026-10-21
 #### Bug Fixes
-- weebo-good-practice review: house lints, bounded I/O, typed errors (#29) - ([407f478](https://github.com/batleforc/weebo-authentik/commit/407f4783912e484de84da3aee919efc45dbd4b92)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
+- weebo-good-practice review: house lints, bounded I/O, typed errors (#29) - ([407f478](https://github.com/weebo-si-operator/weebo-authentik/commit/407f4783912e484de84da3aee919efc45dbd4b92)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.19.5](https://github.com/batleforc/weebo-authentik/compare/af227684407ea8676135a5102fca9c4c37926622..v0.19.5) - 2026-10-21
+## [v0.19.5](https://github.com/weebo-si-operator/weebo-authentik/compare/af227684407ea8676135a5102fca9c4c37926622..v0.19.5) - 2026-10-21
 #### Miscellaneous Chores
-- (**kit**) weebo-operator-kit v0.22.1 (#28) - ([af22768](https://github.com/batleforc/weebo-authentik/commit/af227684407ea8676135a5102fca9c4c37926622)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
+- (**kit**) weebo-operator-kit v0.22.1 (#28) - ([af22768](https://github.com/weebo-si-operator/weebo-authentik/commit/af227684407ea8676135a5102fca9c4c37926622)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.19.4](https://github.com/batleforc/weebo-authentik/compare/3de4c60b88fd1672b80f64e96fc6eacd14be3070..v0.19.4) - 2026-10-19
+## [v0.19.4](https://github.com/weebo-si-operator/weebo-authentik/compare/3de4c60b88fd1672b80f64e96fc6eacd14be3070..v0.19.4) - 2026-10-19
 #### Miscellaneous Chores
-- (**kit**) weebo-operator-kit v0.21.0, kit's without_selector instead of unselected (#27) - ([3de4c60](https://github.com/batleforc/weebo-authentik/commit/3de4c60b88fd1672b80f64e96fc6eacd14be3070)) - Maxime, Claude Opus 5.5 (1M context)
+- (**kit**) weebo-operator-kit v0.21.0, kit's without_selector instead of unselected (#27) - ([3de4c60](https://github.com/weebo-si-operator/weebo-authentik/commit/3de4c60b88fd1672b80f64e96fc6eacd14be3070)) - Maxime, Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.19.3](https://github.com/batleforc/weebo-authentik/compare/6498176e01b128d02ab6e00f2a1a3efb02401b55..v0.19.3) - 2026-10-19
+## [v0.19.3](https://github.com/weebo-si-operator/weebo-authentik/compare/6498176e01b128d02ab6e00f2a1a3efb02401b55..v0.19.3) - 2026-10-19
 #### Refactoring
-- (**controller**) one shared watch per kind (kit v0.20.0) (#26) - ([dbd0cdf](https://github.com/batleforc/weebo-authentik/commit/dbd0cdfbcf52520b1534e9f701c0f3039d8189bd)) - Maxime, Claude Opus 5.5 (1M context)
+- (**controller**) one shared watch per kind (kit v0.20.0) (#26) - ([dbd0cdf](https://github.com/weebo-si-operator/weebo-authentik/commit/dbd0cdfbcf52520b1534e9f701c0f3039d8189bd)) - Maxime, Claude Opus 5.5 (1M context)
 #### Miscellaneous Chores
-- (**docs**) docs:deps and docs:build tasks, as the other operators (#24) - ([6498176](https://github.com/batleforc/weebo-authentik/commit/6498176e01b128d02ab6e00f2a1a3efb02401b55)) - Maxime, Claude Opus 5.5 (1M context)
-- (**kit**) weebo-operator-kit v0.20.0 (#25) - ([c4b171c](https://github.com/batleforc/weebo-authentik/commit/c4b171c046c604752dc2e9553c508e7f14289983)) - Maxime, Claude Opus 5.5 (1M context)
+- (**docs**) docs:deps and docs:build tasks, as the other operators (#24) - ([6498176](https://github.com/weebo-si-operator/weebo-authentik/commit/6498176e01b128d02ab6e00f2a1a3efb02401b55)) - Maxime, Claude Opus 5.5 (1M context)
+- (**kit**) weebo-operator-kit v0.20.0 (#25) - ([c4b171c](https://github.com/weebo-si-operator/weebo-authentik/commit/c4b171c046c604752dc2e9553c508e7f14289983)) - Maxime, Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.19.2](https://github.com/batleforc/weebo-authentik/compare/6d068212b8eba4db52ab977e58f7edd959866620..v0.19.2) - 2026-10-19
+## [v0.19.2](https://github.com/weebo-si-operator/weebo-authentik/compare/6d068212b8eba4db52ab977e58f7edd959866620..v0.19.2) - 2026-10-19
 #### Miscellaneous Chores
-- (**kit**) weebo-operator-kit v0.19.1, nested CRD fields in the reference (#23) - ([6d06821](https://github.com/batleforc/weebo-authentik/commit/6d068212b8eba4db52ab977e58f7edd959866620)) - Maxime, Claude Opus 5.5 (1M context)
+- (**kit**) weebo-operator-kit v0.19.1, nested CRD fields in the reference (#23) - ([6d06821](https://github.com/weebo-si-operator/weebo-authentik/commit/6d068212b8eba4db52ab977e58f7edd959866620)) - Maxime, Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.19.1](https://github.com/batleforc/weebo-authentik/compare/6a5338e7d149c9392c94b50953d0f04f6c60c7f4..v0.19.1) - 2026-10-19
+## [v0.19.1](https://github.com/weebo-si-operator/weebo-authentik/compare/6a5338e7d149c9392c94b50953d0f04f6c60c7f4..v0.19.1) - 2026-10-19
 #### Miscellaneous Chores
-- (**kit**) weebo-operator-kit v0.18.2, 4 tokio workers by default (#22) - ([6a5338e](https://github.com/batleforc/weebo-authentik/commit/6a5338e7d149c9392c94b50953d0f04f6c60c7f4)) - Maxime, Claude Opus 5.5 (1M context)
+- (**kit**) weebo-operator-kit v0.18.2, 4 tokio workers by default (#22) - ([6a5338e](https://github.com/weebo-si-operator/weebo-authentik/commit/6a5338e7d149c9392c94b50953d0f04f6c60c7f4)) - Maxime, Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.19.0](https://github.com/batleforc/weebo-authentik/compare/726f60f43f816942b4ba60f8d5a6cbcd4675d8a7..v0.19.0) - 2026-10-19
+## [v0.19.0](https://github.com/weebo-si-operator/weebo-authentik/compare/726f60f43f816942b4ba60f8d5a6cbcd4675d8a7..v0.19.0) - 2026-10-19
 #### Features
-- DriftCorrected Event and remote_writes_total, drift helpers from the kit (v0.18.1) (#20) - ([cf233ab](https://github.com/batleforc/weebo-authentik/commit/cf233abee64b7f4e7b6ca174bb3c32d515dd7af1)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
-- update lock - ([726f60f](https://github.com/batleforc/weebo-authentik/commit/726f60f43f816942b4ba60f8d5a6cbcd4675d8a7)) - Max Batleforc
+- DriftCorrected Event and remote_writes_total, drift helpers from the kit (v0.18.1) (#20) - ([cf233ab](https://github.com/weebo-si-operator/weebo-authentik/commit/cf233abee64b7f4e7b6ca174bb3c32d515dd7af1)) - Maxime, Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context), Claude Opus 5.5 (1M context)
+- update lock - ([726f60f](https://github.com/weebo-si-operator/weebo-authentik/commit/726f60f43f816942b4ba60f8d5a6cbcd4675d8a7)) - Max Batleforc
 
 - - -
 
-## [v0.18.3](https://github.com/batleforc/weebo-authentik/compare/da986b0e73268d8397f6f80cc480b9afadff507b..v0.18.3) - 2026-10-18
+## [v0.18.3](https://github.com/weebo-si-operator/weebo-authentik/compare/da986b0e73268d8397f6f80cc480b9afadff507b..v0.18.3) - 2026-10-18
 #### Bug Fixes
-- (**gateway**) compare a scope mapping's text fields as Authentik stores them, trimmed (#19) - ([da986b0](https://github.com/batleforc/weebo-authentik/commit/da986b0e73268d8397f6f80cc480b9afadff507b)) - Maxime, Claude Opus 5.5 (1M context)
+- (**gateway**) compare a scope mapping's text fields as Authentik stores them, trimmed (#19) - ([da986b0](https://github.com/weebo-si-operator/weebo-authentik/commit/da986b0e73268d8397f6f80cc480b9afadff507b)) - Maxime, Claude Opus 5.5 (1M context)
 
 - - -
 
-## [v0.18.2](https://github.com/batleforc/weebo-authentik/compare/89b4917a16290e32d534c6e7877148ad1871df5a..v0.18.2) - 2026-10-18
+## [v0.18.2](https://github.com/weebo-si-operator/weebo-authentik/compare/89b4917a16290e32d534c6e7877148ad1871df5a..v0.18.2) - 2026-10-18
 #### Bug Fixes
-- (**gateway**) write only what drifted, never an unchanged object (#18) - ([89b4917](https://github.com/batleforc/weebo-authentik/commit/89b4917a16290e32d534c6e7877148ad1871df5a)) - Maxime, Claude Opus 5.5 (1M context)
+- (**gateway**) write only what drifted, never an unchanged object (#18) - ([89b4917](https://github.com/weebo-si-operator/weebo-authentik/commit/89b4917a16290e32d534c6e7877148ad1871df5a)) - Maxime, Claude Opus 5.5 (1M context)
 #### Documentation
-- (**perf**) resource budget measured on 2026-10-18 (#6) - ([faa7392](https://github.com/batleforc/weebo-authentik/commit/faa7392a60a1c73922daaa3c8942ac93117665b8)) - github-actions[bot], Claude Opus 5.5 (1M context), Max Batleforc, Claude Opus 5.5 (1M context), github-actions[bot]
+- (**perf**) resource budget measured on 2026-10-18 (#6) - ([faa7392](https://github.com/weebo-si-operator/weebo-authentik/commit/faa7392a60a1c73922daaa3c8942ac93117665b8)) - github-actions[bot], Claude Opus 5.5 (1M context), Max Batleforc, Claude Opus 5.5 (1M context), github-actions[bot]
 
 - - -
 
-## [v0.18.1](https://github.com/batleforc/weebo-authentik/compare/e194a54523ca3ddbbbacb2047994e5e12fc0c7c7..v0.18.1) - 2026-10-15
+## [v0.18.1](https://github.com/weebo-si-operator/weebo-authentik/compare/e194a54523ca3ddbbbacb2047994e5e12fc0c7c7..v0.18.1) - 2026-10-15
 #### Bug Fixes
-- (**application**) record a brand before switching the default; delete a recorded provider of any kind (#16) - ([e194a54](https://github.com/batleforc/weebo-authentik/commit/e194a54523ca3ddbbbacb2047994e5e12fc0c7c7)) - Maxime, Claude Opus 5.5
-- (**deps**) kit v0.16.0 (#17) - ([faa17ed](https://github.com/batleforc/weebo-authentik/commit/faa17ed631ea17720bcf0bb5f350e2f56494a596)) - Maxime, Claude Opus 5.5
+- (**application**) record a brand before switching the default; delete a recorded provider of any kind (#16) - ([e194a54](https://github.com/weebo-si-operator/weebo-authentik/commit/e194a54523ca3ddbbbacb2047994e5e12fc0c7c7)) - Maxime, Claude Opus 5.5
+- (**deps**) kit v0.16.0 (#17) - ([faa17ed](https://github.com/weebo-si-operator/weebo-authentik/commit/faa17ed631ea17720bcf0bb5f350e2f56494a596)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.18.0](https://github.com/batleforc/weebo-authentik/compare/faf9c4ca874edcb8c97d5c49f335ae6f9cb19bb2..v0.18.0) - 2026-10-14
+## [v0.18.0](https://github.com/weebo-si-operator/weebo-authentik/compare/faf9c4ca874edcb8c97d5c49f335ae6f9cb19bb2..v0.18.0) - 2026-10-14
 #### Features
-- (**vault**) pathGrants on the instance's Vault connection, kit v0.15.0 (#14) - ([faf9c4c](https://github.com/batleforc/weebo-authentik/commit/faf9c4ca874edcb8c97d5c49f335ae6f9cb19bb2)) - Maxime, Claude Opus 5.5
+- (**vault**) pathGrants on the instance's Vault connection, kit v0.15.0 (#14) - ([faf9c4c](https://github.com/weebo-si-operator/weebo-authentik/commit/faf9c4ca874edcb8c97d5c49f335ae6f9cb19bb2)) - Maxime, Claude Opus 5.5
 #### Bug Fixes
-- (**deps**) rustls 0.23.46 (RUSTSEC-2026-0346..0349) (#15) - ([57a59df](https://github.com/batleforc/weebo-authentik/commit/57a59df0910aea722d101ab6d08c125e414fcf29)) - Maxime, Claude Opus 5.5
+- (**deps**) rustls 0.23.46 (RUSTSEC-2026-0346..0349) (#15) - ([57a59df](https://github.com/weebo-si-operator/weebo-authentik/commit/57a59df0910aea722d101ab6d08c125e414fcf29)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.17.2](https://github.com/batleforc/weebo-authentik/compare/622e6d561ab407bbc1619cffd4a830428ab17fb7..v0.17.2) - 2026-10-13
+## [v0.17.2](https://github.com/weebo-si-operator/weebo-authentik/compare/622e6d561ab407bbc1619cffd4a830428ab17fb7..v0.17.2) - 2026-10-13
 #### Bug Fixes
-- (**application**) record remote objects early; delete a provider of any kind (#13) - ([622e6d5](https://github.com/batleforc/weebo-authentik/commit/622e6d561ab407bbc1619cffd4a830428ab17fb7)) - Maxime, Claude Opus 5.5
+- (**application**) record remote objects early; delete a provider of any kind (#13) - ([622e6d5](https://github.com/weebo-si-operator/weebo-authentik/commit/622e6d561ab407bbc1619cffd4a830428ab17fb7)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.17.1](https://github.com/batleforc/weebo-authentik/compare/c461c5138bf1a4e02f26d0b5c4d014d98ef40eff..v0.17.1) - 2026-10-13
+## [v0.17.1](https://github.com/weebo-si-operator/weebo-authentik/compare/c461c5138bf1a4e02f26d0b5c4d014d98ef40eff..v0.17.1) - 2026-10-13
 #### Bug Fixes
-- no orphan provider, e2e gates publishing, kit v0.14.1 (#12) - ([c461c51](https://github.com/batleforc/weebo-authentik/commit/c461c5138bf1a4e02f26d0b5c4d014d98ef40eff)) - Maxime, Claude Opus 5.5
+- no orphan provider, e2e gates publishing, kit v0.14.1 (#12) - ([c461c51](https://github.com/weebo-si-operator/weebo-authentik/commit/c461c5138bf1a4e02f26d0b5c4d014d98ef40eff)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.17.0](https://github.com/batleforc/weebo-authentik/compare/82ddcb6d42a164dbbfddcc5a9297ad5c893f26fe..v0.17.0) - 2026-10-13
+## [v0.17.0](https://github.com/weebo-si-operator/weebo-authentik/compare/82ddcb6d42a164dbbfddcc5a9297ad5c893f26fe..v0.17.0) - 2026-10-13
 #### Bug Fixes
-- ![BREAKING](https://img.shields.io/badge/BREAKING-red) review fixes of 2026-10-13, weebo-operator-kit v0.14.0 (#11) - ([f850911](https://github.com/batleforc/weebo-authentik/commit/f8509117255f89476ab7740a6ccfeda7b43ee621)) - Maxime, Claude Opus 5.5
+- ![BREAKING](https://img.shields.io/badge/BREAKING-red) review fixes of 2026-10-13, weebo-operator-kit v0.14.0 (#11) - ([f850911](https://github.com/weebo-si-operator/weebo-authentik/commit/f8509117255f89476ab7740a6ccfeda7b43ee621)) - Maxime, Claude Opus 5.5
 #### Miscellaneous Chores
-- (**kit**) weebo-operator-kit v0.13.0, amd64-only images (#10) - ([82ddcb6](https://github.com/batleforc/weebo-authentik/commit/82ddcb6d42a164dbbfddcc5a9297ad5c893f26fe)) - Maxime, Claude Opus 5.5
+- (**kit**) weebo-operator-kit v0.13.0, amd64-only images (#10) - ([82ddcb6](https://github.com/weebo-si-operator/weebo-authentik/commit/82ddcb6d42a164dbbfddcc5a9297ad5c893f26fe)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.16.2](https://github.com/batleforc/weebo-authentik/compare/3b270793939573c19dec89457593d5fc7adb26a8..v0.16.2) - 2026-10-13
+## [v0.16.2](https://github.com/weebo-si-operator/weebo-authentik/compare/3b270793939573c19dec89457593d5fc7adb26a8..v0.16.2) - 2026-10-13
 #### Miscellaneous Chores
-- (**kit**) weebo-operator-kit v0.12.1 (#9) - ([3b27079](https://github.com/batleforc/weebo-authentik/commit/3b270793939573c19dec89457593d5fc7adb26a8)) - Maxime, Claude Opus 5.5
+- (**kit**) weebo-operator-kit v0.12.1 (#9) - ([3b27079](https://github.com/weebo-si-operator/weebo-authentik/commit/3b270793939573c19dec89457593d5fc7adb26a8)) - Maxime, Claude Opus 5.5
 
 - - -
 
-## [v0.16.1](https://github.com/batleforc/weebo-authentik/compare/6beaffc860c5321fa4f78cd9ba94b025411fda01..v0.16.1) - 2026-10-13
+## [v0.16.1](https://github.com/weebo-si-operator/weebo-authentik/compare/6beaffc860c5321fa4f78cd9ba94b025411fda01..v0.16.1) - 2026-10-13
 #### Continuous Integration
-- publish through the kit's workflow; Debian 13 and Hummingbird images (kit v0.11.0) (#8) - ([6beaffc](https://github.com/batleforc/weebo-authentik/commit/6beaffc860c5321fa4f78cd9ba94b025411fda01)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
+- publish through the kit's workflow; Debian 13 and Hummingbird images (kit v0.11.0) (#8) - ([6beaffc](https://github.com/weebo-si-operator/weebo-authentik/commit/6beaffc860c5321fa4f78cd9ba94b025411fda01)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
 
 - - -
 
-## [v0.16.0](https://github.com/batleforc/weebo-authentik/compare/3f5ac213a47a547986f80d779ba92316fac297c8..v0.16.0) - 2026-10-12
+## [v0.16.0](https://github.com/weebo-si-operator/weebo-authentik/compare/3f5ac213a47a547986f80d779ba92316fac297c8..v0.16.0) - 2026-10-12
 #### Features
-- ![BREAKING](https://img.shields.io/badge/BREAKING-red) watch scope, AuthentikLocalInstance and instanceRef object (kit v0.10.1) (#7) - ([81aea41](https://github.com/batleforc/weebo-authentik/commit/81aea4154ef2770768525c0dd8f11f75716d0154)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
-- ![BREAKING](https://img.shields.io/badge/BREAKING-red) build on weebo-operator-kit v0.9.0 (library chart, shared tasks, reusable CI) (#5) - ([75d4aa4](https://github.com/batleforc/weebo-authentik/commit/75d4aa4607db345d743ee87e1aeba273a73cdcff)) - Maxime
-- ![BREAKING](https://img.shields.io/badge/BREAKING-red) build on weebo-operator-kit v0.7.0 (#2) - ([97b3869](https://github.com/batleforc/weebo-authentik/commit/97b3869edab15eb3f05cf64c949baf778a7241e2)) - Maxime, Claude Opus 5.5
-- rework docs (#1) - ([07b8875](https://github.com/batleforc/weebo-authentik/commit/07b887526e23f0d019c7934db62ffe3ecbbeb906)) - Maxime
-- well follow the good practice for a default - ([2fc63fb](https://github.com/batleforc/weebo-authentik/commit/2fc63fb0c0b19450e4f243dfd818d30bd1308cbb)) - Max Batleforc
+- ![BREAKING](https://img.shields.io/badge/BREAKING-red) watch scope, AuthentikLocalInstance and instanceRef object (kit v0.10.1) (#7) - ([81aea41](https://github.com/weebo-si-operator/weebo-authentik/commit/81aea4154ef2770768525c0dd8f11f75716d0154)) - Maxime, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5, Claude Opus 5.5
+- ![BREAKING](https://img.shields.io/badge/BREAKING-red) build on weebo-operator-kit v0.9.0 (library chart, shared tasks, reusable CI) (#5) - ([75d4aa4](https://github.com/weebo-si-operator/weebo-authentik/commit/75d4aa4607db345d743ee87e1aeba273a73cdcff)) - Maxime
+- ![BREAKING](https://img.shields.io/badge/BREAKING-red) build on weebo-operator-kit v0.7.0 (#2) - ([97b3869](https://github.com/weebo-si-operator/weebo-authentik/commit/97b3869edab15eb3f05cf64c949baf778a7241e2)) - Maxime, Claude Opus 5.5
+- rework docs (#1) - ([07b8875](https://github.com/weebo-si-operator/weebo-authentik/commit/07b887526e23f0d019c7934db62ffe3ecbbeb906)) - Maxime
+- well follow the good practice for a default - ([2fc63fb](https://github.com/weebo-si-operator/weebo-authentik/commit/2fc63fb0c0b19450e4f243dfd818d30bd1308cbb)) - Max Batleforc
 #### Documentation
-- (**perf**) resource budget measured on 2026-10-11 (#4) - ([2679548](https://github.com/batleforc/weebo-authentik/commit/2679548e8f112dd3ab58e93ad8dbd1fb28491d69)) - github-actions[bot], github-actions[bot]
+- (**perf**) resource budget measured on 2026-10-11 (#4) - ([2679548](https://github.com/weebo-si-operator/weebo-authentik/commit/2679548e8f112dd3ab58e93ad8dbd1fb28491d69)) - github-actions[bot], github-actions[bot]
 #### Continuous Integration
-- (**perf**) measure the resource budget every week (kit v0.8.0) (#3) - ([1aa672f](https://github.com/batleforc/weebo-authentik/commit/1aa672f7cbc3f81832fffd078106b4ef0177f094)) - Maxime, Claude Opus 5.5
+- (**perf**) measure the resource budget every week (kit v0.8.0) (#3) - ([1aa672f](https://github.com/weebo-si-operator/weebo-authentik/commit/1aa672f7cbc3f81832fffd078106b4ef0177f094)) - Maxime, Claude Opus 5.5
 #### Miscellaneous Chores
-- bump - ([3f5ac21](https://github.com/batleforc/weebo-authentik/commit/3f5ac213a47a547986f80d779ba92316fac297c8)) - Max Batleforc
+- bump - ([3f5ac21](https://github.com/weebo-si-operator/weebo-authentik/commit/3f5ac213a47a547986f80d779ba92316fac297c8)) - Max Batleforc
 
 - - -
 

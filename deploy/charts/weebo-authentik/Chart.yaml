@@ -6,9 +6,9 @@ version: 0.23.1
 appVersion: "0.23.1"
 # Native `preStop: sleep` and the admission/policy APIs used here.
 kubeVersion: ">=1.30.0-0"
-home: https://github.com/batleforc/weebo-authentik
+home: https://github.com/weebo-si-operator/weebo-authentik
 sources:
-  - https://github.com/batleforc/weebo-authentik
+  - https://github.com/weebo-si-operator/weebo-authentik
 dependencies:
   # Every resource but the CRDs (templates/operator.yaml); its version is
   # the kit's, as in Cargo.toml (`task kit:sync` keeps them in step).

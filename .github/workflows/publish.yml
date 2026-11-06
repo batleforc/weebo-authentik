@@ -41,15 +41,16 @@ jobs:
     needs: e2e
     if: >-
       ${{ !cancelled() && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') }}
-    uses: batleforc/weebo-operator-kit/.github/workflows/publish.yml@v0.25.1
+    uses: weebo-si-operator/weebo-operator-kit/.github/workflows/publish.yml@v0.25.1
     permissions:
       contents: write
       packages: write
       id-token: write
     with:
       tag: ${{ inputs.tag || github.ref_name }}
-      image: ghcr.io/batleforc/weebo-authentik-operator
+      image: ghcr.io/weebo-si-operator/weebo-authentik-operator
       chart: weebo-authentik
+      chart-repo: ghcr.io/weebo-si-operator/charts
       variants: >-
         [{"file": "Containerfile", "suffix": "", "required": true},
          {"file": "Containerfile.static", "suffix": "-static", "required": false}]
