@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v0.23.3](https://github.com/weebo-si-operator/weebo-authentik/compare/ae272ff4696055f32cf2b3587a8cfe853bf04561..v0.23.3) - 2026-11-06
+#### Miscellaneous Chores
+- (**deps**) weebo-operator-kit v0.28.1 - ([ae272ff](https://github.com/weebo-si-operator/weebo-authentik/commit/ae272ff4696055f32cf2b3587a8cfe853bf04561)) - Max Batleforc, Claude Opus 5.5
+
+- - -
+
 ## [v0.23.2](https://github.com/batleforc/weebo-authentik/compare/fa03ce36d94cb0c2848c252d3a730d7b7b543422..v0.23.2) - 2026-11-06
 #### Continuous Integration
 - move to the weebo-si-operator GitHub org - ([fa03ce3](https://github.com/batleforc/weebo-authentik/commit/fa03ce36d94cb0c2848c252d3a730d7b7b543422)) - Max Batleforc, Claude Opus 5.5
