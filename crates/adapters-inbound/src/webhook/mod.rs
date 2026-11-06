@@ -164,8 +164,10 @@ impl WebhookState {
             }
         };
         let paths = vault.as_ref().map(|v| VaultPaths {
+            mount: &v.mount,
             path_prefix: &v.path_prefix,
             path_grants: &v.path_grants,
+            additional_mounts: &[],
         });
         check_vault_targets(&application.spec.secret_targets, Some(namespace), paths)
             .map_err(|message| Denial::new(ReasonCode::SecretStoreError, message))

@@ -104,6 +104,7 @@ spec:
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `backend` | `string` | no | `"kubernetes"` | `kubernetes` (default) or `vault`. A Vault target reuses the Vault connection (address, mount, auth) the instance configures, which it must then do.<br /><br />Values: `"kubernetes"`, `"vault"` |
+| `mount` | `string` | no |  | Vault only: a KV v2 mount other than the instance's own, one the instance lists in `additionalMounts`. Needs `path`, which only that mount's `pathGrants` can open: an additional mount has no per-namespace subtree. Unset (or the instance's mount): the instance's mount. |
 | `name` | `string` | yes |  | Kubernetes: the `Secret` name. Vault: names the default path `<pathPrefix>/<namespace>/<name>` when `path` is unset. |
 | `namespace` | `string` | no |  | Kubernetes `Secret` namespace (Vault: the namespace segment of the default path). Defaults to the CR's own namespace; required on cluster-scoped CRs. A namespaced CR may only name its own namespace. |
 | `path` | `string` | no |  | Vault only: explicit KV v2 path under the instance's mount. It must stay under `<pathPrefix>/<namespace>/` (this object's namespace, or the target's on a cluster-scoped object), unless the instance's `pathGrants` open it to this object. |

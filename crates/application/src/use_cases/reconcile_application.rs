@@ -910,6 +910,7 @@ mod tests {
                 name: name.to_string(),
                 namespace: None,
                 path: None,
+                mount: None,
             })
             .to_vec();
         let secrets = FakeSecretStore::default();
@@ -928,6 +929,7 @@ mod tests {
             name: "stolen".to_string(),
             namespace: Some("kube-system".to_string()),
             path: None,
+            mount: None,
         }];
         let secrets = FakeSecretStore::default();
         let outcome = reconcile_application(&application, None, &oauth2_gateway(), &secrets).await;

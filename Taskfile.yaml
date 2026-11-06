@@ -12,17 +12,17 @@ includes:
   # and to their sha256: `task kit:sync` rewrites both. `task --offline`
   # runs from Task's cache.
   rust:
-    taskfile: https://raw.githubusercontent.com/weebo-si-operator/weebo-operator-kit/v0.25.1/tasks/rust.yaml
-    checksum: 75360142235715643265ae41de1f531dda6562a2472e8d9af21ad65f7d753d63
+    taskfile: https://raw.githubusercontent.com/weebo-si-operator/weebo-operator-kit/v0.28.1/tasks/rust.yaml
+    checksum: a44fdcef4f3675efb8b8727c590703adfe88cbcc8012d1a974cbf86c4af7a900
   repo:
-    taskfile: https://raw.githubusercontent.com/weebo-si-operator/weebo-operator-kit/v0.25.1/tasks/repo.yaml
-    checksum: 162d15bf9c41f494efcb6d73e089ac685d23bc98269a41daf62db26534f52f72
+    taskfile: https://raw.githubusercontent.com/weebo-si-operator/weebo-operator-kit/v0.28.1/tasks/repo.yaml
+    checksum: 9ea3cadd84ffd6a9fac6e8d8d328f186b55b2a28890292d9b173d1496e14908f
     vars:
       CONTAINERFILES: Containerfile Containerfile.static
       NPM_DIR: docs
   helm:
-    taskfile: https://raw.githubusercontent.com/weebo-si-operator/weebo-operator-kit/v0.25.1/tasks/helm.yaml
-    checksum: 8f42df9a351bfeea80dde2d94bfb809d1e8c32489c7c5c232fcf60175eb6e094
+    taskfile: https://raw.githubusercontent.com/weebo-si-operator/weebo-operator-kit/v0.28.1/tasks/helm.yaml
+    checksum: c380bc9422c6ccb8ee79be961095605baecd888db59659e603f69baa277c7b20
     vars:
       CHART: deploy/charts/weebo-authentik
 

@@ -222,6 +222,15 @@ spec:
                       - kubernetes
                       - vault
                       type: string
+                    mount:
+                      description: |-
+                        Vault only: a KV v2 mount other than the instance's own, one the
+                        instance lists in `additionalMounts`. Needs `path`, which only that
+                        mount's `pathGrants` can open: an additional mount has no
+                        per-namespace subtree. Unset (or the instance's mount): the
+                        instance's mount.
+                      nullable: true
+                      type: string
                     name:
                       description: |-
                         Kubernetes: the `Secret` name. Vault: names the default path

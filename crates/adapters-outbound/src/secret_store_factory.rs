@@ -79,6 +79,8 @@ async fn vault_for(
         mount: spec.mount.clone(),
         path_prefix: spec.path_prefix.clone(),
         path_grants: spec.path_grants.clone(),
+        // No additional KV mount on this operator's instances.
+        additional_mounts: Vec::new(),
         kubernetes_auth_role: spec.kubernetes_auth_role.clone(),
         kubernetes_auth_mount: spec.kubernetes_auth_mount.clone(),
         ca_source: spec

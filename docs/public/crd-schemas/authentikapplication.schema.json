@@ -191,6 +191,11 @@
             ],
             "type": "string"
           },
+          "mount": {
+            "description": "Vault only: a KV v2 mount other than the instance's own, one the\ninstance lists in `additionalMounts`. Needs `path`, which only that\nmount's `pathGrants` can open: an additional mount has no\nper-namespace subtree. Unset (or the instance's mount): the\ninstance's mount.",
+            "nullable": true,
+            "type": "string"
+          },
           "name": {
             "description": "Kubernetes: the `Secret` name. Vault: names the default path\n`<pathPrefix>/<namespace>/<name>` when `path` is unset.",
             "type": "string"

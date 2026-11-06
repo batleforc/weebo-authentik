@@ -66,6 +66,6 @@ path = "CHANGELOG.md"
 template = "remote"
 remote = "github.com"
 repository = "weebo-authentik"
-owner = "batleforc"
+owner = "weebo-si-operator"
 
 [bump_profiles]
